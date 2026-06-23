@@ -1,0 +1,10 @@
+.aider*
+**/target/
+/docs/tasks.md
+*.iml
+local
+.idea
+**/.classpath
+.classpath
+**/.settings
+**/.project
