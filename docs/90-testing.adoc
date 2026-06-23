@@ -1,0 +1,991 @@
+= Testing the SQL Connector Framework
+:toc: left
+:toclevels: 4
+:source-highlighter: codecolorizer
+
+== Overview
+
+This guide covers comprehensive testing approaches for the SQL connector framework, including unit tests with in-memory databases, integration tests with real databases, mocking strategies, and debugging techniques.
+
+[[unit-tests-with-h2]]
+== Unit Tests with In-Memory Database (H2)
+
+Unit tests use H2 in-memory database for fast, isolated testing without external dependencies.
+
+[source,groovy]
+----
+import org.testng.annotations.Test
+
+class SqlConnectorUnitTest {
+
+    @Test
+    void testSchemaAutoDiscovery() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        config.autoDiscoverSchema = true
+        
+        connector.initialize(config)
+        
+        def schema = connector.getSchema()
+        assert schema != null
+        assert schema.getObjectClass("User") != null
+    }
+    
+    @Test
+    void testCrudOperations() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        config.autoDiscoverSchema = true
+        
+        connector.initialize(config)
+        
+        // Create
+        def user = new ConnectorObject("User")
+        user.setUid(new Uid("user1"))
+        user.addAttribute("username", "testuser")
+        user.addAttribute("email", "test@example.com")
+        connector.create(user, null)
+        
+        // Read
+        def retrieved = connector.retrieve("User", new Uid("user1"), null)
+        assert retrieved != null
+        assert retrieved.getAttributeByName("username").getValue() == "testuser"
+        
+        // Update
+        retrieved.addAttribute("email", "updated@example.com")
+        connector.update(new Uid("user1"), 
+            Arrays.asList(
+                new AttributeBuilder().setName("email").setValues("updated@example.com").build()
+            ),
+            null
+        )
+        
+        // Delete
+        connector.delete(new Uid("user1"), null)
+        def deleted = connector.retrieve("User", new Uid("user1"), null)
+        assert deleted == null
+    }
+}
+----
+
+[[integration-tests]]
+== Integration Tests with Real Databases
+
+Integration tests verify connector behavior against actual database systems.
+
+[source,groovy]
+----
+import org.testng.annotations.Test
+import org.testng.annotations.AfterClass
+import org.testng.annotations.BeforeClass
+
+class SqlConnectorIntegrationTest {
+
+    private SqlConnector connector
+    private PostgresContainer<?> postgresContainer
+
+    @BeforeClass
+    void setup() {
+        postgresContainer = new PostgresContainer<>("postgres:15")
+            .withDatabaseName("testdb")
+            .withUsername("testuser")
+            .withPassword("testpass")
+        postgresContainer.start()
+        
+        connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = postgresContainer.getJdbcUrl()
+        config.username = postgresContainer.getUsername()
+        config.password = postgresContainer.getPassword()
+        config.autoDiscoverSchema = true
+        
+        connector.initialize(config)
+    }
+
+    @AfterClass
+    void tearDown() {
+        if (connector != null) {
+            try {
+                connector.close()
+            } catch (Exception e) {
+                // Ignore
+            }
+        }
+        if (postgresContainer != null) {
+            postgresContainer.stop()
+        }
+    }
+
+    @Test
+    void testFilterQueries() {
+        // Insert test data
+        def testData = [
+            [username: "alice", email: "alice@test.com", active: true],
+            [username: "bob", email: "bob@test.com", active: false],
+            [username: "charlie", email: "charlie@test.com", active: true]
+        ]
+        
+        testData.each { row ->
+            connector.executeVoid("INSERT INTO users (username, email, active) VALUES (?, ?, ?)",
+                row.username, row.email, row.active)
+        }
+        
+        // Test filter with equals
+        def filterEquals = new FilterBuilder().isEqualTo("username", "alice").build()
+        def results = connector.search("User", filterEquals, null)
+        assert results.size() == 1
+        assert results[0].getAttributeByName("username").getValue() == "alice"
+        
+        // Test filter with comparison
+        def filterGt = new FilterBuilder().isGreaterThan("id", 0L).build()
+        results = connector.search("User", filterGt, null)
+        assert results.size() == 3
+        
+        // Test filter with logical AND
+        def filterAnd = new FilterBuilder()
+            .and(
+                new FilterBuilder().isEqualTo("active", true).build(),
+                new FilterBuilder().isLike("username", "%al%").build()
+            ).build()
+        results = connector.search("User", filterAnd, null)
+        assert results.size() == 1
+    }
+
+    @Test
+    void testTransactionHandling() {
+        // Test rollback on error
+        connector.executeVoid("INSERT INTO users (username) VALUES (?)", "transaction_test")
+        
+        try {
+            connector.executeVoid("INSERT INTO users (username) VALUES (?)", "will_fail")
+            // Intentional error to test rollback
+            connector.executeVoid("INSERT INTO invalid_table VALUES (1)")
+        } catch (Exception e) {
+            // Expected
+        }
+        
+        // Verify transaction was rolled back
+        def count = connector.executeQuery("SELECT COUNT(*) FROM users WHERE username = ?",
+            "will_fail").executeLongQuery()
+        assert count == 0
+    }
+}
+----
+
+[[mocking-strategies]]
+== Mocking Strategies for External Dependencies
+
+Mock external services and dependencies to isolate connector logic.
+
+[source,groovy]
+----
+import org.mockito.Mockito
+import spock.lang.Specification
+import spock.lang.Shared
+
+class SqlConnectorMockingSpec extends Specification {
+
+    @Shared
+    def mockConnection = Mockito.mock(Connection)
+    
+    @Shared
+    def mockDataSource = Mockito.mock(DataSource)
+    
+    def setup() {
+        Mockito.when(mockDataSource.getConnection()).thenReturn(mockConnection)
+    }
+
+    def "test with mocked connection"() {
+        given:
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.dataSource = mockDataSource
+        config.autoDiscoverSchema = false
+        
+        when:
+        connector.initialize(config)
+        
+        then:
+        connector != null
+    }
+
+    def "test error handling with mocked dependencies"() {
+        given:
+        Mockito.when(mockConnection.prepareStatement(Mockito.anyString()))
+            .thenThrow(new SQLException("Connection failed"))
+        
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.dataSource = mockDataSource
+        
+        when:
+        connector.initialize(config)
+        
+        then:
+        def exception = thrown(ConfigurationException)
+        exception.message.contains("Connection")
+    }
+}
+----
+
+[[test-data-setup-teardown]]
+== Test Data Setup and Teardown
+
+Proper test data management ensures reliable and isolated tests.
+
+[source,groovy]
+----
+import org.testng.annotations.AfterMethod
+import org.testng.annotations.BeforeMethod
+
+class SqlConnectorDataTest {
+
+    private SqlConnector connector
+    
+    @BeforeMethod
+    void setupTestData() {
+        connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        
+        connector.initialize(config)
+        
+        // Create test tables
+        connector.executeVoid("""
+            CREATE TABLE IF NOT EXISTS users (
+                id IDENTITY PRIMARY KEY,
+                username VARCHAR(50) UNIQUE NOT NULL,
+                email VARCHAR(100),
+                active BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        connector.executeVoid("""
+            CREATE TABLE IF NOT EXISTS roles (
+                id IDENTITY PRIMARY KEY,
+                name VARCHAR(50) UNIQUE NOT NULL
+            )
+        """)
+        
+        connector.executeVoid("""
+            CREATE TABLE IF NOT EXISTS user_roles (
+                user_id INTEGER,
+                role_id INTEGER,
+                PRIMARY KEY (user_id, role_id),
+                FOREIGN KEY (user_id) REFERENCES users(id),
+                FOREIGN KEY (role_id) REFERENCES roles(id)
+            )
+        """)
+        
+        // Insert test data
+        connector.executeVoid("INSERT INTO users (username, email) VALUES (?, ?)", "user1", "user1@test.com")
+        connector.executeVoid("INSERT INTO users (username, email) VALUES (?, ?)", "user2", "user2@test.com")
+        connector.executeVoid("INSERT INTO roles (name) VALUES (?)", "admin")
+        connector.executeVoid("INSERT INTO roles (name) VALUES (?)", "user")
+    }
+
+    @AfterMethod
+    void teardownTestData() {
+        if (connector != null) {
+            try {
+                connector.close()
+            } catch (Exception e) {
+                // Ignore
+            }
+        }
+    }
+
+    @Test
+    void testWithPreparedData() {
+        def results = connector.search("User", null, null)
+        assert results.size() == 2
+    }
+}
+----
+
+[[testing-schema-auto-discovery]]
+== Testing Schema Auto-Discovery
+
+Verify connector correctly discovers database schema.
+
+[source,groovy]
+----
+import org.testng.annotations.Test
+
+class SqlConnectorSchemaTest {
+
+    @Test
+    void testAutoDiscoverSchema() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        config.autoDiscoverSchema = true
+        
+        connector.initialize(config)
+        
+        // Get schema
+        def schema = connector.getSchema()
+        assert schema != null
+        
+        // Verify object classes
+        def userClass = schema.getObjectClass("User")
+        assert userClass != null
+        assert userClass.getObjectClassName() == "User"
+        
+        // Verify attributes
+        def usernameAttr = userClass.getAttributeInfo("username")
+        assert usernameAttr != null
+        assert usernameAttr.isSingleValue()
+        assert usernameAttr.getType() == String.class
+        
+        def idAttr = userClass.getAttributeInfo("id")
+        assert idAttr != null
+        assert idAttr.isMultivalued() == false
+    }
+    
+    @Test
+    void testSchemaWithCustomMapping() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        config.autoDiscoverSchema = true
+        config.enableCustomMappings = true
+        
+        connector.initialize(config)
+        
+        def schema = connector.getSchema()
+        
+        // Verify custom mappings are applied
+        def userClass = schema.getObjectClass("User")
+        assert userClass != null
+        
+        // Check that mapped attributes exist
+        def uidAttr = userClass.getAttributeInfo(Uid.NAME)
+        assert uidAttr != null
+    }
+}
+----
+
+[[testing-crud-operations]]
+== Testing CRUD Operations
+
+Comprehensive CRUD operation testing.
+
+[source,groovy]
+----
+import org.testng.annotations.Test
+import org.testng.Assert
+
+class SqlConnectorCrudTest {
+
+    @Test
+    void testCreateOperation() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        
+        connector.initialize(config)
+        
+        // Create object
+        def user = new ConnectorObject("User")
+        user.addAttribute("username", "newuser")
+        user.addAttribute("email", "new@example.com")
+        
+        connector.create(user, null)
+        
+        // Verify creation
+        assert user.getUid() != null
+        assert user.getUid().getValue() != null
+    }
+
+    @Test
+    void testRetrieveOperation() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        
+        connector.initialize(config)
+        
+        // Insert test data
+        connector.executeVoid("INSERT INTO users (id, username) VALUES (?, ?)", 1L, "retrieveuser")
+        
+        // Retrieve by UID
+        def retrieved = connector.retrieve("User", new Uid("1"), null)
+        assert retrieved != null
+        assert retrieved.getAttributeByName("username").getValue() == "retrieveuser"
+        
+        // Retrieve with attributes
+        def retrievedWithAttrs = connector.retrieve("User", new Uid("1"), 
+            Arrays.asList(Uid.NAME, "username"), null)
+        assert retrievedWithAttrs != null
+        assert retrievedWithAttrs.getAttributeByName("email") == null
+    }
+
+    @Test
+    void testUpdateOperation() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        
+        connector.initialize(config)
+        
+        // Insert and retrieve
+        connector.executeVoid("INSERT INTO users (id, username, email) VALUES (?, ?, ?)", 
+            1L, "original", "original@example.com")
+        
+        def retrieved = connector.retrieve("User", new Uid("1"), null)
+        retrieved.addAttribute("email", "updated@example.com")
+        retrieved.addAttribute("username", "updated")
+        
+        connector.update(new Uid("1"), retrieved.getAttributes(), null)
+        
+        // Verify update
+        def updated = connector.retrieve("User", new Uid("1"), null)
+        assert updated.getAttributeByName("username").getValue() == "updated"
+        assert updated.getAttributeByName("email").getValue() == "updated@example.com"
+    }
+
+    @Test
+    void testDeleteOperation() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        
+        connector.initialize(config)
+        
+        // Insert test data
+        connector.executeVoid("INSERT INTO users (id, username) VALUES (?, ?)", 1L, "todelete")
+        
+        // Delete
+        connector.delete(new Uid("1"), null)
+        
+        // Verify deletion
+        def deleted = connector.retrieve("User", new Uid("1"), null)
+        assert deleted == null
+        
+        // Delete non-existent (should not throw)
+        connector.delete(new Uid("999"), null)
+    }
+
+    @Test
+    void testSearchWithFilter() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        
+        connector.initialize(config)
+        
+        // Insert test data
+        def testData = [
+            [id: 1L, username: "alice", active: true],
+            [id: 2L, username: "bob", active: false],
+            [id: 3L, username: "charlie", active: true]
+        ]
+        
+        testData.each { row ->
+            connector.executeVoid(
+                "INSERT INTO users (id, username, active) VALUES (?, ?, ?)",
+                row.id, row.username, row.active
+            )
+        }
+        
+        // Test IsEqual filter
+        def filter = new FilterBuilder().isEqualTo("username", "alice").build()
+        def results = connector.search("User", filter, null)
+        assert results.size() == 1
+        assert results[0].getAttributeByName("username").getValue() == "alice"
+        
+        // Test GreaterThan filter
+        def filterGt = new FilterBuilder().isGreaterThan("id", 1L).build()
+        results = connector.search("User", filterGt, null)
+        assert results.size() == 2
+        
+        // Test And filter
+        def filterAnd = new FilterBuilder()
+            .and(
+                new FilterBuilder().isEqualTo("active", true).build(),
+                new FilterBuilder().isLike("username", "%b%").build()
+            ).build()
+        results = connector.search("User", filterAnd, null)
+        assert results.size() == 1
+    }
+}
+----
+
+[[testing-filter-queries]]
+== Testing Filter Queries
+
+Comprehensive filter query testing.
+
+[source,groovy]
+----
+import org.testng.annotations.Test
+
+class SqlConnectorFilterTest {
+
+    @Test
+    void testIsEqualFilter() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        
+        connector.initialize(config)
+        
+        connector.executeVoid("INSERT INTO users (username, email) VALUES (?, ?)", "test", "test@example.com")
+        
+        def filter = new FilterBuilder().isEqualTo("username", "test").build()
+        def results = connector.search("User", filter, null)
+        
+        assert results.size() == 1
+    }
+    
+    @Test
+    void testLikeFilter() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        
+        connector.initialize(config)
+        
+        connector.executeVoid("INSERT INTO users (username) VALUES (?)", "testuser")
+        connector.executeVoid("INSERT INTO users (username) VALUES (?)", "admin")
+        connector.executeVoid("INSERT INTO users (username) VALUES (?)", "tester")
+        
+        def filter = new FilterBuilder().isLike("username", "test%").build()
+        def results = connector.search("User", filter, null)
+        
+        assert results.size() == 2
+    }
+    
+    @Test
+    void testLogicalFilters() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        
+        connector.initialize(config)
+        
+        def testData = [
+            [username: "alice", active: true, role: "admin"],
+            [username: "bob", active: false, role: "user"],
+            [username: "charlie", active: true, role: "user"]
+        ]
+        
+        testData.each { row ->
+            connector.executeVoid(
+                "INSERT INTO users (username, active, role) VALUES (?, ?, ?)",
+                row.username, row.active, row.role
+            )
+        }
+        
+        // AND filter
+        def andFilter = new FilterBuilder()
+            .and(
+                new FilterBuilder().isEqualTo("active", true).build(),
+                new FilterBuilder().isEqualTo("role", "admin").build()
+            ).build()
+        def results = connector.search("User", andFilter, null)
+        assert results.size() == 1
+        assert results[0].getAttributeByName("username").getValue() == "alice"
+        
+        // OR filter
+        def orFilter = new FilterBuilder()
+            .or(
+                new FilterBuilder().isEqualTo("role", "admin").build(),
+                new FilterBuilder().isEqualTo("role", "user").build()
+            ).build()
+        results = connector.search("User", orFilter, null)
+        assert results.size() == 3
+    }
+    
+    @Test
+    void testOrderByAndLimit() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        
+        connector.initialize(config)
+        
+        // Insert ordered data
+        for (int i = 1; i <= 10; i++) {
+            connector.executeVoid("INSERT INTO users (id, username) VALUES (?, ?)", i, "user$i")
+        }
+        
+        // Order by with limit
+        def results = connector.search("User", null, null)
+        results = results.sort { it.getUid().getValue() as Long }
+        results = results.take(5)
+        
+        assert results.size() == 5
+        assert results[0].getUid().getValue() == "1"
+        assert results[4].getUid().getValue() == "5"
+    }
+}
+----
+
+[[testing-transaction-handling]]
+== Testing Transaction Handling
+
+Transaction integrity testing.
+
+[source,groovy]
+----
+import org.testng.annotations.Test
+import java.sql.Connection
+
+class SqlConnectorTransactionTest {
+
+    @Test
+    void testAutoCommitEnabled() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        config.autoCommit = true
+        
+        connector.initialize(config)
+        
+        def conn = connector.getConnection()
+        assert conn.getAutoCommit() == true
+        
+        conn.close()
+    }
+
+    @Test
+    void testAutoCommitDisabled() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        config.autoCommit = false
+        
+        connector.initialize(config)
+        
+        def conn = connector.getConnection()
+        assert conn.getAutoCommit() == false
+        
+        conn.close()
+    }
+
+    @Test
+    void testRollbackOnException() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        config.autoCommit = false
+        
+        connector.initialize(config)
+        
+        // Insert initial data
+        connector.executeVoid("INSERT INTO users (id, username) VALUES (?, ?)", 1, "initial")
+        
+        def conn = connector.getConnection()
+        
+        try {
+            conn.setAutoCommit(false)
+            
+            // Partial operations
+            connector.executeVoid(conn, "INSERT INTO users (id, username) VALUES (?, ?)", 2, "test1")
+            connector.executeVoid(conn, "INSERT INTO users (id, username) VALUES (?, ?)", 3, "test2")
+            
+            // Force exception with invalid table
+            try {
+                connector.executeVoid(conn, "INSERT INTO nonexistent (id) VALUES (1)")
+            } catch (Exception e) {
+                // Expected
+            }
+            
+            conn.rollback()
+        } finally {
+            if (conn != null && !conn.getAutoCommit()) {
+                conn.setAutoCommit(true)
+            }
+            conn.close()
+        }
+        
+        // Verify rollback - only initial data should exist
+        def results = connector.executeQuery("SELECT COUNT(*) FROM users").executeLongQuery()
+        assert results == 1
+    }
+
+    @Test
+    void testExplicitCommit() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        config.autoCommit = false
+        
+        connector.initialize(config)
+        
+        def conn = connector.getConnection()
+        
+        try {
+            conn.setAutoCommit(false)
+            
+            connector.executeVoid(conn, "INSERT INTO users (id, username) VALUES (?, ?)", 1, "committed")
+            
+            conn.commit()
+        } finally {
+            conn.close()
+        }
+        
+        // Verify data was committed
+        def results = connector.executeQuery("SELECT COUNT(*) FROM users WHERE username = ?",
+            "committed").executeLongQuery()
+        assert results == 1
+    }
+}
+----
+
+[[testing-error-conditions]]
+== Testing Error Conditions
+
+Comprehensive error handling testing.
+
+[source,groovy]
+----
+import org.testng.annotations.Test
+import org.testng.Assert
+
+class SqlConnectorErrorTest {
+
+    @Test
+    void testInvalidCredentials() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "invaliduser"
+        config.password = "invalidpass"
+        
+        try {
+            connector.initialize(config)
+            Assert.fail("Should have thrown exception")
+        } catch (ConfigurationException e) {
+            assert e.message.contains("Connection") || e.message.contains("Credentials")
+        }
+    }
+
+    @Test
+    void testInvalidJdbcUrl() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:invalid://localhost:5432/test"
+        config.username = "sa"
+        config.password = ""
+        
+        try {
+            connector.initialize(config)
+            Assert.fail("Should have thrown exception")
+        } catch (ConfigurationException e) {
+            assert e.message.contains("URL") || e.message.contains("Driver")
+        }
+    }
+
+    @Test
+    void testInvalidTable() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        
+        connector.initialize(config)
+        
+        try {
+            connector.executeQuery("SELECT * FROM nonexistent_table").executeListQuery()
+            Assert.fail("Should have thrown exception")
+        } catch (Exception e) {
+            assert e.message.contains("not found") || e.message.contains("Table")
+        }
+    }
+
+    @Test
+    void testNullUidOnCreate() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        
+        connector.initialize(config)
+        
+        def user = new ConnectorObject("User")
+        user.addAttribute("username", "testuser")
+        
+        try {
+            connector.create(user, null)
+            // If connector doesn't require UID, this might succeed
+        } catch (Exception e) {
+            // Expected in some cases
+        }
+    }
+
+    @Test
+    void testDuplicateKeyViolation() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        
+        connector.initialize(config)
+        
+        connector.executeVoid("INSERT INTO users (id, username) VALUES (?, ?)", 1, "unique")
+        
+        try {
+            connector.executeVoid("INSERT INTO users (id, username) VALUES (?, ?)", 1, "duplicate")
+            Assert.fail("Should have thrown exception")
+        } catch (Exception e) {
+            assert e.message.contains("duplicate") || e.message.contains("PRIMARY KEY")
+        }
+    }
+
+    @Test
+    void testConnectionTimeout() {
+        def connector = new SqlConnector()
+        def config = new SqlConnectorConfiguration()
+        config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+        config.username = "sa"
+        config.password = ""
+        config.connectionTimeout = 5000
+        config.socketTimeout = 30000
+        
+        connector.initialize(config)
+        
+        def conn = connector.getConnection()
+        
+        try {
+            assert conn != null
+            assert conn.isValid(5000)
+        } finally {
+            conn.close()
+        }
+    }
+}
+----
+
+[[debugging-tips]]
+== Debugging Tips
+
+=== Enabling SQL Logging
+
+Configure logging to debug query execution:
+
+[source,groovy]
+----
+def config = new SqlConnectorConfiguration()
+config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+config.username = "sa"
+config.password = ""
+config.logSql = true
+config.logLevel = "DEBUG"
+----
+
+Or use SLF4J directly:
+
+[source,groovy]
+----
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
+
+Logger logger = LoggerFactory.getLogger(SqlConnector)
+logger.debug("Executing query: {}", sql)
+----
+
+=== Understanding Query Execution Order
+
+1. Configuration validation and property parsing
+2. Connection pool initialization
+3. Schema auto-discovery (if enabled)
+4. Object class mapping
+5. Attribute mapping
+6. Query generation from filters
+7. Parameter binding
+8. Query execution
+9. Result mapping
+10. Resource cleanup
+
+=== Interpreting Test Failures
+
+Common failure patterns:
+
+* **Connection refused**: Check JDBC URL, credentials, network
+* **Table not found**: Verify table exists or auto-discover is enabled
+* **Column not found**: Check attribute名称 matches column names
+* **Duplicate key**: Ensure unique identifiers or disable auto-increment conflict
+* **Timeout**: Increase timeout values or optimize queries
+
+=== Common Issues and Solutions
+
+Issue: "Table USERS not found"
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Solution: Enable `autoDiscoverSchema = true` or manually create tables before tests.
+
+Issue: "Column username not found"
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Solution: Verify column name matches in database schema or use attribute mapping.
+
+Issue: "Connection pool exhausted"
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Solution: Increase pool size or ensure connections are properly closed in finally blocks.
+
+Issue: "Transaction rollback"
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Solution: Check for exception handlers that may be triggering rollback, verify autoCommit settings.
+
+Issue: "Query timeout exceeded"
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Solution: Increase `socketTimeout` configuration or optimize slow queries.
+
+== Summary
+
+This document comprehensively covers testing the SQL connector framework with:
+
+- **Unit testing** using H2 in-memory database for fast, isolated tests
+- **Integration testing** with PostgreSQL via Testcontainers
+- **Mocking strategies** for external dependencies with Mockito
+- **Test data management** with proper setup and teardown
+- **CRUD operation testing** covering all basic operations
+- **Filter query testing** with various filter types
+- **Transaction handling** testing auto-commit, rollback, and commit
+- **Error condition testing** for common failure scenarios
+- **Debugging tips** for SQL logging and failure interpretation
+
+Using these patterns ensures robust testing coverage and reliable connector behavior across different environments.

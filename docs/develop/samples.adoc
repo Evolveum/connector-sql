@@ -1,0 +1,384 @@
+= Sample connector implementations
+:page-nav-title: Samples
+:page-display-order: 1600
+:page-upkeep-status: orange
+:page-toc: top
+
+== Overview
+
+This section provides complete connector implementations as reference.
+
+== H2 in-memory sample
+
+Simple sample using H2 in-memory database for testing.
+
+=== Schema
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("username") {
+        sql { type VARCHAR(50); nullable false }
+        creatable true
+        updatable true
+    }
+    
+    attribute("email") {
+        sql { type VARCHAR(255); nullable false }
+        creatable true
+        updatable true
+    }
+    
+    attribute("is_active") {
+        sql { type BOOLEAN; defaultValue "true" }
+        creatable true
+        updatable true
+    }
+    
+    attribute("created_at") {
+        sql { type TIMESTAMP; defaultValue "CURRENT_TIMESTAMP" }
+        creatable false
+        updatable false
+    }
+}
+----
+
+=== Test data setup
+
+[source,groovy]
+----
+// Initialize
+def config = new SqlConnectorConfiguration()
+config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+config.username = "sa"
+config.password = ""
+config.autoDiscoverSchema = true
+
+def connector = new SqlConnector()
+connector.initialize(config)
+
+// Create table
+connector.executeVoid("""
+    CREATE TABLE IF NOT EXISTS users (
+        id IDENTITY PRIMARY KEY,
+        username VARCHAR(50) UNIQUE NOT NULL,
+        email VARCHAR(255) NOT NULL,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+""")
+----
+
+=== CRUD operations
+
+[source,groovy]
+----
+// Create
+def user = new ConnectorObject("User")
+user.addAttribute("username", "john")
+user.addAttribute("email", "john@example.com")
+connector.create(user, null)
+
+// Read
+def retrieved = connector.retrieve("User", user.uid, null)
+assert retrieved.getAttributeByName("username").value == "john"
+
+// Update
+retrieved.addAttribute("email", "john.doe@example.com")
+connector.update(user.uid, retrieved.attributes, null)
+
+// Search
+def filter = new FilterBuilder().isEqualTo("is_active", true).build()
+def results = connector.search("User", filter, null)
+assert results.size() == 1
+
+// Delete
+connector.delete(user.uid, null)
+----
+
+== PostgreSQL sample
+
+Sample with PostgreSQL-specific features.
+
+=== Schema with PostgreSQL types
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        sql { type BIGINT; primaryKey true }
+    }
+    
+    attribute("username") {
+        sql { type VARCHAR(50); nullable false }
+        creatable true
+        updatable true
+    }
+    
+    attribute("email") {
+        sql { type VARCHAR(255); nullable false }
+        creatable true
+        updatable true
+    }
+    
+    attribute("metadata") {
+        sql { type JSONB }
+        creatable true
+        updatable true
+    }
+    
+    attribute("created_at") {
+        sql { type TIMESTAMP WITH TIME ZONE; defaultValue "CURRENT_TIMESTAMP" }
+        creatable false
+        updatable false
+    }
+}
+
+// Create index
+connector.executeVoid("CREATE INDEX IF NOT EXISTS idx_users_email ON users(email)")
+connector.executeVoid("CREATE INDEX IF NOT EXISTS idx_users_username ON users(username)")
+----
+
+=== Custom search with full-text
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    search {
+        handler { filter ->
+            def sql = """
+                SELECT id, username, email, created_at
+                FROM users
+                WHERE to_tsvector('english', username || ' ' || email) @@ to_tsquery(?)
+            """
+            return executeQuery(sql, [filter])
+        }
+    }
+}
+----
+
+== MySQL sample
+
+MySQL-specific configuration.
+
+=== Schema with MySQL features
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        sql { type BIGINT; primaryKey true }
+    }
+    
+    attribute("username") {
+        sql { type VARCHAR(50); nullable false }
+        creatable true
+        updatable true
+    }
+    
+    attribute("bio") {
+        sql { type TEXT }
+        creatable true
+        updatable true
+    }
+}
+
+// Enable auto-increment
+connector.executeVoid("ALTER TABLE users MODIFY id BIGINT AUTO_INCREMENT")
+----
+
+== Oracle sample
+
+Oracle-specific configuration with sequences.
+
+=== Schema with Oracle features
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        sql { type NUMBER; primaryKey true }
+    }
+    
+    attribute("username") {
+        sql { type VARCHAR2(50); nullable false }
+        creatable true
+        updatable true
+    }
+    
+    attribute("email") {
+        sql { type VARCHAR2(255); nullable false }
+        creatable true
+        updatable true
+    }
+}
+
+// Create sequence
+connector.executeVoid("CREATE SEQUENCE users_seq START WITH 1 INCREMENT BY 1")
+----
+
+=== Custom create with sequence
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    create {
+        handler { attributes ->
+            def sql = """
+                INSERT INTO users (id, username, email) 
+                VALUES (users_seq.NEXTVAL, ?, ?)
+                RETURNING id INTO ?
+            """
+            def result = executeInsert(sql, [
+                attributes.username,
+                attributes.email
+            ])
+            return result[0]
+        }
+    }
+}
+----
+
+== SQLite sample
+
+Embedded database for testing.
+
+=== Schema
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("username") {
+        sql { type TEXT; nullable false }
+        creatable true
+        updatable true
+    }
+    
+    attribute("email") {
+        sql { type TEXT; nullable false }
+        creatable true
+        updatable true
+    }
+}
+----
+
+=== Test with in-memory
+
+[source,groovy]
+----
+def config = new SqlConnectorConfiguration()
+config.jdbcUrl = "jdbc:sqlite:memory:"
+config.autoDiscoverSchema = true
+
+def connector = new SqlConnector()
+connector.initialize(config)
+
+connector.executeVoid("""
+    CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY,
+        username TEXT NOT NULL,
+        email TEXT NOT NULL
+    )
+""")
+----
+
+== Project structure
+
+. connector-sample/
+.. pom.xml
+.. src/
+... main/
+.... groovy/
+..... schema.groovy (schema and operations)
+..... search.groovy (custom search)
+..... create.groovy (custom create)
+..... update.groovy (custom update)
+..... delete.groovy (custom delete)
+.... resources/
+..... META-INF/
+....... connector.xml
+... test/
+.... groovy/
+..... SampleConnectorTest.groovy
+..... SampleFilterTest.groovy
+
+== Testing
+
+=== Unit tests with H2
+
+[source,groovy]
+----
+@Test
+void testCreateOperation() {
+    def connector = new SqlConnector()
+    def config = new SqlConnectorConfiguration()
+    config.jdbcUrl = "jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1"
+    config.username = "sa"
+    config.password = ""
+    config.autoDiscoverSchema = true
+    
+    connector.initialize(config)
+    
+    def user = new ConnectorObject("User")
+    user.addAttribute("username", "testuser")
+    user.addAttribute("email", "test@example.com")
+    
+    connector.create(user, null)
+    
+    assert user.getUid() != null
+    assert user.getUid().value != null
+}
+----
+
+=== Integration tests with Testcontainers
+
+[source,groovy]
+----
+@BeforeClass
+void setup() {
+    postgresContainer = new PostgresContainer<>("postgres:15")
+        .withDatabaseName("testdb")
+        .withUsername("testuser")
+        .withPassword("testpass")
+    postgresContainer.start()
+    
+    connector = new SqlConnector()
+    def config = new SqlConnectorConfiguration()
+    config.jdbcUrl = postgresContainer.jdbcUrl
+    config.username = postgresContainer.username
+    config.password = postgresContainer.password
+    config.autoDiscoverSchema = true
+    
+    connector.initialize(config)
+}
+----
+
+== Best practices
+
+1. **Start with defaults** - Use auto-generated handlers first
+2. **Custom only when needed** - Keep custom logic minimal
+3. **Test with multiple databases** - Verify cross-database compatibility
+4. **Document schema** - Add descriptions to attributes
+5. **Use transactions** - For multi-table operations

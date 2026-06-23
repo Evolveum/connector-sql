@@ -1,0 +1,71 @@
+= Introduction to SQL connector framework
+:page-nav-title: SQL connector framework
+:page-display-order: 1000
+:page-upkeep-status: green
+:page-toc: top
+
+The SQL Connector Framework is a ConnId connector framework designed to provide a flexible and extensible base for SQL-based connectors, implementing common reusable functionality for JDBC connections and database operations, reducing the amount of code needed to write to implement connectors.
+
+IMPORTANT: Connector Framework is still under development, so not all listed functionality is fully implemented yet, and some concepts may change during development.
+
+== What the SQL connector framework is
+
+The SQL Connector Framework in midPoint is a *low-code scaffolding layer* that lets you build SQL-based connectors (for PostgreSQL, MySQL, Oracle, SQLite, etc.) without writing a full Java connector from scratch.
+It sits above the generic ConnID infrastructure and below the concrete SQL connector implementation.
+
+[cols="1,~", options="header"]
+|===
+|Goal |How the framework achieves it
+|Rapid connector creation |You supply a declarative description (database connection details, table mappings, attribute mappings).
+The framework generates the necessary ConnID-compatible connector code automatically.
+|Standardised database handling |All SQL-specific details—JDBC connections, table operations, SQL dialect abstraction, pagination, error handling—are implemented once in the framework and reused by every connector built on top of it.
+|Uniform ConnID contract |The generated connector conforms to the ConnID SPI, so midPoint treats it exactly like any other ConnID connector (calls create, update, delete, read, search, etc.).
+This keeps the provisioning engine unchanged regardless of whether the underlying target is a classic LDAP connector or a SQL connector.
+|Auto-discovery of schema |The framework discovers database schema (tables, columns, constraints) automatically from the database metadata, reducing manual configuration.
+|SQL dialect abstraction |Supports multiple SQL dialects (PostgreSQL, MySQL, Oracle, SQLite) with automatic SQL generation tailored to the specific database type.
+|Configuration‑driven extensibility |New database connections can be added simply by configuring connection parameters and table mappings.
+Custom behavior can be added via Groovy scripts when needed.
+|===
+
+A SQL connector in midPoint acts as a translation layer between midPoint's internal identity model and database tables.
+When midPoint initiates a provisioning operation (create, update, delete, read, or search), the connector:
+
+[arabic]
+. *Maps* the internal midPoint object model to database table rows (INSERT/UPDATE operations).
+. *Constructs* the appropriate SQL statements (SELECT, INSERT, UPDATE, DELETE) using the database-specific SQL dialect.
+. *Executes* the SQL via JDBC connection, handling connection pooling, transactions, and error handling.
+. *Processes* the results, converting database rows back into midPoint's internal format and propagating status or error information to the provisioning workflow.
+
+The framework handles schema discovery, SQL generation, and dialect-specific considerations, so you only need to configure table and column mappings.
+
+== ConnId vs. SQL Connector Framework
+
+=== ConnId
+
+* *Purpose* – A generic provisioning framework that abstracts various target systems (LDAP, databases, cloud services, etc.) behind a unified connector API.
+* *Implementation* – Uses the ConnId library (formerly "`midPoint Connector Framework`"). Each target system is accessed via a specific _connector_ that implements the ConnId SPI (Service Provider Interface).
+* *Operation model* – Midpoint invokes the connector's CRUD‑style methods (create, read, update, delete, search, test) and receives objects in the *ConnectorObject* format. The connector handles the translation between Midpoint's internal `+Object+` model and the target system's native schema.
+* *Typical use‑cases* – LDAP directories, SQL databases, Microsoft AD, Azure AD, Google Workspace, etc., where a ready‑made ConnId connector exists or a custom one can be written.
+
+=== SQL Connector Framework
+
+* *Purpose* – A specialized framework for SQL-based provisioning using JDBC connections to databases.
+* *Implementation* – Based on the ConnId framework but adds SQL-specific abstractions: JDBC connection pooling, SQL dialect handling, schema auto-discovery, table/column mapping.
+* *Operation model* – Objects are represented as database rows in configured tables. MidPoint maps its internal attributes to database columns using declarative configuration.
+* *Typical use‑cases* – Provisioning to/from SQL databases (PostgreSQL, MySQL, Oracle, SQLite) where you need fine-grained control over table structures, custom SQL queries, or integration with existing database schemas.
+
+=== Key Differences at a glance
+
+[cols="1,3,3",options="header",]
+|===
+|Aspect |ConnID |SQL Connector Framework
+|Abstraction layer |Generic connector framework; each target needs a specific ConnId connector. |SQL-specific framework built on ConnId with JDBC, SQL dialects, and schema discovery.
+|Protocol |Varies per connector (LDAP, JDBC, SOAP, proprietary APIs, etc.). |JDBC with SQL queries; framework generates SQL based on dialect.
+|Connector development |Write a Java class implementing ConnId SPI; reuse existing community connectors. |Configure connection and table mappings; add Groovy scripts for custom logic.
+|Schema handling |Connector translates between Midpoint's internal schema and target's native schema. |Auto-discovery of database schema + declarative table/column mapping.
+|Extensibility |High – you can create connectors for virtually any system. |High – SQL is expressive, custom queries and stored procedures supported.
+|Performance considerations |Depends on underlying protocol. |Connection pooling, batch operations, SQL optimization via configuration.
+|===
+
+In practice, use the generic ConnId framework when you have a specific system with a custom protocol or when existing ConnId connectors suffice.
+Use the SQL Connector Framework when your target is a SQL database and you want auto-discovery of schema, SQL dialect abstraction, and reduced configuration overhead.

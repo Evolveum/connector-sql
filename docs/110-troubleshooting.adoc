@@ -1,0 +1,956 @@
+= SQL Declarative Connector Framework :: Troubleshooting Guide
+
+== Introduction
+
+This guide provides comprehensive troubleshooting procedures, debugging techniques, and best practices for the SQL Declarative Connector Framework. Use this guide to diagnose and resolve common issues when deploying and operating SQL connectors.
+
+[[section-connection-issues]]
+== Connection Issues
+
+=== Timeout Errors
+
+**Symptoms**: Connection establishment fails with timeout messages.
+
+**Common causes**:
+- Network latency or firewall restrictions
+- Database server overload
+- Incorrect host/port configuration
+- Connection pool exhaustion
+
+**Solutions**:
+```groovy
+connector {
+    jdbcUrl = "jdbc:postgresql://db-host:5432/database"
+    connectionTimeout = 60000  // Increase from default 30s
+    poolSize = 20            // Increase pool size
+}
+```
+
+**Debugging**:
+1. Test connectivity with `telnet <host> <port>`
+2. Check database server logs for connection spikes
+3. Verify network firewall rules
+4. Monitor connection pool metrics
+
+=== Authentication Failures
+
+**Symptoms**: `InvalidCredentialException`, login failures.
+
+**Common causes**:
+- Incorrect username/password
+- Database user permissions
+- Authentication method mismatch (password vs. kerberos)
+- Connection string missing authentication parameters
+
+**Solutions**:
+```groovy
+connector {
+    username = "connector_user"
+    password = "${CONFIG_DB_PASSWORD}"  // Use environment variable
+}
+```
+
+**Debugging**:
+1. Test credentials with database CLI: `psql -U user -d db`
+2. Verify user has required permissions (SELECT, INSERT, UPDATE, DELETE)
+3. Check database authentication configuration (pg_hba.conf, MySQL grant tables)
+4. For LDAP/Kerberos, verify SPN and keytab configuration
+
+=== Network Connectivity Issues
+
+**Symptoms**: `ConnectionFailedException` with socket errors.
+
+**Solutions**:
+- Verify database is accessible from connector host
+- Check DNS resolution: `nslookup database-host`
+- Test port connectivity: `nc -zv database-host 5432`
+- Verify SSL/TLS configuration matches database requirements
+
+[[section-sql-generation-errors]]
+== SQL Generation Errors
+
+=== Dialect Mismatch Errors
+
+**Symptoms**:
+- Error message: "Dialect not detected" or "Unknown SQL dialect"
+- Queries fail with syntax errors specific to wrong dialect
+
+**Common causes**:
+- Automatic dialect detection fails with non-standard JDBC URLs
+- Explicit dialect doesn't match actual database
+- Custom JDBC URL format not recognized
+
+**Solutions**:
+```groovy
+connector {
+    dialect = "postgresql"  // Explicitly specify: postgresql, mysql, oracle, sqlite
+    // or use auto for automatic detection
+}
+```
+
+**Supported dialects**:
+- `postgresql` / `postgres` - PostgreSQL
+- `mysql` / `mariadb` - MySQL/MariaDB
+- `oracle` - Oracle Database
+- `sqlite` - SQLite
+- `auto` - Automatic detection from JDBC URL
+- *(default)* - Standard SQL (fallback)
+
+=== SQL Syntax Errors
+
+**Symptoms**: Error message contains SQL text with syntax errors.
+
+**Common causes**:
+- Dialect-specific SQL not supported by target database
+- Reserved word usage without quoting
+- Incorrect parameter placeholder syntax
+
+**Solutions**:
+1. Verify dialect matches database type
+2. Check for reserved words in table/column names
+3. Use backticks/brackets for reserved words
+
+```groovy
+// Example: Using reserved words as column names
+objectClass("User") {
+    attribute("order") {
+        sqlColumn("order")  // May need quoting in some dialects
+    }
+}
+```
+
+**Debugging**:
+- Enable SQL logging to see generated queries
+- Test queries directly in database CLI
+
+[[section-type-mapping-issues]]
+== Type Mapping Issues
+
+=== SQL to ConnId Type Conversion
+
+**Symptoms**:
+- Error: "Type conversion failed"
+- Wrong data types in connector responses
+- Null values causing exceptions
+
+**Common SQL to ConnId type mappings**:
+
+| SQL Type | ConnId Type | Notes |
+|----------|-------------|-------|
+| VARCHAR, CHAR | String | Maximum length enforced |
+| INTEGER, INT | Integer | 32-bit integers |
+| BIGINT | Long | 64-bit integers |
+| DECIMAL, NUMERIC | BigDecimal | Precision maintained |
+| FLOAT, REAL | Double | Floating point |
+| BOOLEAN, BOOL | Boolean | True/false values |
+| DATE | Date | Date only |
+| TIME | Time | Time only |
+| TIMESTAMP | Date | Date and time |
+| BLOB, BYTEA | byte[] | Binary data |
+| CLOB, TEXT | String | Large text |
+
+**Solutions**:
+```groovy
+// Explicit type mapping
+objectClass("User") {
+    attribute("age") {
+        type = Integer  // Force integer type
+    }
+    attribute("salary") {
+        type = BigDecimal  // Preserve decimal precision
+    }
+}
+```
+
+**Debugging**:
+1. Enable SQL logging to see actual values
+2. Check database schema for correct types
+3. Verify JDBC driver supports the types
+
+=== Missing Type Handler
+
+**Symptoms**: Unsupported SQL type error.
+
+**Solutions**:
+- Configure column mapping in schema definition
+- Use SQL CAST in queries to convert types
+- Update to newer JDBC driver with better type support
+
+[[section-performance-issues]]
+== Performance Issues
+
+=== Slow Queries
+
+**Symptoms**: Operations take longer than expected.
+
+**Common causes**:
+- Missing database indexes
+- N+1 query problem
+- Unoptimized SQL generated by connector
+- Large result sets without pagination
+
+**Solutions**:
+
+1. **Add database indexes**:
+```sql
+-- Example: Index for search queries
+CREATE INDEX idx_user_email ON users(email);
+CREATE INDEX idx_user_status ON users(status);
+```
+
+2. **Configure result set limits**:
+```groovy
+connector {
+    defaultMaxResults = 1000
+}
+```
+
+3. **Use pagination for bulk operations**:
+```groovy
+def results = connector.search(objectClass, attrs, 0, 100)  // Page size 100
+```
+
+=== N+1 Select Problem
+
+**Symptoms**: Many individual SELECT queries executed instead of one JOIN query.
+
+**Root cause**: Relationship queries executing separately for each row.
+
+**Solutions**:
+```groovy
+// Use eager loading for relationships
+objectClass("User") {
+    relationship("groups") {
+        eager = true  // Load all at once
+        query = "SELECT * FROM user_groups WHERE user_id = ?"
+    }
+}
+```
+
+**Alternative**: Use SQL JOIN in custom queries:
+```groovy
+def query = """
+    SELECT u.*, g.* 
+    FROM users u 
+    LEFT JOIN groups g ON u.group_id = g.id
+    WHERE u.status = ?
+"""
+connector.executeQuery(query, [active])
+```
+
+=== Connection Pool Exhaustion
+
+**Symptoms**: 
+- Error: "Connection pool exhausted"
+- Operations timeout waiting for connection
+
+**Configuration**:
+```groovy
+connector {
+    poolSize = 20              // Increase pool size
+    connectionTimeout = 60000  // Wait longer for connection
+    idleTimeout = 600000       // 10 minutes
+    maxLifetime = 1800000      // 30 minutes
+}
+```
+
+**Monitoring**:
+```groovy
+// In connector code
+def poolStats = context.getPoolStatistics()
+println "Active: ${poolStats.active}, Idle: ${poolStats.idle}, Waiting: ${poolStats.waiting}"
+```
+
+=== Memory Issues
+
+**Symptoms**: OutOfMemoryError during bulk operations.
+
+**Solutions**:
+1. Process records in batches:
+```groovy
+def batch = []
+def batchSize = 100
+results.each { record ->
+    batch.add(record)
+    if (batch.size() >= batchSize) {
+        processBatch(batch)
+        batch.clear()
+    }
+}
+```
+
+2. Use streaming for large result sets
+3. Configure JVM heap size appropriately
+
+[[section-schema-discovery-issues]]
+== Schema Discovery Issues
+
+=== Table Not Found
+
+**Symptoms**: Error "Table not found" or "Relation does not exist".
+
+**Common causes**:
+- Schema not properly discovered
+- Table exists but in different schema
+- Case sensitivity issues
+- Missing database permissions
+
+**Solutions**:
+
+1. **Disable auto-discovery and define manually**:
+```groovy
+connector {
+    autoDiscoverSchema = false
+}
+
+// Manual schema definition
+sqlLoader {
+    table("users") {
+        schema = "public"
+        column("id", type: Integer, primaryKey: true)
+        column("email", type: String)
+    }
+}
+```
+
+2. **Specify schema explicitly**:
+```groovy
+objectClass("User") {
+    table = "public.users"  // Include schema name
+}
+```
+
+3. **Check permissions**:
+```sql
+-- PostgreSQL
+GRANT SELECT ON ALL TABLES IN SCHEMA public TO connector_user;
+```
+
+=== Column Not Found
+
+**Symptoms**: Error "Column not found" or invalid column reference.
+
+**Solutions**:
+
+1. **Verify column names match exactly** (case-sensitive):
+```groovy
+objectClass("User") {
+    attribute("userId") {
+        sqlColumn("user_id")  // Match database column name
+    }
+}
+```
+
+2. **Check for typos in column definitions**
+3. **Verify column exists in database**:
+```sql
+SELECT column_name FROM information_schema.columns 
+WHERE table_name = 'users';
+```
+
+=== Schema Discovery Fails
+
+**Symptoms**: Discovery completes but misses tables/columns.
+
+**Debugging**:
+```groovy
+connector {
+    logSqlStatements = true  // Enable diagnostic logging
+}
+
+// Check discovery result
+def schema = context.schema()
+println "Discovered tables: ${schema.tables.size()}"
+schema.tables.each { table ->
+    println "  ${table.name}: ${table.columns.size()} columns"
+}
+```
+
+**Solutions**:
+1. **Verify database user has metadata read permissions**
+2. **Check JDBC URL includes correct database name**
+3. **For PostgreSQL, verify search_path includes target schema**
+
+[[section-transaction-issues]]
+== Transaction Issues
+
+=== Isolation Level Problems
+
+**Symptoms**: 
+- Dirty reads
+- Non-repeatable reads
+- Phantom reads
+
+**Solutions**:
+```groovy
+// Set isolation level
+context.connection.setAutoCommit(false)
+context.connection.isolationLevel = "READ_COMMITTED"  // or READ_UNCOMMITTED, REPEATABLE_READ, SERIALIZABLE
+```
+
+=== Rollback Failures
+
+**Symptoms**: Changes not rolled back on error.
+
+**Correct transaction handling**:
+```groovy
+try {
+    context.connection.setAutoCommit(false)
+    
+    // Operations
+    connector.create(objectClass, attributes)
+    connector.update(objectClass, attributes)
+    
+    context.connection.commit()
+} catch (Exception e) {
+    context.connection.rollback()
+    throw e
+} finally {
+    context.connection.setAutoCommit(true)
+}
+```
+
+[[section-debugging-techniques]]
+== Debugging Techniques
+
+=== Enabling SQL Logging
+
+**Configuration**:
+```groovy
+connector {
+    logSqlStatements = true
+}
+```
+
+**Log4j configuration**:
+```xml
+<logger name="com.evolveum.polygon.multitable.sql" level="DEBUG"/>
+```
+
+**Expected log output**:
+```
+DEBUG - Executing SQL: SELECT * FROM users WHERE email = ?
+DEBUG - Parameters: [john@example.com]
+DEBUG - Query executed in 45ms, 1 rows returned
+```
+
+=== Understanding Query Execution Plan
+
+**PostgreSQL**:
+```sql
+EXPLAIN ANALYZE SELECT * FROM users WHERE email = 'john@example.com';
+```
+
+**MySQL**:
+```sql
+EXPLAIN FORMAT=JSON SELECT * FROM users WHERE email = 'john@example.com';
+```
+
+**Oracle**:
+```sql
+EXPLAIN PLAN FOR SELECT * FROM users WHERE email = 'john@example.com';
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+```
+
+**Interpret execution plan**:
+- **Seq Scan**: Full table scan (add index)
+- **Index Scan**: Using index efficiently
+- **Hash Join**: Good for large joins
+- **Nested Loop**: Good for small result sets
+
+=== Using Database Profiling Tools
+
+**PostgreSQL**:
+- `pg_stat_activity` - Active queries
+- `pg_stat_statements` - Query performance stats
+- `EXPLAIN ANALYZE` - Query execution details
+
+```sql
+-- Monitor slow queries
+SELECT * FROM pg_stat_activity WHERE state = 'active' AND query_start < now() - interval '5 seconds';
+
+-- Top queries by execution time
+SELECT query, calls, total_time, mean_time 
+FROM pg_stat_statements 
+ORDER BY mean_time DESC LIMIT 10;
+```
+
+**MySQL**:
+- `SHOW PROCESSLIST` - Active connections
+- `EXPLAIN` - Query plan
+- Performance Schema
+
+```sql
+SHOW FULL PROCESSLIST;
+SHOW PROFILE FOR QUERY N;
+```
+
+**General profiling**:
+- Enable slow query log
+- Use application profilers (VisualVM, JProfiler)
+- Monitor database connection pool metrics
+
+=== Reading Connector Logs
+
+**Log levels**:
+- `ERROR` - Critical failures
+- `WARN` - Warnings, possible issues
+- `INFO` - Normal operation
+- `DEBUG` - Detailed execution info
+- `TRACE` - Maximum detail
+
+**Common log locations**:
+- Connector framework logs: `/var/log/connector/`
+- Application logs: Application-specific
+- Database logs: Database server logs
+
+**Key log messages to watch**:
+```
+ERROR - Failed to execute query: Timeout after 30s
+WARN  - Connection pool running low: 2 available
+DEBUG - SQL: UPDATE users SET email = ? WHERE id = ?
+DEBUG - Parameters: [new@example.com, 123]
+INFO  - Schema discovered: 15 tables, 123 columns
+ERROR - Type conversion failed for column 'amount':
+        Expected BigDecimal, got String
+```
+
+[[section-performance-optimization]]
+== Performance Optimization
+
+=== Connection Pooling Best Practices
+
+**HikariCP recommended settings**:
+```groovy
+connector {
+    poolSize = 10                    // Start with 10, adjust based on load
+    connectionTimeout = 30000        // 30 seconds
+    idleTimeout = 600000             // 10 minutes
+    maxLifetime = 1800000            // 30 minutes
+    validateConnectionOnBorrow = true
+    validationTimeout = 5000         // 5 seconds
+}
+```
+
+**Pool sizing guidelines**:
+1. Start with: `poolSize = (CPU cores * 2) + effective_spells_count`
+2. For I/O bound: Larger pool (15-20)
+3. For CPU bound: Smaller pool (5-10)
+4. Monitor and adjust based on metrics
+
+**Monitoring pool health**:
+```groovy
+def stats = context.poolStats
+log.info("Pool: active=${stats.active}, idle=${stats.idle}, total=${stats.total}")
+if (stats.waiting > 0) {
+    log.warn("Connections exhausted, ${stats.waiting} waiting")
+}
+```
+
+=== Query Optimization Tips
+
+1. **Select only needed columns**:
+```groovy
+// Bad: SELECT *
+objectClass("User") {
+    attributes(["id", "email", "name"])
+}
+
+// Good: Explicit column list
+```
+
+2. **Use prepared statements** (already handled by connector)
+
+3. **Add WHERE clauses with indexes**:
+```groovy
+def filter = attributeFilter().equal("status", "active")
+def results = connector.search(objectClass, null, filter, 0, 100)
+```
+
+4. **Avoid unnecessary joins** in custom queries
+
+=== Indexing Recommendations
+
+**Create indexes for common query patterns**:
+
+```sql
+-- Search by email
+CREATE INDEX idx_users_email ON users(email);
+
+-- Search by status and creation date
+CREATE INDEX idx_users_status_created ON users(status, created_at);
+
+-- Compound index for common WHERE clauses
+CREATE INDEX idx_orders_user_status ON orders(user_id, status);
+
+-- Unique constraint (auto-creates index)
+ALTER TABLE users ADD CONSTRAINT users_email_key UNIQUE(email);
+```
+
+**Index monitoring**:
+```sql
+-- PostgreSQL: Find unused indexes
+SELECT schemaname, tablename, indexname 
+FROM pg_stat_user_indexes 
+WHERE idx_scan = 0;
+
+-- Check index usage
+SELECT indexrelid::regclass AS index, 
+       idx_scan, idx_tup_read, idx_tup_fetch
+FROM pg_stat_user_indexes;
+```
+
+=== Batch Operations
+
+**Bulk insert**:
+```groovy
+def batch = []
+200.times { i ->
+    batch.add([id: i, name: "User${i}"])
+}
+
+connector.createBatch(objectClass, batch)
+```
+
+**Bulk update**:
+```groovy
+def updates = [
+    [id: 1, email: "user1@example.com"],
+    [id: 2, email: "user2@example.com"]
+]
+connector.updateBatch(objectClass, updates)
+```
+
+**Best practices**:
+- Batch size: 100-1000 records
+- Monitor memory usage
+- Handle partial failures
+- Use transactions for atomicity
+
+=== Caching Strategies
+
+**Connector-level caching**:
+```groovy
+// Cache schema (default: cached once)
+connector {
+    cacheSchema = true
+}
+```
+
+**Application-level caching**:
+```groovy
+// Cache object class definitions
+def cache = [:]
+def getObjectClass(name) {
+    cache.computeIfAbsent(name) {
+        connector.schema().objectClass(name)
+    }
+}
+```
+
+**Database query caching**:
+```sql
+-- PostgreSQL: Enable query cache (if supported)
+SET work_mem = '64MB';
+```
+
+**General recommendations**:
+- Cache static data (schema, configuration)
+- Invalidate cache on schema changes
+- Use LRU cache with expiration
+- Monitor cache hit rates
+
+[[section-security-best-practices]]
+== Security Best Practices
+
+=== SQL Injection Prevention
+
+**Connector framework provides**:
+- Prepared statements (parameterized queries)
+- Input validation
+- Type-aware parameter binding
+
+** never do this**:
+```groovy
+// VULNERABLE
+def query = "SELECT * FROM users WHERE email = '${params.email}'"
+connector.executeQuery(query)
+```
+
+**Correct approach**:
+```groovy
+// SECURE - Using parameterized query
+def query = "SELECT * FROM users WHERE email = ?"
+connector.executeQuery(query, [params.email])
+```
+
+**Parameter binding**:
+```groovy
+connector.search(objectClass, attributes, 
+    attributeFilter().equal("email", userInput))
+```
+
+=== Password Handling
+
+**Environment variables**:
+```groovy
+connector {
+    password = System.getenv("CONNECTOR_DB_PASSWORD")
+}
+```
+
+**External secrets**:
+```groovy
+connector {
+    password = secretsManager.get("connector/db/password")
+}
+```
+
+**Never commit**:
+- Hardcoded passwords
+- Configuration with passwords in source control
+- Log files containing passwords
+
+**Secure storage options**:
+- Environment variables
+- Vault (HashiCorp)
+- AWS Secrets Manager
+- Kubernetes Secrets
+- Azure Key Vault
+
+=== Connection String Security
+
+**Don't embed credentials**:
+```groovy
+// BAD
+jdbcUrl = "jdbc:postgresql://user:password@host:5432/db"
+
+// GOOD
+jdbcUrl = "jdbc:postgresql://host:5432/db"
+username = System.getenv("DB_USER")
+password = System.getenv("DB_PASSWORD")
+```
+
+**Use SSL connections**:
+```groovy
+jdbcUrl = "jdbc:postgresql://host:5432/db?sslmode=require"
+```
+
+**Connection string validation**:
+```groovy
+connector {
+    validate() {
+        if (jdbcUrl.contains("@")) {
+            throw new IllegalArgumentException("Connection string should not contain credentials")
+        }
+    }
+}
+```
+
+=== Audit Logging
+
+**Log sensitive operations**:
+```groovy
+def operationLog = [:]
+
+connector.create(objectClass, attributes) {
+    operationLog.event = "create"
+    operationLog.objectClass = objectClass
+    operationLog.timestamp = new Date()
+    auditLogger.info(operationLog)
+}
+```
+
+**Log all access**:
+```groovy
+def search(objectClass, attributes, filter, start, maxResults) {
+    operationLog.event = "search"
+    operationLog.criteria = filter?.toString()
+    auditLogger.info(operationLog)
+    
+    return originalSearch(objectClass, attributes, filter, start, maxResults)
+}
+```
+
+**Include in logs**:
+- Timestamp
+- User/role performing operation
+- Object class
+- Operation type
+- Success/failure
+- (Never log: passwords, sensitive data)
+
+[[section-common-errors]]
+== Common Error Messages and Solutions
+
+=== "Table not found"
+
+**PostgreSQL**:
+```
+ERROR: relation "users" does not exist
+HINT:Perhaps you meant "public.users"
+```
+
+**Solution**:
+```groovy
+objectClass("User") {
+    table = "public.users"  // Include schema
+}
+```
+
+**MySQL**:
+```
+Table 'database.users' doesn't exist
+```
+
+**Solution**: Verify database name in JDBC URL and table exists.
+
+=== "Column not found"
+
+**Error**:
+```
+Column "EMAIL" not found
+```
+
+**Solution**: Check column name case:
+```groovy
+// If database has "email" (lowercase)
+attribute("email") {
+    sqlColumn("email")  // Match exactly
+}
+```
+
+=== "Dialect not detected"
+
+**Error**:
+```
+Cannot determine SQL dialect from URL: jdbc:mydb://...
+```
+
+**Solution**: Explicitly specify dialect:
+```groovy
+connector {
+    dialect = "postgresql"  // or mysql, oracle, sqlite
+}
+```
+
+=== "Connection pool exhausted"
+
+**Error**:
+```
+HikariCP: Connection pool is exhausted
+```
+
+**Solution**:
+```groovy
+connector {
+    poolSize = 30              // Increase
+    connectionTimeout = 120000 // Wait 2 minutes
+}
+```
+
+**Monitor**:
+```groovy
+context.poolStats.each { stat ->
+    log.warn("Pool: $stat")
+}
+```
+
+=== "Type conversion failed"
+
+**Error**:
+```
+Type conversion failed: Expected Integer, got String
+Column: age, Value: "25"
+```
+
+**Solution**: Configure column mapping:
+```groovy
+objectClass("User") {
+    attribute("age") {
+        sqlType = JavaType.INTEGER
+        type = Integer
+    }
+}
+```
+
+**Debug**:
+```groovy
+def table = context.schema().table("users")
+table.columns.each { col ->
+    println "${col.name}: ${col.sqlType} -> ${col.javaType}"
+}
+```
+
+=== "Connection timeout"
+
+**Error**:
+```
+Connect timeout of 30000ms exceeded
+```
+
+**Solution**:
+```groovy
+connector {
+    connectionTimeout = 60000  // 60 seconds
+    connectionRetryDelay = 1000  // Retry every second
+    maxConnectionRetries = 5
+}
+```
+
+=== "Authentication failed"
+
+**Error**:
+```
+FATAL: password authentication failed for user "connector"
+```
+
+**Solution**:
+1. Verify credentials
+2. Check database authentication config
+3. Ensure user has database access permissions
+
+[[section-appendix]]
+== Appendix
+
+=== Debug Checklist
+
+- [ ] Enable SQL logging
+- [ ] Check database connectivity (telnet/psql)
+- [ ] Verify credentials
+- [ ] Check firewall rules
+- [ ] Review connector configuration
+- [ ] Examine database logs
+- [ ] Test with database CLI
+- [ ] Check pool statistics
+- [ ] Verify schema discovery
+- [ ] Review error stack traces
+
+=== Performance Testing
+
+1. **Baseline measurement**:
+```groovy
+def startTime = System.nanoTime()
+// Operations
+def duration = (System.nanoTime() - startTime) / 1_000_000
+println "Operation took ${duration}ms"
+```
+
+2. **Load testing**:
+- Start with small load
+- Gradually increase
+- Monitor connection pool
+- Check for memory leaks
+
+3. **Optimization loop**:
+- Measure baseline
+- Make change
+- Measure again
+- Compare results
+
+=== Related Documentation
+
+- <<15-configuration.adoc#,Configuration Guide>>
+- <<30-sql-dialects.adoc#,SQL Dialects>>
+- <<90-testing.adoc#,Testing Guide>>
+- <<25-database-schema.adoc#,Database Schema>>

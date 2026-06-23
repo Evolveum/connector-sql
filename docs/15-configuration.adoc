@@ -1,0 +1,314 @@
+= SQL Connector Framework Configuration
+
+The SQL Connector Framework provides comprehensive configuration options for database connections, connection pooling, schema management, and SQL behavior control. All configuration is specified in Groovy DSL within the connector configuration block.
+
+== Basic Connection Configuration
+
+=== jdbcUrl
+
+The JDBC connection URL for the target database.
+
+[source,groovy]
+----
+jdbcUrl "jdbc:postgresql://localhost:5432/mydb"
+----
+
+Valid URL patterns:
+- PostgreSQL: `jdbc:postgresql://host:port/database`
+- MySQL: `jdbc:mysql://host:port/database`
+- Oracle: `jdbc:oracle:thin://host:port:SID`
+- SQLite: `jdbc:sqlite:/path/to/database.db`
+
+
+=== username
+
+Database username for authentication.
+
+[source,groovy]
+----
+username "admin"
+----
+
+TIP: Use encrypted password values for security. See link:#password-encryption[Password Encryption].
+
+
+=== password
+
+Database password. Supports both plain text and encrypted values.
+
+[source,groovy]
+----
+// Plain text (not recommended for production)
+password "secret123"
+
+// Encrypted value (recommended)
+password { encryptedValue; decryptWith("SECRET_KEY") }
+----
+
+
+== Dialect Configuration
+
+=== dialect
+
+SQL dialect to use for generating database-specific SQL. Can be `auto` for automatic detection from JDBC URL, or explicit dialect name.
+
+[source,groovy]
+----
+dialect "auto"  // Detect from JDBC URL (default)
+----
+
+Supported dialects:
+
+| Dialect | JDBC URL Pattern | Value |
+|-----|-----|-----|
+| PostgreSQL | `jdbc:postgresql://` | `postgresql` or `auto` |
+| MySQL | `jdbc:mysql://` | `mysql` or `auto` |
+| Oracle | `jdbc:oracle:` | `oracle` or `auto` |
+| SQLite | `jdbc:sqlite:` | `sqlite` or `auto` |
+
+When using `auto`, the framework detects the dialect from the JDBC URL. Specify explicitly when using non-standard URLs or connection providers.
+
+
+== Connection Pool Settings
+
+=== poolSize
+
+Maximum number of connections in the pool.
+
+[source,groovy]
+----
+poolSize 10  // Default: 10
+----
+
+recommendations:
+- Small applications: `5-10`
+- Medium applications: `10-20`
+- Large applications: `20-50`
+- Adjust based on database server capacity and application load
+
+
+=== connectionTimeout
+
+Maximum time in milliseconds to wait for a connection from the pool.
+
+[source,groovy]
+----
+connectionTimeout 30000  // Default: 30000 (30 seconds)
+----
+
+If a connection is not available within this timeout, a `ConnectionFailedException` is thrown.
+
+
+=== idleTimeout
+
+Maximum time in milliseconds that a connection can sit idle in the pool.
+
+[source,groovy]
+----
+idleTimeout 600000  // Default: 600000 (10 minutes)
+----
+
+Connections idle longer than this are closed and removed from the pool.
+
+
+=== validateConnectionOnBorrow
+
+Whether to validate connections before borrowing from the pool.
+
+[source,groovy]
+----
+validateConnectionOnBorrow true  // Default: true
+----
+
+When enabled, each connection is tested before use to ensure it's still valid.
+
+
+== Schema Management
+
+=== autoDiscoverSchema
+
+Automatically discover database schema from database metadata.
+
+[source,groovy]
+----
+autoDiscoverSchema true  // Default: true
+----
+
+When enabled:
+- Scans all tables accessible to the database user
+- Discovers column names, types, and constraints
+- Identifies primary keys and foreign keys
+- Builds connector schema automatically
+
+Disable when using manually defined schema only.
+
+
+=== enableSchemaCaching
+
+Cache discovered schema to avoid repeated database queries.
+
+[source,groovy]
+----
+enableSchemaCaching true  // Default: true
+----
+
+When enabled, schema metadata is cached after first discovery. Set to `false` during development when table structures change frequently.
+
+
+== SQL Logging
+
+=== logSqlStatements
+
+Log SQL statements before execution for debugging.
+
+[source,groovy]
+----
+logSqlStatements false  // Default: false
+----
+
+When enabled:
+- All generated SQL statements are logged
+- Parameter values are logged
+- Useful for debugging query issues
+
+WARNING: Enable only for debugging. In production, this may expose sensitive data.
+
+
+== Transaction Settings
+
+=== autoCommit
+
+whether to enable auto-commit mode for database operations.
+
+[source,groovy]
+----
+autoCommit true  // Default: true
+----
+
+When `true`:
+- Each operation is committed immediately
+- No explicit transaction management
+- Lower overhead, less control
+
+When `false`:
+- Operations are part of a transaction
+- Must explicitly commit or rollback
+- Provides ACID compliance control
+
+
+=== transactionIsolation
+
+Transaction isolation level.
+
+[source,groovy]
+----
+transactionIsolation "READ_COMMITTED"  // Default: READ_COMMITTED
+----
+
+Supported levels:
+- `READ_UNCOMMITTED` - Lowest isolation, may read uncommitted changes
+- `READ_COMMITTED` - Prevents dirty reads (default for most databases)
+- `REPEATABLE_READ` - Prevents dirty and non-repeatable reads
+- `SERIALIZABLE` - Highest isolation, prevents all concurrency issues
+
+NOTE: Actual available levels depend on the database dialect.
+
+
+== Security Considerations
+
+=== Password Encryption
+
+Always use encrypted passwords in production configurations.
+
+[source,groovy]
+----
+password { encryptedValue; decryptWith("SECRET_KEY") }
+----
+
+The framework supports:
+- Encrypted value storage with decryption key
+- Integration with external secret management systems
+- Environment variable substitution
+
+Never store plain text passwords in configuration files.
+
+
+=== Connection Pooling Best Practices
+
+1. **Right-size the pool**: Too small causes delays, too large overloads database
+2. **Set timeouts**: Configure connectionTimeout to prevent indefinite waits
+3. **Validate connections**: Keep validateConnectionOnBorrow enabled in production
+4. **Monitor pool metrics**: Track connection usage and idle connections
+5. **Graceful shutdown**: Ensure connection pool cleanup during connector disposal
+
+
+=== SQL Injection Prevention
+
+The framework uses parameterized queries by default:
+
+[source,groovy]
+----
+// Safe: Parameterized query
+query = "SELECT * FROM users WHERE email = ?"
+parameters = [userEmail]
+
+// Dangerous: String concatenation (avoid)
+query = "SELECT * FROM users WHERE email = '" + userEmail + "'"
+----
+
+Best practices:
+- Always use parameter placeholders (`?`) in custom SQL
+- Never concatenate user input into SQL strings
+- Use framework-provided query builders when possible
+- Validation of input values before query construction
+
+
+== Complete Configuration Example
+
+[source,groovy]
+----
+connector {
+    configuration {
+        jdbcUrl "jdbc:postgresql://localhost:5432/mydb"
+        dialect "auto"
+        username "admin"
+        password { encryptedValue; decryptWith("SECRET_KEY") }
+        poolSize 10
+        connectionTimeout 30000
+        idleTimeout 600000
+        validateConnectionOnBorrow true
+        autoDiscoverSchema true
+        enableSchemaCaching true
+        logSqlStatements false
+        autoCommit true
+        transactionIsolation "READ_COMMITTED"
+    }
+    
+    objectClass("User") {
+        // schema definition
+    }
+    
+    objectClass("Role") {
+        // schema definition
+    }
+}
+----
+
+
+== Configuration Reference Summary
+
+| Property | Type | Default | Description |
+|-----|-----|-----|-----|
+| `jdbcUrl` | String | (required) | JDBC connection URL |
+| `username` | String | (required) | Database username |
+| `password` | String | (required) | Database password |
+| `dialect` | String | `auto` | SQL dialect (postgresql/mysql/oracle/sqlite/auto) |
+| `poolSize` | Integer | `10` | Maximum pool size |
+| `connectionTimeout` | Integer | `30000` | Connection timeout (ms) |
+| `idleTimeout` | Integer | `600000` | Idle timeout (ms) |
+| `validateConnectionOnBorrow` | Boolean | `true` | Validate connections before borrow |
+| `autoDiscoverSchema` | Boolean | `true` | Auto-discover database schema |
+| `enableSchemaCaching` | Boolean | `true` | Cache schema metadata |
+| `logSqlStatements` | Boolean | `false` | Log SQL statements |
+| `autoCommit` | Boolean | `true` | Enable auto-commit |
+| `transactionIsolation` | String | `READ_COMMITTED` | Transaction isolation level |

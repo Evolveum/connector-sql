@@ -1,0 +1,176 @@
+= Filter support and query building
+:page-nav-title: Filtering
+:page-display-order: 1400
+:page-upkeep-status: orange
+:page-toc: top
+
+== Overview
+
+SQL connector framework converts ConnId filters to SQL WHERE clauses automatically.
+
+== Filter types
+
+| Filter Type | SQL Equivalent | Example |
+|-----|-----|-----|
+| `isEqualTo` | `WHERE column = ?` | `WHERE username = 'john'` |
+| `isGreaterThan` | `WHERE column > ?` | `WHERE id > 100` |
+| `isGreaterOrEqual` | `WHERE column >= ?` | `WHERE id >= 100` |
+| `isLessThan` | `WHERE column < ?` | `WHERE id < 1000` |
+| `isLessOrEqual` | `WHERE column <= ?` | `WHERE id <= 1000` |
+| `isLike` | `WHERE column LIKE ?` | `WHERE username LIKE '%test%'` |
+| `isNotNull` | `WHERE column IS NOT NULL` | `WHERE email IS NOT NULL` |
+| `and` | `WHERE a AND b` | `WHERE active = 1 AND role = 'admin'` |
+| `or` | `WHERE a OR b` | `WHERE username = 'a' OR username = 'b'` |
+
+== Basic filter examples
+
+=== Filter by primary key
+
+[source,groovy]
+----
+def filter = new FilterBuilder().isEqualTo("id", 123L).build()
+def results = connector.search("User", filter, null)
+----
+
+=== Filter by attribute
+
+[source,groovy]
+----
+// Simple equality
+def filter = new FilterBuilder().isEqualTo("username", "john").build()
+
+// String matching
+def filter = new FilterBuilder().isLike("email", "%@example.com").build()
+
+// Numeric comparison
+def filter = new FilterBuilder().isGreaterThan("id", 100L).build()
+----
+
+=== Complex filters
+
+[source,groovy]
+----
+// AND filter
+def filter = new FilterBuilder()
+    .and(
+        new FilterBuilder().isEqualTo("is_active", true).build(),
+        new FilterBuilder().isLike("username", "%test%").build()
+    )
+    .build()
+
+// OR filter
+def filter = new FilterBuilder()
+    .or(
+        new FilterBuilder().isEqualTo("role", "admin").build(),
+        new FilterBuilder().isEqualTo("role", "user").build()
+    )
+    .build()
+----
+
+== Custom filter handler
+
+For special.filter syntax:
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    search {
+        handler { filter ->
+            if (filter?.startsWith("custom=")) {
+                def query = filter.substring(7)
+                def sql = """
+                    SELECT * FROM users 
+                    WHERE username LIKE ? 
+                       OR email LIKE ? 
+                       OR name LIKE ?
+                """
+                def param = "%${query}%"
+                return executeQuery(sql, [param, param, param])
+            }
+            
+            // Default: let framework handle
+            return null
+        }
+    }
+}
+----
+
+== SQL query generation
+
+=== Simple equality
+
+[source,sql]
+----
+SELECT * FROM users WHERE username = ?
+----
+
+=== LIKE with wildcards
+
+[source,sql]
+----
+SELECT * FROM users WHERE email LIKE ? ESCAPE '\'
+----
+
+=== Numeric comparisons
+
+[source,sql]
+----
+SELECT * FROM users WHERE id > ? AND id < ?
+----
+
+=== NULL checks
+
+[source,sql]
+----
+SELECT * FROM users WHERE email IS NOT NULL
+----
+
+=== Combined conditions
+
+[source,sql]
+----
+SELECT * FROM users 
+WHERE (username LIKE ? OR email LIKE ?) 
+  AND is_active = ?
+----
+
+== Pagination
+
+SQL dialect-specific pagination handling:
+
+[source,table]
+| Dialect | Pagination Syntax |
+|-----|-----|
+| PostgreSQL | `LIMIT ? OFFSET ?` |
+| MySQL | `LIMIT ? OFFSET ?` |
+| Oracle | `FETCH FIRST ? ROWS ONLY` |
+| SQLite | `LIMIT ? OFFSET ?` |
+
+=== Pagination in search
+
+[source,groovy]
+----
+def results = connector.search("User", filter, null)
+
+results.eachWithIndex { obj, index ->
+    println "${index + 1}. ${obj.getAttributeByName("username")?.value}"
+}
+----
+
+== Query optimization tips
+
+1. **Index usage** - Filter on indexed columns
+2. **Avoid SELECT *** - Specify only needed attributes
+3. **Use parameterized queries** - Prevent SQL injection
+4. **Limit result sets** - Use pagination for large tables
+5. **Case-insensitive** - Use LOWER() or ILIKE where supported
+
+== Best practices
+
+1. **Start simple** - Use auto-generated filters first
+2. **Custom only when needed** - For special syntax or complex logic
+3. **Test thoroughly** - Verify SQL generation is correct
+4. **Security** - Always use parameterized queries
+5. **Performance** - Add indexes on frequently filtered columns

@@ -1,0 +1,92 @@
+= Develop connector using SQL connector framework
+:page-nav-title: Develop SQL connector
+:page-display-order: 1200
+:page-upkeep-status: orange
+:page-toc: top
+
+This is a reference for developing SQL-based connectors using the SQL Connector Framework.
+
+== Get started with SQL connector framework
+
+The SQL Connector Framework is built on the ConnId framework, so it is recommended to have basic understanding of the xref:/connectors/connid/[ConnID architecture and terminology].
+
+=== Try out sample connectors
+
+Sample connectors demonstrate how to use the SQL Connector Framework.
+
+==== PostgreSQL connector
+
+* JDBC connection configuration
+* Table and column mapping
+* SQL dialect-specific operations
+* Schema auto-discovery
+
+==== MySQL connector
+
+* MySQL-specific configuration
+* Connection pooling with HikariCP
+* SQL dialect adaptations for MySQL
+
+==== Oracle connector
+
+* Oracle JDBC configuration
+* Oracle-specific SQL syntax handling
+* Schema discovery from Oracle metadata
+
+==== SQLite connector
+
+* Embedded database connectivity
+* No-server database configuration
+* Perfect for prototyping
+
+All sample connectors support READ, CREATE, UPDATE, and DELETE operations.
+
+== Initial development steps
+
+=== Read-only connector
+
+. Obtain the database documentation (schema, tables, relationships).
+. Determine connection parameters (JDBC URL, credentials, driver).
+. Implement test connection.
+. Determine list of objects and concepts for identity and access management.
+. Implement search support for User/account object class:
+.. xref:40-search-records/[Write schema for the User object class]
+.. Determine database table and columns for the object class
+.. Implement basic search handler
+.. Implement support for getting user by UID (search by filter)
+. Implement search support for other object classes.
+. Determine relations (foreign keys) between supported object classes.
+. Implement schema for relations.
+. Implement fetching related objects.
+
+=== Read-Write Connector
+
+In addition to the steps for a read-only connector:
+
+. Implement create operation for the object classes
+. Implement update operation for the object classes
+. Implement delete operation for the object classes
+
+== Configuration
+
+See xref:configuration/[Configuration options] for detailed configuration reference.
+
+== SQL dialects
+
+The framework supports multiple SQL dialects:
+* PostgreSQL
+* MySQL
+* Oracle
+* SQLite
+
+The framework automatically generates SQL appropriate for the configured database type.
+
+== Schema auto-discovery
+
+The framework can automatically discover:
+* Database tables
+* Column names and types
+* Primary keys
+* Foreign key relationships
+
+You can override or extend discovered schema with configuration.

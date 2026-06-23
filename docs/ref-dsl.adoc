@@ -1,0 +1,908 @@
+= SQL Declarative Connector Framework - Groovy DSL Reference
+:page-nav-title: DSL Reference
+:page-display-order: 2000
+:page-toc: left
+:sectnums:
+:toclevels: 4
+:numbered:
+
+[[dsl-overview]]
+== Overview
+
+The SQL Declarative Connector Framework provides a Groovy-based DSL for configuring and customizing database connectors. This reference documents all available DSL methods, configuration options, and building blocks.
+
+The DSL is used in Groovy schema definitions and operation handlers to:
+
+* Define database schema (tables, columns, relationships)
+* Configure connector behavior (connection pooling, SQL dialect)
+* Customize operation handlers (create, read, search, update, delete)
+* Build dynamic filters and queries
+
+[[dsl-architecture]]
+== Architecture
+
+The framework follows a layered architecture:
+
+[cols="25,75"]
+|===
+| Layer | Description |
+| Schema Layer | Groovy DSL for defining database schema and mappings |
+| Handler Layer | Operation handlers generated from schema or custom implementations |
+| SQL Layer | SQL statement building and dialect-specific generation |
+| Connection Layer | Connection pooling and database interaction |
+|===
+
+[[dsl-context]]
+== DSL Execution Context
+
+The Groovy DSL runs in a context that provides access to:
+
+* `context` - link:#sqlcontext[SqlContext] - Main configuration and schema context
+* `schema` - link:#sqlschema[SqlSchema] - Database schema metadata
+* `table(name)` - shortcut for schema.table(name)
+
+=== Context Objects in Closures
+
+[cols="1,2,2,3"]
+|===
+| Closure Type | Context Available | Description |
+| Schema Definition | `context`, `schema` | Define object classes and attributes |
+| Operation Handler | `context`, `schema`, `executeQuery`, `executeUpdate` | Custom operation logic |
+| Filter Builder | `context`, `schema` | Build filter expressions |
+|===
+
+[[configuration-reference]]
+== Configuration Classes
+
+[[sqlconnectorconfiguration]]
+=== SqlConnectorConfiguration
+
+The main configuration class for SQL connector. Supports auto-discovery and multiple dialects.
+
+|===
+| Property | Type | Default | Description |
+| `jdbcUrl` | String | (required) | JDBC connection URL |
+| `username` | String | (required) | Database username |
+| `password` | String | (required) | Database password |
+| `dialect` | String | `auto` | SQL dialect: postgresql, mysql, oracle, sqlite, or auto |
+| `poolSize` | Integer | `10` | Maximum number of connections in pool |
+| `connectionTimeout` | Integer | `30000` | Connection timeout in milliseconds |
+| `idleTimeout` | Integer | `600000` | Connection idle timeout in milliseconds |
+| `validateConnectionOnBorrow` | Boolean | `true` | Validate connections before use |
+| `autoDiscoverSchema` | Boolean | `true` | Automatically discover schema from database |
+| `logSqlStatements` | Boolean | `false` | Log SQL statements for debugging |
+| `autoCommit` | Boolean | `true` | Enable auto-commit mode |
+| `transactionIsolation` | String | `READ_COMMITTED` | Transaction isolation level |
+|===
+
+[[configuration-examples]]
+==== Configuration Examples
+
+[source,groovy]
+----
+connector {
+    configuration {
+        // Connection settings
+        jdbcUrl "jdbc:postgresql://localhost:5432/mydb"
+        username "admin"
+        password { encryptedValue; decryptWith("SECRET_KEY") }
+        
+        // Dialect configuration
+        dialect "auto"  // or "postgresql", "mysql", "oracle", "sqlite"
+        
+        // Connection pool
+        poolSize 10
+        connectionTimeout 30000
+        idleTimeout 600000
+        validateConnectionOnBorrow true
+        
+        // Schema management
+        autoDiscoverSchema true
+        logSqlStatements false
+        
+        // Transaction settings
+        autoCommit true
+        transactionIsolation "READ_COMMITTED"
+    }
+}
+----
+
+[[sqlschema]]
+=== SqlSchema
+
+Represents the database schema with table definitions and ConnId compatibility.
+
+| Method | Return | Description |
+| `getTables()` | List<SqlTableInfo> | All table definitions |
+| `getTable(String name)` | SqlTableInfo | Get table by name |
+| `getTable(ObjectClass objectClass)` | SqlTableInfo | Get table for object class |
+| `connIdSchema()` | Schema | ConnId Schema object |
+| `getObjectClassToTableMapping()` | Map<ObjectClass, SqlTableInfo> | Mapping of object classes to tables |
+|===
+
+[[sqltableinfo]]
+=== SqlTableInfo
+
+Information about a database table.
+
+| Method | Return | Description |
+| `getName()` | String | Table name |
+| `getSchema()` | String | Schema name |
+| `getCatalog()` | String | Catalog name |
+| `getTableType()` | String | Table type (TABLE, VIEW, etc.) |
+| `getRemarks()` | String | Table description |
+| `getColumns()` | List<SqlColumnMeta> | All columns |
+| `getColumn(String name)` | SqlColumnMeta | Get column by name |
+
+[[sqlcolummeta]]
+=== SqlColumnMeta
+
+Metadata about a database column.
+
+| Method | Return | Description |
+| `getName()` | String | Column name |
+| `getTypeName()` | String | SQL type name |
+| `getTypeCode()` | int | JDBC type code |
+| `getSize()` | int | Column size/length |
+| `isNullable()` | boolean | NULL allowed? |
+| `isPrimaryKey()` | boolean | Primary key column? |
+| `isUnique()` | boolean | Unique constraint? |
+| `getDefaultValue()` | Object | Default value |
+| `isAutoIncrement()` | boolean | Auto-increment? |
+
+[[sqlcontext]]
+=== SqlContext
+
+Runtime context for operations. Manages connection pool, schema, and handlers.
+
+| Method | Return | Description |
+| `configuration()` | SqlConnectorConfiguration | Current configuration |
+| `schema()` | SqlSchema | Database schema |
+| `handlers()` | Map<ObjectClass, ObjectClassHandler> | Operation handlers |
+| `handlerFor(ObjectClass)` | ObjectClassHandler | Get handler for object class |
+| `initializeConnectionPool()` | void | Initialize connection pool |
+| `testConnection()` | void | Test database connection |
+| `close()` | void | Close connection pool |
+
+[[builder-pattern]]
+== Builder Pattern API
+
+The framework uses a fluent builder pattern throughout.
+
+[[objectclass-builder]]
+=== objectClass()
+
+Define an object class mapping to a database table.
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    description "User account records"
+    
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("username") {
+        sql { type VARCHAR(255); nullable false }
+        creatable true
+        updatable true
+    }
+}
+----
+
+| Method | Parameters | Description |
+| `objectClass(name)` | String name | Define new object class |
+| `table(name)` | String name | Associate with database table |
+| `description(text)` | String text | Human-readable description |
+| `attribute(name)` | String name | Define attribute/column mapping |
+| `primaryKeys(names)` | List<String> | List of primary key attribute names |
+| `creatable` | Boolean | Can create new records? |
+| `updatable` | Boolean | Can update records? |
+| `readable` | Boolean | Can read records? |
+| `search { ... }` | Closure | Custom search handler |
+| `create { ... }` | Closure | Custom create handler |
+| `update { ... }` | Closure | Custom update handler |
+| `delete { ... }` | Closure | Custom delete handler |
+|===
+
+[[attribute-builder]]
+=== attribute()
+
+Define an attribute/column mapping within an object class.
+
+[source,groovy]
+----
+attribute("email") {
+    description "User email address"
+    required true
+    creatable true
+    updatable true
+    readable true
+    
+    sql {
+        type VARCHAR(255)
+        nullable false
+        defaultValue null
+    }
+}
+----
+
+| Method | Parameters | Description |
+| `sql { ... }` | Closure | SQL-specific configuration |
+| `description(text)` | String | Human-readable description |
+| `required(value)` | Boolean | Required attribute? |
+| `creatable(value)` | Boolean | Can be set during create? |
+| `updatable(value)` | Boolean | Can be updated? |
+| `readable(value)` | Boolean | Returned in read operations? |
+| `multivalued(value)` | Boolean | Supports multiple values? |
+|===
+
+[[sql-builder]]
+=== sql()
+
+SQL-specific attribute configuration.
+
+[source,groovy]
+----
+sql {
+    type VARCHAR(255)
+    nullable false
+    primaryKey false
+    defaultValue "CURRENT_TIMESTAMP"
+    foreignKey null
+}
+----
+
+| Option | Type | Description |
+| `type` | SQL type | VARCHAR(n), INTEGER, BOOLEAN, etc. |
+| `nullable` | Boolean | Allow NULL values? |
+| `primaryKey` | Boolean | Primary key column? |
+| `defaultValue` | Object/Expression | Default value expression |
+| `foreignKey` | String | References to other table |
+| `autoIncrement` | Boolean | Auto-increment on insert? |
+| `unique` | Boolean | Unique constraint? |
+|===
+
+[[operation-handlers]]
+== Operation Handlers
+
+[[search-handler]]
+=== search { ... }
+
+Customize search operation behavior.
+
+[source,groovy]
+----
+search {
+    handler { filter ->
+        // Custom search logic
+        if (filter?.startsWith("username=")) {
+            def username = filter.substring(9)
+            def sql = "SELECT * FROM users WHERE username = ?"
+            return executeQuery(sql, [username])
+        }
+        return null  // Use default handler
+    }
+    
+    returnAttributes ["id", "username", "email"]
+}
+----
+
+| Option | Type | Description |
+| `handler` | Closure | Custom search logic |
+| `returnAttributes` | List<String> | Attributes to return |
+| `defaultFilter` | Filter | Default filter when none provided |
+
+[[handler-options]]
+==== Handler Options
+
+All operation handlers support these options:
+
+| Option | Description |
+| `handler` | Custom Groovy closure for operation logic |
+| `returnAttributes` | Which attributes to return after operation |
+| `generatedKeyAttribute` | Attribute name for auto-generated values |
+| `whereClause` | Custom WHERE clause template |
+| `options` | Operation-specific options map |
+
+[[create-handler]]
+=== create { ... }
+
+Customize create operation behavior.
+
+[source,groovy]
+----
+create {
+    handler { attributes ->
+        def sql = "INSERT INTO users (username, email) VALUES (?, ?) RETURNING id"
+        def keys = executeInsert(sql, [attributes.username, attributes.email])
+        return keys[0]
+    }
+    
+    generatedKeyAttribute "id"
+    returnAttributes ["id", "created_at"]
+}
+----
+
+[[update-handler]]
+=== update { ... }
+
+Customize update operation behavior.
+
+[source,groovy]
+----
+update {
+    handler { attributes, filter ->
+        def updates = []
+        def params = []
+        
+        if (attributes.username) {
+            updates << "username = ?"
+            params << attributes.username
+        }
+        
+        if (updates.isEmpty()) return
+        
+        def sql = "UPDATE users SET ${updates.join(', ')} WHERE id = ?"
+        params << attributes.id
+        
+        executeUpdate(sql, params)
+    }
+}
+----
+
+[[delete-handler]]
+=== delete { ... }
+
+Customize delete operation behavior.
+
+[source,groovy]
+----
+delete {
+    handler { uid ->
+        // Soft delete
+        executeUpdate("UPDATE users SET is_active = 0 WHERE id = ?", [uid.value])
+    }
+}
+----
+
+[[framework-provided-methods]]
+== Framework-Provided Methods in Closures
+
+Available in operation handler closures:
+
+| Method | Parameters | Description |
+| `executeQuery(sql, params)` | String, List<Object> | Execute SELECT, return list of maps |
+| `executeUpdate(sql, params)` | String, List<Object> | Execute INSERT/UPDATE/DELETE |
+| `executeInsert(sql, params)` | String, List<Object> | Execute INSERT, return generated keys |
+| `executeScalar(sql, params)` | String, List<Object> | Execute, return single value |
+| `executeVoid(sql, params)` | String, List<Object> | Execute without return value |
+| `getTable(name)` | String | Get table definition by name |
+| `getAttribute(table, name)` | String, String | Get column definition |
+| `dialect()` | - | Current SQL dialect instance |
+| `context()` | - | SqlContext instance |
+| `schema()` | - | SqlSchema instance |
+|===
+
+[[sql-dialects]]
+== SQL Dialects
+
+The framework supports multiple SQL dialects with automatic detection.
+
+[[supported-dialects]]
+=== Supported Dialects
+
+| Dialect | JDBC URL Pattern | Value |
+| `PostgreSQL` | `jdbc:postgresql://` | `postgresql` or `auto` |
+| `MySQL` | `jdbc:mysql://` | `mysql` or `auto` |
+| `Oracle` | `jdbc:oracle:` | `oracle` or `auto` |
+| `SQLite` | `jdbc:sqlite:` | `sqlite` or `auto` |
+| `Standard` | Default | `standard` or `auto` |
+
+[[dialect-specific-behavior]]
+=== Dialect-Specific Behavior
+
+[source,groovy]
+----
+configuration {
+    dialect "auto"  // Detect from JDBC URL
+    // or explicit:
+    // dialect "postgresql"
+}
+----
+
+| Feature | PostgreSQL | MySQL | Oracle | SQLite |
+| `RETURNING` | `RETURNING *` | - | `RETURNING ... INTO ?` | - |
+| `LIMIT/OFFSET` | `LIMIT ? OFFSET ?` | `LIMIT ? OFFSET ?` | `FETCH FIRST ? ROWS` | `LIMIT ? OFFSET ?` |
+| `Auto-increment` | `SERIAL` / `BIGSERIAL` | `AUTO_INCREMENT` | `SEQUENCE` | `INTEGER PRIMARY KEY` |
+| Boolean | `BOOLEAN` | `TINYINT(1)` | `NUMBER(1)` | `INTEGER` |
+| Large text | `TEXT` | `LONGTEXT` | `CLOB` | `TEXT` |
+| UUID | `UUID` | `CHAR(36)` | `RAW(16)` | `TEXT` |
+
+[[sql-statement-builder]]
+== SQL Statement Builder
+
+=== SqlStatement.Builder
+
+Fluent API for building SQL statements.
+
+[source,groovy]
+----
+import com.evolveum.polygon.multitable.sql.SqlStatement
+
+def statement = SqlStatement.builder()
+    .tableName("users")
+    .selectColumns(["id", "username", "email"])
+    .where("id = ?")
+    .limit(10)
+    .build()
+----
+
+| Method | Parameters | Description |
+| `tableName(name)` | String | Table name |
+| `selectColumn(column)` | String | Add column to SELECT |
+| `selectColumns(list)` | List<String> | Add multiple columns |
+| `insert(column, value)` | String, Object | Add INSERT value |
+| `insertAll(map)` | Map<String, Object> | Add multiple INSERT values |
+| `update(column, value)` | String, Object | Add UPDATE value |
+| `updateAll(map)` | Map<String, Object> | Add multiple UPDATE values |
+| `where(clause)` | String | WHERE clause |
+| `orderBy(column)` | String | Add ORDER BY column |
+| `orderBy(list)` | List<String> | Add multiple ORDER BY |
+| `limit(count)` | Integer | LIMIT clause |
+| `offset(count)` | Integer | OFFSET clause |
+| `build()` | - | Build SqlStatement |
+|===
+
+[[sql-statement]]
+=== SqlStatement
+
+Immutable SQL statement representation.
+
+| Method | Return | Description |
+| `getTableName()` | String | Table name |
+| `getSelectColumns()` | List<String> | SELECT columns |
+| `getInsertValues()` | Map<String, Object> | INSERT values |
+| `getUpdateValues()` | Map<String, Object> | UPDATE values |
+| `getWhereClause()` | String | WHERE clause |
+| `getOrderBy()` | List<String> | ORDER BY columns |
+| `getLimit()` | Integer | LIMIT value |
+| `getOffset()` | Integer | OFFSET value |
+| `hasPagination()` | boolean | Has LIMIT or OFFSET? |
+|===
+
+[[types-mapping]]
+== Type Mappings
+
+[[sql-to-connector]]
+=== SQL to ConnId Type Mapping
+
+| SQL Type | Java Type | Connector Type |
+| `VARCHAR(n)`, `CHAR(n)`, `TEXT`, `VARCHAR2` | String | String.class |
+| `INTEGER`, `INT`, `SMALLINT`, `TINYINT` | Integer | Long.class |
+| `BIGINT` | Long | Long.class |
+| `DECIMAL(p,s)`, `NUMERIC(p,s)` | BigDecimal | Double.class |
+| `FLOAT`, `REAL`, `DOUBLE` | Double | Double.class |
+| `BOOLEAN`, `BOOL` | Boolean | Boolean.class |
+| `DATE`, `TIME`, `TIMESTAMP`, `DATETIME` | java.sql.Date/Time/Timestamp | String.class |
+| `BLOB`, `BYTEA`, `VARBINARY` | byte[] | byte[].class |
+
+[[connector-to-sql]]
+=== ConnId to SQL Type Mapping
+
+| ConnId Type | SQL Type |
+| `String` | VARCHAR(255) |
+| `Long` | BIGINT |
+| `Integer` | INTEGER |
+| `Double` | DOUBLE |
+| `Boolean` | BOOLEAN |
+| `Date` | TIMESTAMP |
+| `byte[]` | BLOB |
+
+[[filters-and-operators]]
+== Filters and Operators
+
+[[comparison-operators]]
+=== Comparison Operators
+
+| Operator | Method | Example | SQL |
+| `eq()` | `isEqualTo()` | `eq("id", 123)` | `WHERE id = 123` |
+| `notEq()` | `isNotEqual()` | `notEq("status", "deleted")` | `WHERE status != 'deleted'` |
+| `gt()` | `isGreaterThan()` | `gt("id", 100)` | `WHERE id > 100` |
+| `lt()` | `isLessThan()` | `lt("id", 1000)` | `WHERE id < 1000` |
+| `gte()` | `isGreaterOrEqual()` | `gte("id", 100)` | `WHERE id >= 100` |
+| `lte()` | `isLessOrEqual()` | `lte("id", 1000)` | `WHERE id <= 1000` |
+
+[[string-operators]]
+=== String Operators
+
+| Operator | Method | Example | SQL |
+| `contains()` | `isLike()` | `contains("username", "john")` | `WHERE username LIKE '%john%'` |
+| `startsWith()` | `isLike()` | `startsWith("email", "test")` | `WHERE email LIKE 'test%'` |
+| `endsWith()` | `isLike()` | `endsWith("domain", "com")` | `WHERE domain LIKE '%com'` |
+
+[[logical-operators]]
+=== Logical Operators
+
+| Operator | Method | Example | SQL |
+| `and()` | `and()` | `and(cond1, cond2)` | `WHERE cond1 AND cond2` |
+| `or()` | `or()` | `or(cond1, cond2)` | `WHERE cond1 OR cond2` |
+| `not()` | `not()` | `not(condition)` | `WHERE NOT condition` |
+
+[[null-checks]]
+=== Null Checks
+
+| Operator | Method | Example | SQL |
+| `isNull()` | `isNull()` | `isNull("deleted_at")` | `WHERE deleted_at IS NULL` |
+| `isNotNull()` | `isNotNull()` | `isNotNull("deleted_at")` | `WHERE deleted_at IS NOT NULL` |
+
+[[filter-examples]]
+=== Filter Examples
+
+[source,groovy]
+----
+import org.identityconnectors.framework.common.objects.filter.FilterBuilder
+
+// Equality filter
+def filter1 = new FilterBuilder().isEqualTo("username", "john").build()
+
+// Numeric comparison
+def filter2 = new FilterBuilder().isGreaterThan("id", 100L).build()
+
+// String pattern matching
+def filter3 = new FilterBuilder().isLike("email", "%@example.com").build()
+
+// AND filter
+def filter4 = new FilterBuilder()
+    .and(
+        new FilterBuilder().isEqualTo("is_active", true).build(),
+        new FilterBuilder().isLike("username", "%test%").build()
+    )
+    .build()
+
+// OR filter
+def filter5 = new FilterBuilder()
+    .or(
+        new FilterBuilder().isEqualTo("role", "admin").build(),
+        new FilterBuilder().isEqualTo("role", "user").build()
+    )
+    .build()
+
+// NULL check
+def filter6 = new FilterBuilder().isNull("deleted_at").build()
+----
+
+[[table-all-dsl-methods]]
+== DSL Methods Reference
+
+=== Schema Definition Methods
+
+[cols="1,2,3"]
+|===
+| Method | Parameters | Description |
+
+| `objectClass(name)` | String | Define object class |
+| `table(name)` | String | Database table name |
+| `attribute(name)` | String | Define attribute |
+
+=== Attribute Configuration Methods
+
+| `sql { ... }` | Closure | SQL-specific config |
+| `description(text)` | String | Human-readable description |
+| `required(value)` | Boolean | Required field |
+| `creatable(value)` | Boolean | Can create record |
+| `updatable(value)` | Boolean | Can update record |
+| `readable(value)` | Boolean | Returned in read |
+| `multivalued(value)` | Boolean | Multiple values |
+
+=== SQL Configuration Options
+
+| `type` | SQL type | Column type (VARCHAR, INTEGER, etc.) |
+| `nullable` | Boolean | Allow NULL |
+| `primaryKey` | Boolean | Primary key column |
+| `defaultValue` | Object | Default value expression |
+| `foreignKey` | String | References other table |
+| `autoIncrement` | Boolean | Auto-increment |
+| `unique` | Boolean | Unique constraint |
+
+=== Operation Handler Methods
+
+| `search { ... }` | Closure | Custom search handler |
+| `create { ... }` | Closure | Custom create handler |
+| `update { ... }` | Closure | Custom update handler |
+| `delete { ... }` | Closure | Custom delete handler |
+
+=== Configuration Methods
+
+| `jdbcUrl(url)` | String | JDBC connection URL |
+| `username(name)` | String | Database username |
+| `password(value)` | String | Database password |
+| `dialect(name)` | String | SQL dialect |
+| `poolSize(n)` | Integer | Pool size |
+| `connectionTimeout(ms)` | Integer | Connection timeout |
+| `idleTimeout(ms)` | Integer | Idle timeout |
+| `validateConnectionOnBorrow` | Boolean | Validate connections |
+| `autoDiscoverSchema` | Boolean | Auto-discover schema |
+| `logSqlStatements` | Boolean | Log SQL |
+| `autoCommit` | Boolean | Auto-commit mode |
+| `transactionIsolation(level)` | String | Isolation level |
+
+=== Handler Options
+
+| `handler { ... }` | Closure | Custom handler logic |
+| `returnAttributes(list)` | List<String> | Attributes to return |
+| `generatedKeyAttribute(name)` | String | Generated key name |
+| `whereClause(sql)` | String | Custom WHERE clause |
+
+=== Filter Methods
+
+| `isEqualTo(attr, value)` | String, Object | Equal to filter |
+| `isNotEqual(attr, value)` | String, Object | Not equal filter |
+| `isGreaterThan(attr, value)` | String, Object | Greater than filter |
+| `isGreaterOrEqual(attr, value)` | String, Object | Greater or equal filter |
+| `isLessThan(attr, value)` | String, Object | Less than filter |
+| `isLessOrEqual(attr, value)` | String, Object | Less or equal filter |
+| `isLike(attr, pattern)` | String, String | LIKE filter |
+| `isNull(attr)` | String | IS NULL filter |
+| `isNotNull(attr)` | String | IS NOT NULL filter |
+| `and(cond1, cond2)` | Filter, Filter | AND filter |
+| `or(cond1, cond2)` | Filter, Filter | OR filter |
+| `not(condition)` | Filter | NOT filter |
+
+[[table-all-framework-methods]]
+== Framework Methods Reference
+
+=== In Closure Handlers
+
+| Method | Parameters | Description |
+| `executeQuery(sql, params)` | String, List | Execute SELECT |
+| `executeUpdate(sql, params)` | String, List | Execute INSERT/UPDATE/DELETE |
+| `executeInsert(sql, params)` | String, List | Execute INSERT, return keys |
+| `executeScalar(sql, params)` | String, List | Execute, return single value |
+| `executeVoid(sql, params)` | String, List | Execute without return |
+| `getTable(name)` | String | Get table definition |
+| `getAttribute(table, name)` | String, String | Get column definition |
+| `dialect()` | - | Get SQL dialect |
+| `context()` | - | Get context |
+| `schema()` | - | Get schema |
+
+=== Builder Methods
+
+| Method | Parameters | Description |
+| `tableName(name)` | String | Set table name |
+| `selectColumn(column)` | String | Add SELECT column |
+| `selectColumns(list)` | List<String> | Add SELECT columns |
+| `insert(column, value)` | String, Object | Add INSERT value |
+| `insertAll(map)` | Map<String, Object> | Add INSERT values |
+| `update(column, value)` | String, Object | Add UPDATE value |
+| `updateAll(map)` | Map<String, Object> | Add UPDATE values |
+| `where(clause)` | String | Set WHERE clause |
+| `orderBy(column)` | String | Add ORDER BY |
+| `orderBy(list)` | List<String> | Add ORDER BY columns |
+| `limit(count)` | Integer | Set LIMIT |
+| `offset(count)` | Integer | Set OFFSET |
+
+[[groovy-dsl-examples]]
+== Complete Groovy DSL Examples
+
+=== Basic Schema
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    description "User accounts"
+    
+    attribute("id") {
+        description "Primary key"
+        required true
+        creatable false
+        readable true
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("username") {
+        description "Unique username"
+        required true
+        creatable true
+        updatable true
+        readable true
+        sql { type VARCHAR(50); nullable false }
+    }
+    
+    attribute("email") {
+        description "Email address"
+        required true
+        creatable true
+        updatable true
+        readable true
+        sql { type VARCHAR(255); nullable false }
+    }
+    
+    attribute("is_active") {
+        description "Is account active?"
+        creatable true
+        updatable true
+        readable true
+        sql { type BOOLEAN; defaultValue "true" }
+    }
+}
+
+objectClass("Role") {
+    table("roles")
+    description "User roles"
+    
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("name") {
+        sql { type VARCHAR(50); nullable false }
+    }
+}
+----
+
+=== Custom Search Handler
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    search {
+        handler { filter ->
+            def conditions = []
+            def params = []
+            
+            if (filter?.isAnd()) {
+                conditions << buildCondition(filter.left, params)
+                conditions << buildCondition(filter.right, params)
+            } else {
+                conditions << buildCondition(filter, params)
+            }
+            
+            def sql = "SELECT * FROM users WHERE ${conditions.join(' AND ')}"
+            return executeQuery(sql, params)
+        }
+        
+        def buildCondition(filter, params) {
+            if (filter.isEqualTo()) {
+                params << filter.value
+                return "${filter.attributeName} = ?"
+            } else if (filter.isLike()) {
+                params << filter.value
+                return "${filter.attributeName} LIKE ?"
+            }
+            return "1=1"
+        }
+    }
+}
+----
+
+=== Complete Configuration
+
+[source,groovy]
+----
+connector {
+    configuration {
+        // Connection
+        jdbcUrl "jdbc:postgresql://localhost:5432/mydb"
+        username "admin"
+        password { encryptedValue; decryptWith("SECRET_KEY") }
+        
+        // Dialect
+        dialect "auto"
+        
+        // Connection pool
+        poolSize 10
+        connectionTimeout 30000
+        idleTimeout 600000
+        validateConnectionOnBorrow true
+        
+        // Schema management
+        autoDiscoverSchema true
+        logSqlStatements false
+        
+        // Transaction
+        autoCommit true
+        transactionIsolation "READ_COMMITTED"
+    }
+    
+    objectClass("User") {
+        table("users")
+        
+        attribute("id") {
+            sql { type INTEGER; primaryKey true }
+        }
+        
+        attribute("username") {
+            sql { type VARCHAR(50); nullable false }
+            creatable true
+            updatable true
+        }
+        
+        attribute("email") {
+            sql { type VARCHAR(255); nullable false }
+            creatable true
+            updatable true
+        }
+        
+        attribute("created_at") {
+            sql { type TIMESTAMP; defaultValue "CURRENT_TIMESTAMP" }
+            creatable false
+            updatable false
+        }
+    }
+}
+----
+
+=== Operations with Filters
+
+[source,groovy]
+----
+// Create
+def newId = connector.create(
+    new ObjectClass("User"),
+    Set.of(
+        AttributeBuilder.build("username", "john"),
+        AttributeBuilder.build("email", "john@example.com")
+    ),
+    null
+)
+
+// Search with filter
+def filter = new FilterBuilder()
+    .and(
+        new FilterBuilder().isEqualTo("is_active", true).build(),
+        new FilterBuilder().isLike("username", "%john%").build()
+    )
+    .build()
+
+connector.search(
+    new ObjectClass("User"),
+    filter,
+    result -> {
+        println result.getAttributeByName("username")?.value
+    },
+    null
+)
+
+// Update
+connector.update(
+    new ObjectClass("User"),
+    new Uid("123"),
+    Set.of(
+        AttributeDeltaBuilder.build("email", "newemail@example.com")
+    ),
+    null
+)
+
+// Delete
+connector.delete(
+    new ObjectClass("User"),
+    new Uid("123"),
+    null
+)
+----
+
+[[troubleshooting]]
+== Troubleshooting
+
+=== Common Issues
+
+| Issue | Solution |
+| Schema not discovered | Enable `autoDiscoverSchema true` |
+| Connection timeout | Increase `connectionTimeout` or `poolSize` |
+| Wrong SQL dialect | Set explicit `dialect` value |
+| Query errors | Enable `logSqlStatements true` |
+| Type mapping issues | Verify link:#types-mapping[type mappings] |
+
+[[related-documentation]]
+== Related Documentation
+
+* Link:#configuration[Configuration Reference] - Complete configuration options
+* Link:#operations[Operations Guide] - CRUD operations
+* Link:#filtering[Filtering Guide] - Query building and filters
+* Link:#customization[Customization Guide] - Custom handlers

@@ -1,0 +1,232 @@
+= SQL schema definition and auto-discovery
+:page-nav-title: SQL schema
+:page-display-order: 1200
+:page-upkeep-status: orange
+:page-toc: top
+
+== Overview
+
+The SQL connector framework maps database tables to ConnId object classes and columns to attributes.
+
+== Key concepts
+
+| Connector Concept | Database Concept | Description |
+|-----|-----|-----|
+| `objectClass("User")` | `users` table | Maps table to object class |
+| `attribute("id")` | `id` column | Maps column to attribute |
+| `sql.primaryKey` | `PRIMARY KEY` | Identifies unique rows |
+| `sql.foreignKey` | `FOREIGN KEY` | Defines table relationships |
+
+== Basic schema definition
+
+[source,groovy]
+----
+objectClass("User") {
+    sql {
+        table("users")
+    }
+    
+    attribute("id") {
+        description "Primary key"
+        required true
+        creatable false
+        readable true
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("username") {
+        description "Unique username"
+        required true
+        creatable true
+        updatable true
+        readable true
+        sql { type VARCHAR(255); nullable false }
+    }
+    
+    attribute("email") {
+        description "Email address"
+        required true
+        creatable true
+        updatable true
+        readable true
+        sql { type VARCHAR(255); nullable false }
+    }
+    
+    attribute("is_active") {
+        description "Account status"
+        creatable true
+        updatable true
+        readable true
+        sql { type BOOLEAN; defaultValue "true" }
+    }
+}
+----
+
+== Object class properties
+
+| Property | Type | Description |
+|-----|-----|-----|
+| `table("name")` | String | Database table name |
+| `description` | String | Human-readable description |
+| `objectClassLink("link")` | Link definition | Table relationships |
+
+== Column/attribute properties
+
+| Property | Type | Description |
+|-----|-----|-----|
+| `sql.type` | SQL type | VARCHAR, INTEGER, etc. |
+| `sql.primaryKey` | Boolean | Primary key column |
+| `sql.nullable` | Boolean | NULL allowed? |
+| `sql.defaultValue` | String | Default value expression |
+| `sql.foreignKey` | String | Foreign key reference |
+
+== Auto-discovery
+
+Automatically detect schema from database:
+
+[source,groovy]
+----
+discover {
+    schemaAutoDiscover true
+    includeTables ["users", "roles", "permissions"]
+    excludeTables ["audit_log", "config"]
+    discoverRelationships true
+}
+----
+
+Auto-discovery will:
+
+* Scan tables in database metadata
+* Infer column types
+* Identify primary keys
+* Detect foreign key relationships
+
+== Primary key configuration
+
+Primary keys are required for operations:
+
+[source,groovy]
+----
+attribute("id") {
+    sql { type INTEGER; primaryKey true }
+}
+
+// Or composite key
+objectClass("User") {
+    // ...
+    primaryKeys ["id", "tenant_id"]
+}
+----
+
+== Type mapping
+
+| SQL Type | Java Type | Connector Type |
+|-----|-----|-----|
+| `VARCHAR(n)` | `String` | String |
+| `INTEGER` | `Integer` | Integer |
+| `BIGINT` | `Long` | Integer |
+| `BOOLEAN` | `Boolean` | Boolean |
+| `DATE` | `Date` | Date |
+| `TIMESTAMP` | `Timestamp` | Date |
+| `DECIMAL(p,s)` | `BigDecimal` | Decimal |
+
+== Complete example
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    description "User account records"
+    
+    attribute("id") {
+        description "Auto-generated primary key"
+        required true
+        creatable false
+        updatable false
+        readable true
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("username") {
+        description "Unique username"
+        required true
+        creatable true
+        updatable true
+        readable true
+        sql { type VARCHAR(50); nullable false }
+    }
+    
+    attribute("email") {
+        description "User email address"
+        required true
+        creatable true
+        updatable true
+        readable true
+        sql { type VARCHAR(255); nullable false }
+    }
+    
+    attribute("is_active") {
+        description "Is account active?"
+        required false
+        creatable true
+        updatable true
+        readable true
+        sql { type BOOLEAN; defaultValue "true" }
+    }
+    
+    attribute("created_at") {
+        description "Account creation time"
+        required false
+        creatable false
+        updatable false
+        readable true
+        sql { 
+            type TIMESTAMP 
+            defaultValue "CURRENT_TIMESTAMP" 
+        }
+    }
+    
+    objectClassLink("roles") {
+        target "Role"
+        referenceAttribute "id"
+        foreignKeyAttribute "user_id"
+    }
+}
+
+objectClass("Role") {
+    table("roles")
+    description "User roles"
+    
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("name") {
+        sql { type VARCHAR(50); nullable false }
+    }
+    
+    objectClassLink("users") {
+        target "User"
+        referenceAttribute "id"
+        foreignKeyAttribute "role_id"
+    }
+}
+----
+
+== Best practices
+
+1. **Always define primary keys** - Required for all operations
+2. **Explicit types** - Specify `sql.type` explicitly
+3. **Documentation** - Add `description` to important attributes
+4. **Permissions** - Set `creatable`, `updatable`, `readable` appropriately
+5. **Auto-discovery** - Use for initial schema, refine manually
+
+== Reference mapping
+
+| Connector Concept | Database Concept |
+|-----|-----|
+| `objectClass` | Database table |
+| `attribute` | Table column |
+| `sql.type` | Column data type |
+| `sql.primaryKey` | Primary key constraint |
+| `sql.foreignKey` | Foreign key constraint |

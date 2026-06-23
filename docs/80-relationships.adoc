@@ -1,0 +1,306 @@
+// Relationship and Join Handling in SQL Connector Framework
+// =========================================================
+
+[[relationships-overview]]
+== Overview
+
+The SQL connector framework provides comprehensive support for handling relational data patterns including foreign key relationships, one-to-many associations, many-to-many joins via join tables, and embedded/association patterns.
+
+[[foreign-key-relationships]]
+== Foreign Key Relationships
+
+Foreign keys establish relationships between tables. The framework automatically detects and uses foreign key constraints defined in the database schema.
+
+[source,groovy]
+----
+objectClass("Order") {
+    table("orders")
+    attribute("id") { sql { type INTEGER; primaryKey true; } }
+    attribute("user_id") { 
+        sql { 
+            type INTEGER; 
+            foreignKey "users", "id"  // References Users.id
+        } 
+    }
+}
+----
+
+[[one-to-many-relationships]]
+== One-to-Many Relationships
+
+One-to-many relationships are configured using the `reference` directive with foreign key information.
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") { sql { type INTEGER; primaryKey true; } }
+    attribute("name") { sql { type VARCHAR(255); } }
+    
+    reference("orders") {
+        foreignKey("user_id")  // Orders.user_id references Users.id
+    }
+}
+
+objectClass("Order") {
+    table("orders")
+    attribute("id") { sql { type INTEGER; primaryKey true; } }
+    attribute("amount") { sql { type DECIMAL; } }
+    attribute("user_id") { sql { type INTEGER; } }
+}
+----
+
+[[many-to-many-relationships]]
+== Many-to-Many Relationships
+
+Many-to-many relationships use a join table to link two entities.
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") { sql { type INTEGER; primaryKey true; } }
+    attribute("name") { sql { type VARCHAR(255); } }
+    
+    reference("roles") {
+        joinTable("user_roles") {
+            localKey "user_id"        // user_roles.user_id -> users.id
+            foreignKey "role_id"      // user_roles.role_id -> roles.id
+        }
+    }
+}
+
+objectClass("Role") {
+    table("roles")
+    attribute("id") { sql { type INTEGER; primaryKey true; } }
+    attribute("role_name") { sql { type VARCHAR(100); } }
+}
+----
+
+[[embedded-association-patterns]]
+== Embedded/Association Patterns
+
+Embedded attributes allow flattening related data into the parent object class.
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") { sql { type INTEGER; primaryKey true; } }
+    attribute("name") { sql { type VARCHAR(255); } }
+    
+    attribute("primary_order_id") {
+        sql { type INTEGER; }
+        association {
+            targetAttribute "orders.id"
+            joinType "LEFT"
+        }
+    }
+    
+    attribute("primary_order_amount") {
+        sql { type DECIMAL; }
+        association {
+            targetAttribute "orders.amount"
+            joinType "LEFT"
+        }
+    }
+}
+----
+
+[[automatic-joins]]
+== Automatic Join Detection
+
+The framework automatically generates JOIN clauses based on:
+- Foreign key configurations
+- Reference definitions with `foreignKey`
+- Join table configurations for many-to-many
+
+Automatic join example - when fetching orders with user info:
+[source,groovy]
+----
+SELECT o.id, o.amount, u.name
+FROM orders o
+LEFT JOIN users u ON o.user_id = u.id
+----
+
+[[manual-join-configuration]]
+== Manual Join Configuration
+
+Explicit join control using `join` directive:
+
+[source,groovy]
+----
+objectClass("Order") {
+    table("orders")
+    attribute("id") { sql { type INTEGER; primaryKey true; } }
+    attribute("amount") { sql { type DECIMAL; } }
+    
+    join("user") {
+        table("users")
+        on "orders.user_id = users.id"
+        type "LEFT"
+    }
+    
+    reference("user_ref") {
+        foreignKey("user_id")
+        joinType "INNER"  // Override default
+    }
+}
+----
+
+[[nested-attribute-resolution]]
+== Nested Attribute Resolution
+
+Access related attributes through dot notation:
+
+[source,groovy]
+----
+// Search with nested filter
+connector.search("Order", Query
+    .filterBy("user.name").equals("John")
+    .andBy("user.email").like("%@company.com"))
+
+// Result includes nested data
+Order {
+    id: 123,
+    amount: 99.99,
+    user: {
+        id: 45,
+        name: "John",
+        email: "john@company.com"
+    }
+}
+----
+
+[[performance-considerations]]
+== Performance Considerations
+
+=== Eager Loading with Joins
+
+Use `eager` mode to load related data in a single query:
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") { sql { type INTEGER; primaryKey true; } }
+    
+    reference("orders") {
+        foreignKey("user_id")
+        fetchStrategy "EAGER"  // Single JOIN query
+    }
+}
+----
+
+=== Lazy Loading with Separate Queries
+
+Use `lazy` mode to load related data on demand:
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") { sql { type INTEGER; primaryKey true; } }
+    
+    reference("orders") {
+        foreignKey("user_id")
+        fetchStrategy "LAZY"  // Separate query when accessed
+    }
+}
+----
+
+=== Performance Guidelines
+
+1. *Use JOINs for small related datasets* - reduces round trips
+2. *Use LAZY for large collections* - avoid loading unnecessary data
+3. *Index foreign keys* - essential for join performance
+4. *Limit joined tables* - avoid N+1 query patterns
+5. *Use SELECT projections* - fetch only needed columns
+
+[[examples]]
+== Examples
+
+=== Filtering on Related Attributes
+
+[source,groovy]
+----
+// Filter orders by user criteria
+connector.search("Order", Query
+    .filterBy("user.status").equals("ACTIVE")
+    .andBy("user.region").equals("EMEA"))
+
+// Filter users by order criteria
+connector.search("User", Query
+    .filterBy("orders.amount").greaterThan(1000))
+----
+
+=== Sorting Across Joined Tables
+
+[source,groovy]
+----
+// Sort orders by user name
+connector.search("Order", Query
+    .orderBy("user.name", Direction.ASC)
+    .orderBy("amount", Direction.DESC))
+
+// Sort users by order count
+connector.search("User", Query
+    .orderBy("orders.count", Direction.DESC))
+----
+
+=== Complex Nested Queries
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") { sql { type INTEGER; primaryKey true; } }
+    
+    reference("orders") {
+        foreignKey("user_id")
+        where "orders.status = 'COMPLETE'"  // Filter joined data
+    }
+}
+
+// Query with joined data constraints
+connector.search("User", Query
+    .filterBy("orders.total").greaterThan(500))
+----
+
+[[configuration-summary]]
+== Configuration Summary
+
+| Pattern | Configuration | Fetch Strategy | Performance |
+|---------|--------------|----------------|-------------|
+| One-to-many | `foreignKey` | EAGER/LAZY | JOINs for small data |
+| Many-to-many | `joinTable` | EAGER only | Use LAZY for large sets |
+| Embedded | `association` | Always joined | Project only needed fields |
+| Manual join | `join` directive | Control type | Optimize join order |
+
+[[best-practices]]
+== Best Practices
+
+1. *Define foreign keys in database* - enables automatic relationship detection
+2. *Use appropriate fetch strategy* - EAGER for required data, LAZY for optional
+3. *Limit join depth* - avoid deeply nested joins (>3 levels)
+4. *Index foreign keys* - critical for join performance
+5. *Use projections* - select only required columns from joined tables
+
+[[troubleshooting]]
+== Troubleshooting
+
+=== Common Issues
+
+1. *Stale data in joined results* - Use `LAZY` fetch or add refresh
+2. *N+1 query problem* - Switch from LAZY to EAGER or optimize queries
+3. *Duplicate rows* - Add `DISTINCT` or use projections
+4. *Performance degradation* - Add indexes on foreign keys and join columns
+
+=== Debugging
+
+Enable SQL logging to see generated joins:
+[source,properties]
+----
+connector.setDebug(true)
+connector.setLogSql(true)
+----

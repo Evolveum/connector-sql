@@ -1,0 +1,290 @@
+= Database Schema
+
+The SQL connector framework uses a Groovy-based builder pattern to define database schema mappings. This documentation describes how to define database tables, columns, constraints, and relationships.
+
+== Overview
+
+The schema definition uses the following concepts:
+
+* **Object Classes** map to database tables
+* **Attributes** map to table columns
+* **SQL-specific properties** define column characteristics
+
+== Basic Structure
+
+```groovy
+objectClass("User") {
+    sql {
+        table("users")
+    }
+    attribute("id") {
+        description "Primary key"
+        sql { type INTEGER; primaryKey true }
+    }
+    attribute("name") {
+        description "User name"
+        sql { type VARCHAR(255) }
+    }
+}
+```
+
+== Object Class Configuration
+
+Each object class represents a database table:
+
+```groovy
+objectClass("User") {
+    sql {
+        table("users")                    // Table name
+    }
+    description "User accounts"       // Optional description
+    // ... attributes
+}
+```
+
+== Attribute Configuration
+
+Attributes define how database columns map to connector attributes:
+
+```groovy
+attribute("id") {
+    description "User identifier"
+    required true
+    creatable true
+    updatable true
+    readable true
+    sql { type INTEGER; primaryKey true }
+}
+```
+
+=== Attribute Properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `description` | String | Human-readable description |
+| `required` | Boolean | Is the attribute required? |
+| `creatable` | Boolean | Can be set on create? |
+| `updatable` | Boolean | Can be updated? |
+| `readable` | Boolean | Can be read? |
+
+== SQL Column Properties
+
+SQL-specific properties are defined within the `sql` block:
+
+```groovy
+sql {
+    type VARCHAR(255)
+    length 255
+    primaryKey false
+    nullable true
+    defaultValue "unknown"
+    foreignKey "foreign_table(foreign_column)"
+}
+```
+
+=== SQL Property Reference
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `type` | SQL Type | Column type (VARCHAR, INTEGER, etc.) |
+| `length` | Integer | Length for variable-length types |
+| `primaryKey` | Boolean | Primary key indicator |
+| `nullable` | Boolean | Nullable indicator |
+| `defaultValue` | String | Default value |
+| `foreignKey` | String | Foreign key reference |
+
+=== SQL Type Constants
+
+Available SQL type constants:
+
+* `VARCHAR(n)` - Variable-length string
+* `INTEGER` - 32-bit integer
+* `BIGINT` - 64-bit integer
+* `SMALLINT` - 16-bit integer
+* `TINYINT` - 8-bit integer
+* `DECIMAL(p,s)` - Fixed-point decimal
+* `FLOAT` - Single-precision float
+* `DOUBLE` - Double-precision float
+* `BOOLEAN` - Boolean value
+* `DATE` - Date only
+* `TIME` - Time only
+* `TIMESTAMP` - Date and time
+* `TEXT` - Long text
+* `BLOB` - Binary large object
+
+== Constraints
+
+=== Primary Key
+
+```groovy
+attribute("id") {
+   sql { type INTEGER; primaryKey true }
+}
+```
+
+=== Unique Constraint
+
+```groovy
+objectClass("User") {
+    unique("unique_email") {
+        attribute "email"
+    }
+}
+```
+
+=== Foreign Key Relationship
+
+```groovy
+objectClass("Order") {
+    table("orders")
+    
+    attribute("userId") {
+        sql { type INTEGER; foreignKey "users(id)" }
+    }
+    
+    objectClassLink("user") {
+        target "User"
+        foreignKey "userId" to "id"
+    }
+}
+```
+
+== Auto-Discovery vs. Manual Definition
+
+### Auto-Discovery
+
+The connector can automatically discover the database schema:
+
+```groovy
+// Automatic schema discovery
+discovery {
+    schemaAutoDiscover true
+    includeTables ["users", "orders", "products"]
+    excludeTables ["audit_log", "temp_data"]
+}
+```
+
+Auto-discovery will:
+- Scan specified tables
+- Infer column types from database metadata
+- Identify primary keys
+- Detect foreign key relationships
+
+### Manual Definition
+
+For precise control, define schema manually:
+
+```groovy
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        description "Primary key"
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("email") {
+        description "Email address"
+        sql { type VARCHAR(255); nullable false }
+    }
+    
+    attribute("created_at") {
+        description "Creation timestamp"
+        sql { type TIMESTAMP; defaultValue "CURRENT_TIMESTAMP" }
+    }
+    
+    objectClassLink("orders") {
+        target "Order"
+        referenceAttribute "userId"
+        foreignKeyAttribute "userId"
+    }
+}
+```
+
+== Complete Example
+
+```groovy
+objectClass("User") {
+    table("users")
+    description "User account records"
+    
+    attribute("id") {
+        description "Primary key"
+        required true
+        creatable false
+        updatable false
+        readable true
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("username") {
+        description "Unique username"
+        required true
+        sql { type VARCHAR(50); nullable false }
+    }
+    
+    attribute("email") {
+        description "Email address"
+        required true
+        sql { type VARCHAR(255); nullable false }
+    }
+    
+    attribute("is_active") {
+        description "Is account active?"
+        required false
+        sql { type BOOLEAN; defaultValue "true" }
+    }
+    
+    attribute("created_at") {
+        description "Account creation time"
+        required false
+        creatable false
+        sql { type TIMESTAMP; defaultValue "CURRENT_TIMESTAMP" }
+    }
+    
+    objectClassLink("roles") {
+        target "Role"
+        referenceAttribute "id"
+        foreignKeyAttribute "user_id"
+    }
+}
+
+objectClass("Role") {
+    table("roles")
+    description "User roles"
+    
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("name") {
+        sql { type VARCHAR(50); nullable false }
+    }
+    
+    objectClassLink("users") {
+        target "User"
+        referenceAttribute "id"
+        foreignKeyAttribute "role_id"
+    }
+}
+```
+
+== Best Practices
+
+1. **Explicit types** - Always specify `sql.type` explicitly
+2. **Primary keys** - Define primary keys on all tables
+3. **Documentation** - Add `description` to important attributes
+4. **Permissions** - Set `creatable`, `updatable`, `readable` appropriately
+5. **Auto-discovery** - Use auto-discovery for initial schema, then refine manually
+6. **Constraints** - Define foreign keys for referential integrity
+
+== Reference Mapping
+
+| Connector Concept | Database Concept |
+|-------------------|------------------|
+| `objectClass` | Database table |
+| `attribute` | Table column |
+| `sql.type` | Column data type |
+| `sql.primaryKey` | Primary key constraint |
+| `sql.foreignKey` | Foreign key constraint |
+| `objectClassLink` | Table relationship/join |

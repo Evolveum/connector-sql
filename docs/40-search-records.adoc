@@ -1,0 +1,114 @@
+= Implement basic record search
+:page-nav-title: Basic record search
+:page-display-order: 1230
+:page-upkeep-status: orange
+:page-toc: top
+
+The SQL Connector Framework automatically generates search handlers based on table definitions. You can customize search behavior using Groovy scripts.
+
+== Basic search
+
+The simplest search implementation requires no additional code. The framework:
+* Automatically discovers table columns
+* Generates SELECT queries
+* Handles pagination through SQL dialect-specific syntax
+
+== Search by filter
+
+Search operations support various filter types:
+
+[arabic]
+. Filter by primary key (UID)
+. Filter by attribute values
+. Complex filters with AND/OR
+
+=== Filter by primary key
+
+[source,sql]
+----
+SELECT * FROM users WHERE id = ?
+----
+
+=== Filter by attribute values
+
+[source,sql]
+----
+SELECT * FROM users WHERE email = ?
+----
+
+=== Advanced filtering
+
+Custom search handlers can be implemented for complex filters.
+
+== Custom search implementation
+
+For custom search behavior:
+
+[source,groovy]
+----
+objectClass("User") {
+    search {
+        handler { filter ->
+            def sql = "SELECT * FROM users WHERE email LIKE ?"
+            return executeQuery(sql, ["%${filter}%"])
+        }
+    }
+}
+----
+
+== Search result handling
+
+The framework automatically:
+* Converts database rows to ConnectorObject instances
+* Maps column names to connector attributes
+* Handles pagination using SQL dialect-specific LIMIT/OFFSET or FETCH FIRST syntax
+
+== SQL dialect support
+
+[source,table]
+|===
+| Dialect | Pagination Syntax
+| PostgreSQL | `LIMIT ? OFFSET ?`
+| MySQL | `LIMIT ? OFFSET ?`
+| Oracle | `FETCH FIRST ? ROWS ONLY`
+| SQLite | `LIMIT ? OFFSET ?`
+|===
+
+== Example configurations
+
+=== Simple search (auto-generated)
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") { sql { type INTEGER; primaryKey true } }
+    attribute("email") { sql { type VARCHAR(255) } }
+    attribute("name") { sql { type VARCHAR(255) } }
+}
+----
+
+=== Custom search with filter
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    search {
+        handler { filter ->
+            if (filter.startsWith("username=")) {
+                def username = filter.substring(9)
+                def sql = "SELECT * FROM users WHERE username = ?"
+                return executeQuery(sql, [username])
+            }
+        }
+    }
+}
+----
+
+== Best practices
+
+1. Use auto-generated search when possible (minimal configuration)
+2. Implement custom search only when special filter syntax is needed
+3. Leverage SQL dialect-specific optimizations for large datasets
+4. Test search performance with realistic data volumes

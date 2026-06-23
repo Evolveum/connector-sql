@@ -1,0 +1,199 @@
+= PostgreSQL Sample Connector
+
+== Overview
+
+This sample demonstrates a PostgreSQL connector implementation using the SQL connector framework.
+
+== JDBC Configuration
+
+[source,groovy]
+----
+jdbcUrl = 'jdbc:postgresql://localhost:5432/mydatabase'
+username = 'postgres'
+password = 'secret'
+driverClassName = 'org.postgresql.Driver'
+
+dialect = 'auto'
+----
+
+== Dialect
+
+PostgreSQL has built-in dialect support. Use `auto` to let the framework detect the dialect automatically, or explicitly specify:
+
+[source,groovy]
+----
+dialect = 'postgresql'
+----
+
+== Schema Definition
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        sql {
+            type INTEGER
+            primaryKey true
+            autoIncrement true
+        }
+    }
+    
+    attribute("username") {
+        sql {
+            type VARCHAR(255)
+            notNull true
+            unique true
+        }
+    }
+    
+    attribute("email") {
+        sql {
+            type VARCHAR(255)
+            notNull true
+        }
+    }
+    
+    attribute("created_at") {
+        sql {
+            type TIMESTAMP
+            defaultValue "CURRENT_TIMESTAMP"
+        }
+    }
+    
+    attribute("updated_at") {
+        sql {
+            type TIMESTAMP
+        }
+    }
+    
+    attribute("is_active") {
+        sql {
+            type BOOLEAN
+            defaultValue "true"
+        }
+    }
+}
+----
+
+== Table Creation Script
+
+```sql
+CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    username VARCHAR(255) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT true
+);
+
+CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_created_at ON users(created_at);
+```
+
+== CRUD Operations
+
+=== Create
+
+[source,groovy]
+----
+def user = new User()
+user.username = 'john.doe'
+user.email = 'john@example.com'
+connector.create(user)
+----
+
+SQL: `INSERT INTO users (username, email, created_at) VALUES (?, ?, ?)`
+
+=== Read
+
+[source,groovy]
+----
+def user = connector.get("User", "john.doe")
+def allUsers = connector.getAll("User")
+----
+
+SQL: `SELECT * FROM users WHERE username = ?`
+
+=== Update
+
+[source,groovy]
+----
+def user = connector.get("User", "john.doe")
+user.email = 'newemail@example.com'
+connector.update(user)
+----
+
+SQL: `UPDATE users SET email = ?, updated_at = ? WHERE username = ?`
+
+=== Delete
+
+[source,groovy]
+----
+connector.delete("User", "john.doe")
+----
+
+SQL: `DELETE FROM users WHERE username = ?`
+
+== Connection Pooling
+
+Recommended HikariCP settings for PostgreSQL:
+
+[source,groovy]
+----
+connectionPool {
+    maximumPoolSize = 10
+    minimumIdle = 2
+    maxLifetime = 1800000
+    connectionTimeout = 30000
+    idleTimeout = 600000
+    validationTimeout = 5000
+    connectionTestQuery = 'SELECT 1'
+}
+----
+
+== Database-Specific Considerations
+
+=== PostgreSQL Features
+
+1. **Array Types**: Use `VARCHAR[]` for array columns
+2. **JSON Support**: PostgreSQL has native JSON/JSONB support
+3. **Serial Types**: Use `SERIAL` for auto-increment primary keys
+4. **Timestamps**: Use `TIMESTAMP` (without timezone) for most cases
+
+=== Performance Tips
+
+- Enable connection pooling to reduce connection overhead
+- Use prepared statements for repeated queries
+- Consider setting `default_fetch_size` for large result sets
+- Use indexes on frequently queried columns
+- Monitor long-running queries with `pg_stat_statements`
+
+=== Character Encoding
+
+PostgreSQL uses UTF-8 by default. Ensure your JDBC URL includes encoding:
+
+```groovy
+jdbcUrl = 'jdbc:postgresql://localhost:5432/mydatabase?client_encoding=UTF-8'
+```
+
+=== Testing Configuration
+
+[source,groovy]
+----
+jdbcUrl = 'jdbc:postgresql://localhost:5432/testdb'
+username = 'postgres'
+password = 'postgres'
+
+dialect = 'postgresql'
+
+connectionPool {
+    maximumPoolSize = 5
+    minimumIdle = 1
+    maxLifetime = 600000
+    connectionTimeout = 10000
+}
+----

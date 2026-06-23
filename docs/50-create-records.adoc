@@ -1,0 +1,96 @@
+= Create records
+:page-nav-title: Create records
+:page-display-order: 1250
+:page-upkeep-status: orange
+:page-toc: top
+
+Create operations insert new rows into database tables.
+
+== Basic create
+
+The SQL Connector Framework automatically generates INSERT statements based on table definitions.
+
+=== Example: PostgreSQL
+
+[source,sql]
+----
+INSERT INTO users (username, email, is_active) VALUES (?, ?, ?) RETURNING *
+----
+
+=== Example: MySQL
+
+[source,sql]
+----
+INSERT INTO users (username, email, is_active) VALUES (?, ?, ?)
+SELECT LAST_INSERT_ID()
+----
+
+=== Example: Oracle
+
+[source,sql]
+----
+INSERT INTO users (id, username, email, is_active) 
+VALUES (sequence.nextval, ?, ?, ?) 
+RETURNING id INTO ?
+----
+
+=== Example: SQLite
+
+[source,sql]
+----
+INSERT INTO users (username, email, is_active) VALUES (?, ?, ?)
+SELECT last_insert_rowid()
+----
+
+== Auto-generated create
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") { sql { type INTEGER; primaryKey true } }
+    attribute("username") { 
+        sql { type VARCHAR(255); nullable false } 
+        creatable true
+    }
+    attribute("email") { 
+        sql { type VARCHAR(255); nullable false } 
+        creatable true
+    }
+    attribute("is_active") { 
+        sql { type BOOLEAN } 
+        creatable true
+    }
+}
+----
+
+== Custom create handler
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    create {
+        handler { attributes ->
+            def sql = "INSERT INTO users (username, email) VALUES (?, ?)"
+            def keys = executeInsert(sql, [attributes.username, attributes.email])
+            return keys[0]
+        }
+    }
+}
+----
+
+== Create options
+
+| Option | Description |
+|--------|-------------|
+| `handler` | Custom Groovy closure for create logic |
+| `returnAttributes` | Which attributes to return after insert |
+| `generatedKeyAttribute` | Attribute name for generated primary key |
+
+== Best practices
+
+1. Always define primary keys with proper SQL type
+2. Enable `creatable true` only for attributes that should be set during create
+3. Use dialect auto-detection for cross-database compatibility
+4. Test with each target database to verify key generation

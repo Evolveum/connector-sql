@@ -1,0 +1,201 @@
+= MySQL Sample Connector
+
+== Overview
+
+This sample demonstrates a MySQL/MariaDB connector implementation.
+
+== JDBC Configuration
+
+[source,groovy]
+----
+jdbcUrl = 'jdbc:mysql://localhost:3306/mydatabase?useSSL=false&serverTimezone=UTC'
+username = 'mysql'
+password = 'secret'
+driverClassName = 'com.mysql.cj.jdbc.Driver'
+
+dialect = 'auto'
+----
+
+== Dialect
+
+MySQL uses `mysql` dialect. For MariaDB, use `mariadb`:
+
+[source,groovy]
+----
+dialect = 'mysql'
+----
+
+== Schema Definition
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        sql {
+            type INTEGER
+            primaryKey true
+            autoIncrement true
+        }
+    }
+    
+    attribute("username") {
+        sql {
+            type VARCHAR(255)
+            notNull true
+            unique true
+        }
+    }
+    
+    attribute("email") {
+        sql {
+            type VARCHAR(255)
+            notNull true
+        }
+    }
+    
+    attribute("created_at") {
+        sql {
+            type TIMESTAMP
+            defaultValue "CURRENT_TIMESTAMP"
+        }
+    }
+    
+    attribute("updated_at") {
+        sql {
+            type TIMESTAMP
+            defaultValue "CURRENT_TIMESTAMP"
+            onUpdateCurrentTimestamp true
+        }
+    }
+    
+    attribute("is_active") {
+        sql {
+            type TINYINT
+            defaultValue 1
+        }
+    }
+}
+----
+
+== Table Creation Script
+
+```sql
+CREATE TABLE users (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(255) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    is_active TINYINT(1) DEFAULT 1
+);
+
+CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_created_at ON users(created_at);
+```
+
+== CRUD Operations
+
+=== Create
+
+[source,groovy]
+----
+def user = new User()
+user.username = 'john.doe'
+user.email = 'john@example.com'
+connector.create(user)
+----
+
+SQL: `INSERT INTO users (username, email) VALUES (?, ?)`
+
+=== Read
+
+[source,groovy]
+----
+def user = connector.get("User", "john.doe")
+def allUsers = connector.getAll("User")
+----
+
+SQL: `SELECT * FROM users WHERE username = ?`
+
+=== Update
+
+[source,groovy]
+----
+def user = connector.get("User", "john.doe")
+user.email = 'newemail@example.com'
+connector.update(user)
+----
+
+SQL: `UPDATE users SET email = ? WHERE username = ?`
+
+=== Delete
+
+[source,groovy]
+----
+connector.delete("User", "john.doe")
+----
+
+SQL: `DELETE FROM users WHERE username = ?`
+
+== Connection Pooling
+
+Recommended HikariCP settings for MySQL:
+
+[source,groovy]
+----
+connectionPool {
+    maximumPoolSize = 10
+    minimumIdle = 2
+    maxLifetime = 1800000
+    connectionTimeout = 30000
+    idleTimeout = 600000
+    validationTimeout = 5000
+    connectionTestQuery = 'SELECT 1'
+}
+----
+
+== Database-Specific Considerations
+
+=== MySQL Features
+
+1. **Auto-increment**: Use `AUTO_INCREMENT` for primary keys
+2. **Timestamps**: MySQL handles `CURRENT_TIMESTAMP` natively
+3. **TINYINT as BOOLEAN**: MySQL uses `TINYINT(1)` for boolean values
+4. **String Types**: Use `VARCHAR` for variable-length strings
+
+=== Performance Tips
+
+- Enable connection pooling
+- Use `useCursorFetch=true` for large result sets
+- Set appropriate `socketTimeout` for long-running queries
+- Use indexes on frequently queried columns
+- Consider query cache settings (MySQL 5.7 and earlier)
+
+=== Character Encoding
+
+Always specify character encoding in MySQL JDBC URL:
+
+```groovy
+jdbcUrl = 'jdbc:mysql://localhost:3306/mydatabase?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=UTC'
+```
+
+=== Testing Configuration
+
+[source,groovy]
+----
+jdbcUrl = 'jdbc:mysql://localhost:3306/testdb?useSSL=false&serverTimezone=UTC'
+username = 'mysql'
+password = 'mysql'
+
+dialect = 'mysql'
+
+connectionPool {
+    maximumPoolSize = 5
+    minimumIdle = 1
+    maxLifetime = 600000
+    connectionTimeout = 10000
+}
+----

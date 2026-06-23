@@ -1,0 +1,267 @@
+= Operation handler patterns
+:page-nav-title: Operations
+:page-display-order: 1300
+:page-upkeep-status: orange
+:page-toc: top
+
+== Overview
+
+SQL connector framework automatically generates CRUD handlers based on schema definitions. Custom handlers can be added for complex logic.
+
+== Create operation
+
+Inserts new rows into database tables.
+
+=== Auto-generated create
+
+[source,sql]
+----
+-- PostgreSQL
+INSERT INTO users (username, email, is_active) VALUES (?, ?, ?) RETURNING *
+
+-- MySQL
+INSERT INTO users (username, email, is_active) VALUES (?, ?, ?)
+
+-- Oracle
+INSERT INTO users (id, username, email, is_active) 
+VALUES (sequence.nextval, ?, ?, ?) RETURNING id INTO ?
+
+-- SQLite
+INSERT INTO users (username, email, is_active) VALUES (?, ?, ?)
+----
+
+=== Basic create schema
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("username") {
+        sql { type VARCHAR(255); nullable false }
+        creatable true
+    }
+    
+    attribute("email") {
+        sql { type VARCHAR(255); nullable false }
+        creatable true
+    }
+}
+----
+
+=== Custom create handler
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    create {
+        handler { attributes ->
+            def sql = "INSERT INTO users (username, email) VALUES (?, ?) RETURNING id"
+            def keys = executeQuery(sql, [
+                attributes.username, 
+                attributes.email
+            ])
+            
+            return keys[0].id
+        }
+    }
+}
+----
+
+== Read operation
+
+Retrieves rows from database tables.
+
+=== Auto-generated read
+
+[source,sql]
+----
+SELECT id, username, email, is_active, created_at 
+FROM users 
+WHERE id = ?
+----
+
+=== Get by UID
+
+[source,groovy]
+----
+def connector = new SqlConnector(config)
+
+def user = connector.retrieve("User", new Uid("123"), null)
+assert user != null
+assert user.getAttributeByName("username")?.value == "john"
+----
+
+=== Search with filter
+
+[source,sql]
+----
+SELECT * FROM users WHERE email LIKE ? AND is_active = ?
+----
+
+=== Custom search handler
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    search {
+        handler { filter ->
+            if (filter?.startsWith("email=")) {
+                def email = filter.substring(6)
+                def sql = "SELECT * FROM users WHERE email = ?"
+                return executeQuery(sql, [email])
+            }
+            
+            // Default: return all
+            return executeQuery("SELECT * FROM users")
+        }
+    }
+}
+----
+
+== Update operation
+
+Modifies existing rows based on primary key.
+
+=== Auto-generated update
+
+[source,sql]
+----
+UPDATE users 
+SET username = ?, email = ? 
+WHERE id = ?
+----
+
+=== Update schema
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("username") {
+        sql { type VARCHAR(255); nullable false }
+        updatable true
+    }
+    
+    attribute("email") {
+        sql { type VARCHAR(255); nullable false }
+        updatable true
+    }
+}
+----
+
+=== Custom update handler
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    update {
+        handler { attributes, filter ->
+            def updates = []
+            def params = []
+            
+            if (attributes.username) {
+                updates << "username = ?"
+                params << attributes.username
+            }
+            
+            if (attributes.email) {
+                updates << "email = ?"
+                params << attributes.email
+            }
+            
+            if (updates.isEmpty()) {
+                return
+            }
+            
+            def sql = "UPDATE users SET ${updates.join(', ')} WHERE id = ?"
+            params << attributes.id
+            
+            executeUpdate(sql, params)
+        }
+    }
+}
+----
+
+== Delete operation
+
+Removes rows from database tables.
+
+=== Auto-generated delete
+
+[source,sql]
+----
+DELETE FROM users WHERE id = ?
+----
+
+=== Soft delete
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    delete {
+        handler { uid ->
+            // Soft delete instead of hard delete
+            def sql = "UPDATE users SET is_active = 0 WHERE id = ?"
+            executeUpdate(sql, [uid.value])
+        }
+    }
+}
+----
+
+=== Custom delete handler
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    delete {
+        handler { uid ->
+            // Verify user exists before deleting
+            def checkSql = "SELECT 1 FROM users WHERE id = ?"
+            def result = executeQuery(checkSql, [uid.value])
+            
+            if (result.isEmpty()) {
+                throw new ConnectionBrokenException("User not found")
+            }
+            
+            executeUpdate("DELETE FROM users WHERE id = ?", [uid.value])
+        }
+    }
+}
+----
+
+== Handler options
+
+| Option | Description | Example |
+|-----|-----|-----|
+| `handler` | Custom Groovy closure | `handler { attributes -> ... }` |
+| `returnAttributes` | Attributes to return after operation | `returnAttributes ["id", "created_at"]` |
+| `generatedKeyAttribute` | Attribute for auto-generated keys | `generatedKeyAttribute "id"` |
+| `whereClause` | Custom WHERE clause | `whereClause "id = ? AND is_active = 1"` |
+
+== Best practices
+
+1. **Use auto-generated** - When schema is well-defined
+2. **Custom only when needed** - For complex business logic
+3. **Parameterized queries** - Always use prepared statements
+4. **Error handling** - Check row counts and handle missing rows
+5. **Transaction support** - Use for multi-table operations

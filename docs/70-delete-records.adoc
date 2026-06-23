@@ -1,0 +1,55 @@
+= Delete records
+:page-nav-title: Delete records
+:page-display-order: 1270
+:page-upkeep-status: orange
+:page-toc: top
+
+Delete operations remove rows from database tables based on primary key.
+
+== Basic delete
+
+[source,sql]
+----
+DELETE FROM users WHERE id = ?
+----
+
+== Auto-generated delete
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") { sql { type INTEGER; primaryKey true } }
+    attribute("username") { sql { type VARCHAR(255); nullable false } }
+    attribute("email") { sql { type VARCHAR(255); nullable false } }
+}
+----
+
+== Custom delete handler
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    delete {
+        handler { uid ->
+            def sql = "UPDATE users SET is_active = 0 WHERE id = ?"
+            executeUpdate(sql, [uid])
+        }
+    }
+}
+----
+
+== Delete options
+
+| Option | Description |
+|--------|-------------|
+| `handler` | Custom Groovy closure for delete logic |
+| `cascade` | Delete related records automatically |
+
+== Best practices
+
+1. Always use primary key for delete operations
+2. Consider soft delete for audit purposes
+3. Test with foreign key constraints
+4. Handle errors when row doesn't exist

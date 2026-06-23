@@ -1,0 +1,113 @@
+= SQL connector framework design and functionality overview
+:page-nav-title: Functionality and design
+:page-display-order: 1100
+:page-upkeep-status: green
+
+An overview of the SQL Connector Framework architecture aimed to help you understand how to create SQL-based connectors for midPoint.
+
+== SQL Connector Framework functionality overview
+
+Base Connector Framework Support::
+** Set of base classes necessary to integrate with ConnId framework.
+
+Schema Mapping & Schema Builder APIs::
+** Provides a way to define and manage database schema, and mappings between database tables and ConnId attributes.
+** Allows for easy customization of table names, column names, and types regardless of database used.
+** Allows for specifying object classes, attributes, relationships in declarative way.
+
+Database Connection Management::
+** Common configuration model for JDBC connections with connection pooling (HikariCP).
+** Providing initialized connection pool with authentication and pool settings.
+** Support for multiple SQL dialects with automatic detection.
+
+ConnId Support & Operation Builders::
+** Support for ConnId operations using strategy design pattern, where based on ConnId request, the appropriate strategies are selected to handle the request.
+*** Strategies are configured & provided by SQL dialect-specific parts and custom scripts.
+
+SQL Support::
+** Supports automatic schema discovery using JDBC metadata.
+** Contributes to schema mappings and provides strategies based on discovered database schema, so there is no need to manually define schema mappings.
+** Built-in strategies for handling ConnId search, update, create, and delete operations based on SQL.
+*** Multiple strategies for Different SQL dialects (PostgreSQL, MySQL, Oracle, SQLite).
+*** Support for custom strategies to be defined for handling non-standard cases such as complex queries, stored procedures.
+
+Scripting Support::
+** Custom Groovy DSL for configuring & defining custom schema mappings, logic, strategies, and operations.
+** Scripting support is intended to implement custom connectors using Groovy with intent to minimize boilerplate code.
+
+== SQL connector design
+
+* Providing out-of-the-box support for most used & well-known database
+designs
+* Flexible enough to handle most of SQL databases & their quirks
+* Strong leaning on _declarative_ approach instead of _scripting_
+
+== Design
+
+The SQL connector framework is based heavily on `Strategy` &
+`Delegation` pattern. The framework out-of-the-box provides multiple
+configurable strategy implementations to handle common scenarios such
+as:
+
+* search
+** selecting correct search strategy based on filter
+** searching & retrieving object list strategy
+*** using SQL SELECT query
+*** using custom SQL
+*** custom implementation
+* retrieving additional attributes
+** multivalue attributes using joins
+* key generation
+** dialect-specific strategies for retrieved generated keys
+
+=== Groovy Builder API
+
+Most of the Groovy scripts define schema using builder pattern:
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    attribute("username") {
+        sql { type VARCHAR(255); nullable false }
+    }
+}
+----
+
+The Groovy DSL:
+* Defines object classes (tables)
+* Defines attributes (columns)
+* Configures SQL types and constraints
+* Sets up table relationships
+
+=== Operation Handlers
+
+Operation handlers implement ConnId SPI methods:
+
+* `create` - INSERT with RETURNING/FETCHING generated keys
+* `read` - SELECT by primary key
+* `update` - UPDATE by primary key
+* `delete` - DELETE by primary key
+* `search` - SELECT with WHERE clause and pagination
+
+=== SQL Dialect Support
+
+Dialect-specific SQL generation:
+
+* PostgreSQL: RETURNING *, LIMIT/OFFSET
+* MySQL: LAST_INSERT_ID(), LIMIT/OFFSET
+* Oracle: RETURNING ... INTO, FETCH FIRST
+* SQLite: last_insert_rowid(), LIMIT/OFFSET
+
+=== Schema Auto-Discovery
+
+Automatic schema detection:
+
+1. Query database metadata (tables, columns)
+2. Infer SQL types from database metadata
+3. Identify primary keys and foreign keys
+4. Build ConnId schema automatically
+5. Cache schema for performance

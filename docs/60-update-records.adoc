@@ -1,0 +1,62 @@
+= Update records
+:page-nav-title: Update records
+:page-display-order: 1260
+:page-upkeep-status: orange
+:page-toc: top
+
+Update operations modify existing rows in database tables based on primary key.
+
+== Basic update
+
+[source,sql]
+----
+UPDATE users SET username = ?, email = ?, is_active = ? WHERE id = ?
+----
+
+== Auto-generated update
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") { sql { type INTEGER; primaryKey true } }
+    attribute("username") { 
+        sql { type VARCHAR(255); nullable false } 
+        updatable true
+    }
+    attribute("email") { 
+        sql { type VARCHAR(255); nullable false } 
+        updatable true
+    }
+}
+----
+
+== Custom update handler
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    update {
+        handler { attributes, filter ->
+            def sql = "UPDATE users SET username = ? WHERE id = ?"
+            executeUpdate(sql, [attributes.username, attributes.id])
+        }
+    }
+}
+----
+
+== Update options
+
+| Option | Description |
+|--------|-------------|
+| `handler` | Custom Groovy closure for update logic |
+| `whereClause` | Custom WHERE clause (default: primary key) |
+| `excludeAttributes` | Attributes to skip during update |
+
+== Best practices
+
+1. Always ensure primary key is included in object for update
+2. Set `updatable false` for read-only attributes
+3. Use parameterized queries to prevent SQL injection
+4. Test update with different data types (nullable, default values)

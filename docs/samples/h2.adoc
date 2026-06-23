@@ -1,0 +1,247 @@
+= H2 In-Memory Database Sample Connector
+
+== Overview
+
+This sample demonstrates an H2 in-memory database connector, ideal for testing and development.
+
+== JDBC Configuration
+
+[source,groovy]
+----
+jdbcUrl = 'jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE'
+username = 'sa'
+password = ''
+driverClassName = 'org.h2.Driver'
+
+dialect = 'auto'
+----
+
+== Dialect
+
+H2 uses `h2` dialect:
+
+[source,groovy]
+----
+dialect = 'h2'
+----
+
+== Schema Definition
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        sql {
+            type INTEGER
+            primaryKey true
+            autoIncrement true
+        }
+    }
+    
+    attribute("username") {
+        sql {
+            type VARCHAR(255)
+            notNull true
+            unique true
+        }
+    }
+    
+    attribute("email") {
+        sql {
+            type VARCHAR(255)
+            notNull true
+        }
+    }
+    
+    attribute("created_at") {
+        sql {
+            type TIMESTAMP
+            defaultValue "CURRENT_TIMESTAMP"
+        }
+    }
+    
+    attribute("updated_at") {
+        sql {
+            type TIMESTAMP
+        }
+    }
+    
+    attribute("is_active") {
+        sql {
+            type BOOLEAN
+            defaultValue true
+        }
+    }
+}
+----
+
+== Table Creation Script
+
+```sql
+CREATE TABLE users (
+    id INTEGER AUTO_INCREMENT PRIMARY KEY,
+    username VARCHAR(255) NOT NULL UNIQUE,
+    email VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP,
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_created_at ON users(created_at);
+```
+
+== CRUD Operations
+
+=== Create
+
+[source,groovy]
+----
+def user = new User()
+user.username = 'john.doe'
+user.email = 'john@example.com'
+connector.create(user)
+----
+
+SQL: `INSERT INTO users (username, email) VALUES (?, ?)`
+
+=== Read
+
+[source,groovy]
+----
+def user = connector.get("User", "john.doe")
+def allUsers = connector.getAll("User")
+----
+
+SQL: `SELECT * FROM users WHERE username = ?`
+
+=== Update
+
+[source,groovy]
+----
+def user = connector.get("User", "john.doe")
+user.email = 'newemail@example.com'
+connector.update(user)
+----
+
+SQL: `UPDATE users SET email = ? WHERE username = ?`
+
+=== Delete
+
+[source,groovy]
+----
+connector.delete("User", "john.doe")
+----
+
+SQL: `DELETE FROM users WHERE username = ?`
+
+== Connection Pooling
+
+H2 in-memory is lightweight, minimal pooling needed:
+
+[source,groovy]
+----
+connectionPool {
+    maximumPoolSize = 5
+    minimumIdle = 1
+    maxLifetime = 600000
+    connectionTimeout = 10000
+    idleTimeout = 600000
+    connectionTestQuery = 'SELECT 1'
+}
+----
+
+== Database-Specific Considerations
+
+=== H2 Features
+
+1. **In-memory**: Data exists only in RAM (use `DB_CLOSE_DELAY=-1` to persist)
+2. **Mixed mode**: Can run in both in-memory and file modes
+3. **Browser-based console**: H2 provides web console for debugging
+4. **Oracle compatibility mode**: Set `MODE=Oracle` for Oracle-compatible SQL
+
+=== Testing Modes
+
+=== In-memory mode (faster, cleared on shutdown):
+```groovy
+jdbcUrl = 'jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1'
+```
+
+=== File-based mode (persists data):
+```groovy
+jdbcUrl = 'jdbc:h2:/path/to/database;DB_CLOSE_DELAY=-1'
+```
+
+=== Mixed mode (shared between VMs):
+```groovy
+jdbcUrl = 'jdbc:h2:tcp://localhost/mem:testdb'
+```
+
+=== Performance Tips
+
+- Use in-memory mode for unit tests (fastest)
+- Enable h2.console for debugging during development
+- Set appropriate `LOCK_TIMEOUT` for concurrent access
+- Use `CACHE_SIZE` to optimize memory usage
+
+=== Web Console
+
+Enable H2 console for testing:
+
+[source,groovy]
+----
+// In application configuration
+h2 {
+    consoleEnabled = true
+    consolePath = '/h2-console'
+}
+----
+
+=== Testing Configuration
+
+[source,groovy]
+----
+jdbcUrl = 'jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE'
+username = 'sa'
+password = ''
+
+dialect = 'h2'
+
+connectionPool {
+    maximumPoolSize = 5
+    minimumIdle = 1
+    maxLifetime = 300000
+    connectionTimeout = 5000
+}
+
+// For integration tests with data persistence
+jdbcUrl = 'jdbc:h2:file:/tmp/testdb;DB_CLOSE_DELAY=-1'
+----
+
+=== Common Issues
+
+1. **Database locked**: H2 uses file locking for file-based mode
+   - Solution: Ensure no other process is accessing the file
+
+2. **Data loss**: In-memory mode clears on shutdown
+   - Solution: Use `DB_CLOSE_DELAY=-1` or file-based mode
+
+3. **VARCHAR length**: H2 defaults to UTF-16 for VARCHAR
+   - Solution: Specify length explicitly
+
+=== Integration Testing
+
+For integration tests, consider using testcontainers:
+
+[source,groovy]
+----
+@Container
+H2Container h2 = new H2Container()
+
+jdbcUrl = h2.jdbcUrl
+username = h2.username
+password = h2.password
+----

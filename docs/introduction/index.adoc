@@ -1,0 +1,25 @@
+= Introduction to SQL connector framework
+
+This section provides additional information about the SQL Connector Framework.
+
+== What is the SQL Connector Framework?
+
+The SQL Connector Framework is a ConnId connector framework designed to provide a flexible and extensible base for SQL-based connectors, implementing common reusable functionality for JDBC connections and database operations.
+
+== Key features
+
+* Auto-discovery of database schema from JDBC metadata
+* SQL dialect abstraction (PostgreSQL, MySQL, Oracle, SQLite)
+* Connection pooling with HikariCP
+* Groovy-based configuration DSL
+* Automatic generation of CRUD operations
+
+== Getting started
+
+Read xref:../index.adoc[the main introduction] for an overview, then check out the xref:develop/[development guide] for hands-on instructions.
+
+== What's next?
+
+* xref:..samples/index.adoc[Sample connectors] - See working examples for different databases
+* xref:..develop[Develop connector] - Step-by-step guide to creating your own connector
+* xref:..configuration/[Configuration options] - All configuration options documented

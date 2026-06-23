@@ -1,0 +1,126 @@
+= SQL Dialect Support in connector-multitable
+
+The connector-multitable framework supports multiple SQL databases through dialect-specific SQL generation. Each dialect handles database-specific syntax for operations like INSERT, UPDATE, DELETE, and pagination.
+
+== SQL Dialect Concept
+
+A SQL dialect represents database-specific SQL generation logic. The framework includes dialect implementations for:
+
+* PostgreSQL
+* MySQL
+* Oracle
+* SQLite
+
+Dialects are selected automatically from the JDBC URL or can be configured manually.
+
+== Supported Dialects
+
+=== PostgreSQL
+- Supports `RETURNING *` clause for INSERT operations
+- Uses `LIMIT n OFFSET m` for pagination
+- Standard SQL syntax
+
+=== MySQL
+- Uses `LAST_INSERT_ID()` function for retrieving generated keys
+- Uses `LIMIT n OFFSET m` for pagination
+- Standard SQL syntax
+
+=== Oracle
+- Uses `FETCH FIRST n ROWS ONLY` for pagination
+- Supports sequences for generating IDs
+- Requires `RETURNING ... INTO` for INSERT operations
+
+=== SQLite
+- Uses `last_insert_rowid()` function for retrieving generated keys
+- Uses `LIMIT n OFFSET m` for pagination
+- Minimal SQL syntax requirements
+
+== Auto-Detection
+
+Dialect is automatically detected from the JDBC URL:
+
+| JDBC URL Pattern | Dialect |
+|------------------|---------|
+| `jdbc:postgresql://` | postgresql |
+| `jdbc:mysql://` | mysql |
+| `jdbc:oracle:` | oracle |
+| `jdbc:sqlite:` | sqlite |
+
+== Manual Configuration
+
+Specify the dialect explicitly in the connector configuration:
+
+[source,groovy]
+----
+configuration {
+    jdbcUrl "jdbc:postgresql://localhost:5432/mydb"
+    dialect "postgresql"  // or "auto" for detection
+    username "admin"
+    password { ... }
+}
+----
+
+Valid dialect values:
+* `auto` (default) - Detect from JDBC URL
+* `postgresql`
+* `mysql`
+* `oracle`
+* `sqlite`
+
+== SQL Generation Comparison
+
+| Operation | PostgreSQL | MySQL | Oracle | SQLite |
+|-----------|------------|-------|--------|--------|
+| INSERT with returning | `INSERT INTO table (col) VALUES (?) RETURNING *` | `INSERT INTO table (col) VALUES (?)` (use LAST_INSERT_ID()) | `INSERT INTO table (col) VALUES (?) RETURNING id INTO ?` | `INSERT INTO table (col) VALUES (?)` (use last_insert_rowid()) |
+| UPDATE | `UPDATE table SET col = ? WHERE id = ?` | `UPDATE table SET col = ? WHERE id = ?` | `UPDATE table SET col = ? WHERE id = ?` | `UPDATE table SET col = ? WHERE id = ?` |
+| DELETE | `DELETE FROM table WHERE id = ?` | `DELETE FROM table WHERE id = ?` | `DELETE FROM table WHERE id = ?` | `DELETE FROM table WHERE id = ?` |
+| SELECT pagination | `SELECT * FROM table LIMIT ? OFFSET ?` | `SELECT * FROM table LIMIT ? OFFSET ?` | `SELECT * FROM table FETCH FIRST ? ROWS ONLY` | `SELECT * FROM table LIMIT ? OFFSET ?` |
+
+== Dialect-Specific Features
+
+=== PostgreSQL: RETURNING Clause
+PostgreSQL supports the `RETURNING` clause to retrieve data after INSERT/UPDATE/DELETE:
+
+[source,groovy]
+----
+INSERT INTO users (name, email) VALUES (?, ?) RETURNING *
+----
+
+The framework automatically handles retrieving generated keys using this clause.
+
+=== MySQL: LAST_INSERT_ID()
+MySQL uses the session-specific `LAST_INSERT_ID()` function to retrieve the last generated ID:
+
+[source,groovy]
+----
+INSERT INTO users (name, email) VALUES (?, ?)
+SELECT LAST_INSERT_ID()
+----
+
+=== Oracle: FETCH FIRST and Sequences
+Oracle uses `FETCH FIRST` for pagination and sequences for ID generation:
+
+[source,groovy]
+----
+-- Pagination
+SELECT * FROM users FETCH FIRST 10 ROWS ONLY
+
+-- Sequence for ID generation
+INSERT INTO users (id, name) VALUES (sequence.nextval, ?) RETURNING id INTO ?
+----
+
+=== SQLite: last_insert_rowid()
+SQLite provides `last_insert_rowid()` function for retrieving the last inserted row ID:
+
+[source,groovy]
+----
+INSERT INTO users (name, email) VALUES (?, ?)
+SELECT last_insert_rowid()
+----
+
+== Best Practices
+
+1. Use `dialect "auto"` for automatic detection when JDBC URLs follow standard patterns
+2. Specify dialect explicitly when using non-standard JDBC URLs
+3. Test SQL generation with your target database to verify compatibility
+4. For Oracle, ensure sequences are properly configured in the database

@@ -1,0 +1,111 @@
+= Initial setup
+:page-nav-title: Initial setup
+:page-display-order: 1100
+:page-upkeep-status: orange
+:page-toc: top
+
+== Project structure
+
+Create a new Maven project for your SQL connector:
+
+[source,xml]
+----
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 
+                             http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    
+    <groupId>com.example</groupId>
+    <artifactId>connector-multitable-sample</artifactId>
+    <version>1.0.0</version>
+    
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <connector.version>2.0.0</connector.version>
+    </properties>
+    
+    <dependencies>
+        <dependency>
+            <groupId>org.connid</groupId>
+            <artifactId>connector-base</artifactId>
+            <version>${connector.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.evolveum.connector</groupId>
+            <artifactId>connector-multitable</artifactId>
+            <version>2.0.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.h2database</groupId>
+            <artifactId>h2</artifactId>
+            <version>2.3.232</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>
+----
+
+== Directory structure
+
+. connector-multitable-sample/
+.. pom.xml
+.. src/
+... main/
+.... groovy/ (schema and operation scripts)
+.... resources/
+..... META-INF/
+....... connector.xml
+... test/
+.... groovy/ (unit tests)
+
+== Dependencies
+
+Required dependencies:
+
+* **connector-multitable** - Main framework
+* **Database JDBC driver** - PostgreSQL, MySQL, Oracle, or SQLite
+* **H2 database** - For testing (optional)
+
+== Configuration
+
+Basic connector configuration:
+
+[source,groovy]
+----
+connector {
+    name = "sample-sql"
+    displayName = "Sample SQL Connector"
+    version = "1.0.0"
+    
+    configuration {
+        jdbcUrl = "jdbc:h2:mem:testdb"
+        username = "sa"
+        password = ""
+        autoDiscoverSchema = true
+    }
+    
+    schema {
+        objectClass("User") {
+            table("users")
+            attribute("id") {
+                sql { type INTEGER; primaryKey true }
+            }
+            attribute("username") {
+                sql { type VARCHAR(255); nullable false }
+            }
+            attribute("email") {
+                sql { type VARCHAR(255); nullable false }
+            }
+        }
+    }
+}
+----
+
+== Next steps
+
+. xref:20-sql-schema/[Define schema - table and column mappings]
+. Implement search, create, update, and delete operations
+. Test with H2 in-memory database

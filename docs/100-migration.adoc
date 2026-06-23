@@ -1,0 +1,1138 @@
+= Migration Guide: From Other SQL Connectors to Declarative Framework
+:page-nav-title: Migration Guide
+:page-display-order: 9000
+:page-upkeep-status: green
+:page-toc: top
+
+== Overview
+
+This guide helps you migrate from custom SQL implementations and other SQL connectors to the SQL Declarative Connector Framework. The framework provides a higher-level, configuration-driven approach to building SQL-based ConnId connectors.
+
+== Understanding the Framework Difference
+
+=== Old Approach: Manual JDBC
+
+In traditional implementations, you manually managed:
+
+* JDBC connections
+* Prepared statements
+* Result set iteration
+* Type conversion
+* Exception handling
+* Resource cleanup
+
+[source,groovy]
+----
+// Old: Manual JDBC
+Connection conn = dataSource.getConnection();
+PreparedStatement stmt = conn.prepareStatement("SELECT * FROM users WHERE id = ?");
+stmt.setInt(1, userId);
+ResultSet rs = stmt.executeQuery();
+List<User> results = new ArrayList<>();
+while (rs.next()) {
+    User user = new User();
+    user.setId(rs.getInt("id"));
+    user.setUsername(rs.getString("username"));
+    user.setEmail(rs.getString("email"));
+    user.setActive(rs.getBoolean("is_active"));
+    results.add(user);
+}
+rs.close();
+stmt.close();
+conn.close();
+----
+
+=== New Approach: Declarative
+
+The framework handles all JDBC operations automatically:
+
+* Connection management (pooling, lifecycle)
+* Statement preparation and execution
+* Result mapping to ConnId objects
+* Pagination and batch operations
+* SQL dialect adaptation
+
+[source,groovy]
+----
+// New: Declarative
+objectClass("User") {
+    table("users")
+    search {
+        key("id")
+    }
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    attribute("username") {
+        sql { type VARCHAR(255) }
+    }
+    attribute("email") {
+        sql { type VARCHAR(255) }
+    }
+    attribute("is_active") {
+        sql { type BOOLEAN }
+    }
+}
+// Framework handles connection, statement, result mapping
+----
+
+== Migration Path 1: From Custom JDBC Implementations
+
+=== Concept Mapping
+
+| Old (Custom JDBC) | New (Framework) |
+|-----|-----|
+| Manual `Connection` | Framework-managed池 (auto-config) |
+| `PreparedStatement` | Implicit via Groovy DSL |
+| `ResultSet` iteration | Automatic object mapping |
+| Type conversion | Configured SQL types |
+| Exception handling | Framework+connector exceptions |
+
+=== Code Conversion Example
+
+==== Before: Custom JDBC Search
+
+[source,java]
+----
+public List<ConnectorObject> search(String table, String whereClause, List<Object> params) {
+    Connection conn = null;
+    PreparedStatement stmt = null;
+    ResultSet rs = null;
+    try {
+        conn = dataSource.getConnection();
+        String sql = "SELECT id, username, email, is_active FROM " + table + " WHERE " + whereClause;
+        stmt = conn.prepareStatement(sql);
+        for (int i = 0; i < params.size(); i++) {
+            stmt.setObject(i + 1, params.get(i));
+        }
+        rs = stmt.executeQuery();
+        List<ConnectorObject> results = new ArrayList<>();
+        while (rs.next()) {
+            ConnectorObject obj = new ConnectorObject();
+            obj.setUid(new Uid(rs.getInt("id")));
+            obj.addAttribute(new Attribute.Builder("username").setValue(rs.getString("username")).build());
+            obj.addAttribute(new Attribute.Builder("email").setValue(rs.getString("email")).build());
+            obj.addAttribute(new Attribute.Builder("is_active").setValue(rs.getBoolean("is_active")).build());
+            results.add(obj);
+        }
+        return results;
+    } catch (SQLException e) {
+        throw new ConnectionFailedException("Search failed", e);
+    } finally {
+        try { if (rs != null) rs.close(); } catch (SQLException ignored) {}
+        try { if (stmt != null) stmt.close(); } catch (SQLException ignored) {}
+        try { if (conn != null) conn.close(); } catch (SQLException ignored) {}
+    }
+}
+----
+
+==== After: Declarative Configuration
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    search {
+        key("id")
+        attribute("username")
+        attribute("email")
+        attribute("is_active")
+    }
+}
+----
+
+The framework automatically generates search handlers for all filter types.
+
+=== Migration Checklist: Custom JDBC
+
+* [ ] Document all manual SQL operations
+* [ ] Identify connection pooling configuration
+* [ ] List all SQL queries and their parameters
+* [ ] Identify type conversions (ResultSet → Java types)
+* [ ] Document custom error handling logic
+* [ ] Create object class definitions in Groovy DSL
+* [ ] Map attributes to SQL columns
+* [ ] Configure SQL dialect for target database
+* [ ] Test CRUD operations
+* [ ] Validate type mappings
+* [ ] Replace manual JDBC code with framework configuration
+
+=== Benefits: Custom JDBC Migration
+
+* **Less code** - Remove thousands of lines of JDBC boilerplate
+* **Fewer bugs** - Framework handles connection lifecycle
+* **Better performance** - Built-in connection pooling
+* **Multi-database support** - Automatic SQL dialect translation
+* **Less maintenance** - No custom SQL parsing or result mapping
+
+== Migration Path 2: From Other ConnId SQL Connectors
+
+=== Targeting connector-database
+
+The `connector-database` is a generic SQL connector that uses configuration-driven SQL. The declarative framework provides similar capabilities with improved abstraction.
+
+==== Old: connector-database Configuration
+
+[source,xml]
+----
+<ConnectorConfiguration>
+    <ConfigurationProperties>
+        <StringProperty name="jdbcUrl" value="jdbc:postgresql://localhost:5432/mydb"/>
+        <StringProperty name="username" value="admin"/>
+        <StringProperty name="password" value="secret"/>
+        <StringProperty name="table" value="users"/>
+    </ConfigurationProperties>
+    <Schema>
+        <AttributeDefinition name="id" type="Integer" isIdentifying="true">
+            <Column name="id" type="INTEGER"/>
+        </AttributeDefinition>
+        <AttributeDefinition name="username" type="String">
+            <Column name="username" type="VARCHAR(255)"/>
+        </AttributeDefinition>
+    </Schema>
+</ConnectorConfiguration>
+----
+
+==== New: Declarative Schema Definition
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    attribute("username") {
+        sql { type VARCHAR(255) }
+    }
+}
+----
+
+==== Key Differences
+
+| Aspect | connector-database | Declarative Framework |
+|-----|-----|-----|
+| Configuration format | XML | Groovy DSL |
+| SQL generation | Manual SQL strings | Auto-generated |
+| Schema discovery | Manual | Automatic (optional) |
+| Type safety | Runtime | Compile-time (via Groovy) |
+| Extensibility | SQL in config | Groovy scripts |
+| SQL dialects | Basic support | Full dialect support |
+
+==== Migration Examples: SQL Queries
+
+==== Before: Manual SQL
+
+[source,xml]
+----
+<Operation name="search">
+    <Query type="SELECT">
+        <SQL>SELECT * FROM users WHERE email = ?</SQL>
+    </Query>
+</Operation>
+----
+
+==== After: Declarative Filter Specification
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("email") {
+        sql { type VARCHAR(255) }
+    }
+}
+// Framework generates: SELECT * FROM users WHERE email = ?
+----
+
+=== Targeting connector-ldap
+
+While LDAP is a directory service, some implementations use SQL as backend. Migration considerations:
+
+| LDAP Concept | SQL Equivalent |
+|-----|-----|
+| Object class | Database table |
+| Attribute | Table column |
+| Uid | Primary key |
+| Filter | WHERE clause |
+| DN | Row identifier |
+
+==== Example: LDAP Filter to SQL
+
+==== Before: LDAP Filter
+
+[source,java]
+----
+Filter filter = Filter.createEqualityFilter("uid", "john_doe");
+SearchResult result = search("ou=users", filter, new String[]{"cn", "mail"});
+----
+
+==== After: Declarative Search
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    search {
+        key("uid")
+        attribute("cn")
+        attribute("mail")
+    }
+}
+// Framework generates: SELECT uid, cn, mail FROM users WHERE uid = ?
+----
+
+=== Migration Checklist: ConnId Connectors
+
+* [ ] Document existing connector configuration
+* [ ] Extract all SQL queries from configuration
+* [ ] Map object classes to database tables
+* [ ] Map attributes to columns
+* [ ] Identify custom operation handlers
+* [ ] Convert XML configuration to Groovy DSL
+* [ ] Reimplement custom handlers as Groovy scripts
+* [ ] Configure SQL dialect for target database
+* [ ] Test all operations
+* [ ] Validate search filters
+* [ ] Verify type conversions
+
+=== Benefits: ConnId Migration
+
+* **Better abstraction** - Declarative schema definitions
+* **Auto-generation** - SQL generated from configuration
+* **Type safety** - Scala-style type inference in Groovy
+* **Extensibility** - Groovy scripts for customization
+* **Multiple dialects** - Automatic SQL dialect selection
+
+== Migration Path 3: From Raw SQL-Based Connectors
+
+=== Raw SQL Pattern
+
+Many connectors embed SQL strings directly in Java code:
+
+[source,java]
+----
+public class UserConnector {
+    private DataSource dataSource;
+    
+    public UserConnector(DataSource ds) {
+        this.dataSource = ds;
+    }
+    
+    public User findUser(int id) throws SQLException {
+        String sql = "SELECT id, username, email FROM users WHERE id = ?";
+        Connection conn = dataSource.getConnection();
+        try {
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setInt(1, id);
+            ResultSet rs = stmt.executeQuery();
+            if (rs.next()) {
+                User user = new User();
+                user.setId(rs.getInt("id"));
+                user.setUsername(rs.getString("username"));
+                user.setEmail(rs.getString("email"));
+                return user;
+            }
+            return null;
+        } finally {
+            conn.close();
+        }
+    }
+    
+    public void createUser(User user) throws SQLException {
+        String sql = "INSERT INTO users (username, email) VALUES (?, ?)";
+        Connection conn = dataSource.getConnection();
+        try {
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setString(1, user.getUsername());
+            stmt.setString(2, user.getEmail());
+            stmt.executeUpdate();
+        } finally {
+            conn.close();
+        }
+    }
+    
+    public void updateUser(User user) throws SQLException {
+        String sql = "UPDATE users SET username = ?, email = ? WHERE id = ?";
+        Connection conn = dataSource.getConnection();
+        try {
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setString(1, user.getUsername());
+            stmt.setString(2, user.getEmail());
+            stmt.setInt(3, user.getId());
+            stmt.executeUpdate();
+        } finally {
+            conn.close();
+        }
+    }
+    
+    public void deleteUser(int id) throws SQLException {
+        String sql = "DELETE FROM users WHERE id = ?";
+        Connection conn = dataSource.getConnection();
+        try {
+            PreparedStatement stmt = conn.prepareStatement(sql);
+            stmt.setInt(1, id);
+            stmt.executeUpdate();
+        } finally {
+            conn.close();
+        }
+    }
+}
+----
+
+=== Declarative Alternative
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("username") {
+        sql { type VARCHAR(255) }
+    }
+    
+    attribute("email") {
+        sql { type VARCHAR(255) }
+    }
+}
+
+// Framework automatically implements:
+// - findUser: SELECT * FROM users WHERE id = ?
+// - createUser: INSERT INTO users (username, email) VALUES (?, ?)
+// - updateUser: UPDATE users SET username = ?, email = ? WHERE id = ?
+// - deleteUser: DELETE FROM users WHERE id = ?
+----
+
+=== Complete Migration: JDBC Utility Class
+
+==== Before: JDBC Utility Class
+
+[source,java]
+----
+public class UserConnector extends AbstractConnector {
+    private Connection connection;
+    
+    @Override
+    public void test() throws ConnectorException {
+        try {
+            connection.createStatement().execute("SELECT 1");
+        } catch (SQLException e) {
+            throw new ConnectionFailedException("Test failed", e);
+        }
+    }
+    
+    @Override
+    public void create(ObjectClass oClass, Set<Attribute> attributes, OperationOptions options) {
+        String sql = "INSERT INTO users (username, email, is_active) VALUES (?, ?, ?)";
+        try {
+            PreparedStatement stmt = connection.prepareStatement(sql, new String[]{"id"});
+            stmt.setString(1, getValue(attributes, "username"));
+            stmt.setString(2, getValue(attributes, "email"));
+            stmt.setBoolean(3, getValue(attributes, "is_active", true));
+            stmt.executeUpdate();
+            ResultSet rs = stmt.getGeneratedKeys();
+            if (rs.next()) {
+                uid = new Uid(rs.getInt(1));
+            }
+        } catch (SQLException e) {
+            throw new OperationFailedException("Create failed", e);
+        }
+    }
+    
+    @Override
+    public void update(ObjectClass oClass, Uid uid, Set<Attribute> attributes, OperationOptions options) {
+        String sql = "UPDATE users SET username = ?, email = ? WHERE id = ?";
+        try {
+            PreparedStatement stmt = connection.prepareStatement(sql);
+            stmt.setString(1, getValue(attributes, "username"));
+            stmt.setString(2, getValue(attributes, "email"));
+            stmt.setInt(3, uid.getUidValue().intValue());
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            throw new OperationFailedException("Update failed", e);
+        }
+    }
+    
+    @Override
+    public void delete(ObjectClass oClass, Uid uid, OperationOptions options) {
+        String sql = "DELETE FROM users WHERE id = ?";
+        try {
+            PreparedStatement stmt = connection.prepareStatement(sql);
+            stmt.setInt(1, uid.getUidValue().intValue());
+            stmt.executeUpdate();
+        } catch (SQLException e) {
+            throw new OperationFailedException("Delete failed", e);
+        }
+    }
+    
+    @Override
+    public ConnectorIterator search(ObjectClass oClass, Filter filter, OperationOptions options) {
+        String sql = "SELECT * FROM users";
+        // Filter handling...
+        // Pagination...
+        // Result mapping...
+    }
+}
+----
+
+==== After: Declarative Framework
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("username") {
+        sql { type VARCHAR(255) }
+    }
+    
+    attribute("email") {
+        sql { type VARCHAR(255) }
+    }
+    
+    attribute("is_active") {
+        sql { type BOOLEAN; defaultValue "true" }
+    }
+}
+
+// Framework implements:
+// - test(): Connection validation
+// - create(): INSERT with RETURNING
+// - update(): UPDATE with WHERE
+// - delete(): DELETE with WHERE
+// - search(): SELECT with filters
+----
+
+=== Migration Checklist: Raw SQL
+
+* [ ] Review all SQL statements in Java code
+* [ ] Identify connection lifecycle management
+* [ ] Document error handling patterns
+* [ ] List all table names and column mappings
+* [ ] Create object class definitions
+* [ ] Convert each SQL operation to Groovy schema
+* [ ] Remove Java JDBC code
+* [ ] Configure connection pool settings
+* [ ] Test each operation individually
+* [ ] Validate result mappings
+
+=== Benefits: Raw SQL Migration
+
+* **Reduced code** - ~90% fewer lines
+* **No manual resource cleanup** - Framework manages connections
+* **Consistent error handling** - Standard ConnId exceptions
+* **Automatic pagination** - SQL dialect-specific LIMIT clauses
+* **No SQL injection risk** - Framework uses prepared statements
+
+== Migration Path 4: From Hand-Written SQL Connection Code
+
+=== Hand-Written Pattern
+
+[source,java]
+----
+public class SqlConnector {
+    private String jdbcUrl;
+    private String username;
+    private String password;
+    private Connection connection;
+    
+    public SqlConnector(String url, String user, String pass) {
+        this.jdbcUrl = url;
+        this.username = user;
+        this.password = pass;
+    }
+    
+    public void connect() throws SQLException {
+        connection = DriverManager.getConnection(jdbcUrl, username, password);
+    }
+    
+    public void disconnect() throws SQLException {
+        if (connection != null && !connection.isClosed()) {
+            connection.close();
+        }
+    }
+    
+    public List<Map<String, Object>> executeQuery(String sql, List<Object> params) {
+        List<Map<String, Object>> results = new ArrayList<>();
+        try (PreparedStatement stmt = connection.prepareStatement(sql)) {
+            for (int i = 0; i < params.size(); i++) {
+                stmt.setObject(i + 1, params.get(i));
+            }
+            ResultSet rs = stmt.executeQuery();
+            ResultSetMetaData meta = rs.getMetaData();
+            int colCount = meta.getColumnCount();
+            while (rs.next()) {
+                Map<String, Object> row = new HashMap<>();
+                for (int i = 1; i <= colCount; i++) {
+                    row.put(meta.getColumnName(i), rs.getObject(i));
+                }
+                results.add(row);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("Query failed", e);
+        }
+        return results;
+    }
+}
+----
+
+=== Declarative Framework Approach
+
+[source,groovy]
+----
+connector {
+    configuration {
+        jdbcUrl = "jdbc:postgresql://localhost:5432/mydb"
+        username = "admin"
+        password = { System.getenv("DB_PASSWORD") }
+    }
+    
+    schema {
+        objectClass("User") {
+            table("users")
+            attribute("id") { sql { type INTEGER; primaryKey true } }
+            attribute("username") { sql { type VARCHAR(255) } }
+        }
+    }
+}
+----
+
+=== Migration Strategy
+
+1. **Extract connection configuration**
+2. **Define schema using Groovy DSL**
+3. **Replace manual SQL calls with framework operations**
+4. **Remove custom JDBC code**
+5. **Test against target database**
+
+=== Complete Migration: From Hand-Written to Declarative
+
+==== Before: Hand-Written Example
+
+[source,java]
+----
+// Find user by ID
+Map<String, Object> user = executeQuery("SELECT * FROM users WHERE id = ?", [userId]);
+
+// Find users by email domain
+List<Map<String, Object>> users = executeQuery(
+    "SELECT * FROM users WHERE email LIKE ?", 
+    ["%@example.com"]
+);
+
+// Create user
+executeQuery(
+    "INSERT INTO users (username, email, is_active) VALUES (?, ?, ?)",
+    [username, email, true]
+);
+
+// Update user
+executeQuery(
+    "UPDATE users SET username = ?, email = ? WHERE id = ?",
+    [newUsername, newEmail, userId]
+);
+
+// Delete user
+executeQuery("DELETE FROM users WHERE id = ?", [userId]);
+----
+
+==== After: Declarative Operations
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+    
+    attribute("username") {
+        sql { type VARCHAR(255) }
+    }
+    
+    attribute("email") {
+        sql { type VARCHAR(255) }
+    }
+    
+    attribute("is_active") {
+        sql { type BOOLEAN }
+    }
+}
+
+// Find user by ID
+ConnectorObject user = connector.retrieve("User", new Uid(userId))
+
+// Find users by email domain (custom search)
+search { filter ->
+    if (filter?.toString()?.contains("@example.com")) {
+        executeQuery("SELECT * FROM users WHERE email LIKE '%@example.com'")
+    }
+}
+
+// Create user
+Uid uid = connector.create("User", attributes)
+
+// Update user
+connector.update("User", new Uid(userId), attributes)
+
+// Delete user
+connector.delete("User", new Uid(userId))
+----
+
+=== Benefits: Hand-Written Migration
+
+* **Automatic SQL generation** - No manual query writing
+* **Type safety** - Schema validation at configuration time
+* **Multi-database** - SQL dialect adaptation
+* **Result mapping** - Automatic ConnId object conversion
+* **Connection pooling** - Built-in pool management
+* **Testing** - Simpler test setup with in-memory databases
+
+== Type Mapping Differences
+
+=== SQL Type to Java/Connector Type Mapping
+
+| SQL Type | Java Type | Connector Type | Notes |
+|-----|-----|-----|-----|
+| `VARCHAR(n)` | `String` | String | Character data |
+| `NVARCHAR(n)` | `String` | String | Unicode character data |
+| `INTEGER` | `Integer` | Integer | 32-bit integers |
+| `BIGINT` | `Long` | Integer | 64-bit integers |
+| `SMALLINT` | `Short` | Integer | 16-bit integers |
+| `TINYINT` | `Byte` | Integer | 8-bit integers |
+| `BOOLEAN` / ` BIT` | `Boolean` | Boolean | True/false values |
+| `DATE` | `java.sql.Date` | Date | Date only |
+| `TIME` | `java.sql.Time` | Date | Time only |
+| `TIMESTAMP` | `java.sql.Timestamp` | Date | Date and time |
+| `DECIMAL(p,s)` | `BigDecimal` | Decimal | Precise decimals |
+| `NUMERIC(p,s)` | `BigDecimal` | Decimal | Same as DECIMAL |
+| `FLOAT` | `Float` | Double | Single precision |
+| `DOUBLE` | `Double` | Double | Double precision |
+| `BLOB` | `byte[]` | Binary | Binary large object |
+| `CLOB` | `String` | String | Character large object |
+
+=== Migration Considerations
+
+1. **Precision loss**: `BIGINT` to `Integer` may cause overflow
+2. **Type coercion**: SQL `VARCHAR` may need conversion to `INTEGER`
+3. **Null handling**: SQL NULL vs Java null vs Connector null
+4. **Precision**: `FLOAT` vs `DOUBLE` precision differences
+
+=== Custom Type Handlers
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    attribute("custom_data") {
+        sql { type VARCHAR(4000) }
+        // Custom mapping
+        transformer {
+            fromJava { value -> 
+                value instanceof Map ? new Gson().toJson(value) : value 
+            }
+            toJava { value -> 
+                value ? new Gson().fromJson(value, Map) : null 
+            }
+        }
+    }
+}
+----
+
+== SQL Dialect Differences
+
+=== Supported Dialects
+
+The framework supports multiple SQL dialects automatically:
+
+| Database | Dialect Name | Key Features |
+|-----|-----|-----|
+| PostgreSQL | `postgresql` | RETURNING clause, LIMIT/OFFSET |
+| MySQL | `mysql` | LAST_INSERT_ID(), LIMIT/OFFSET |
+| Oracle | `oracle` | Sequences, FETCH FIRST |
+| SQLite | `sqlite` | last_insert_rowid(), LIMIT/OFFSET |
+
+=== Dialect-Specific SQL
+
+==== INSERT Operations
+
+| Dialect | SQL |
+|-----|-----|
+| PostgreSQL | `INSERT INTO users (name) VALUES (?) RETURNING *` |
+| MySQL | `INSERT INTO users (name) VALUES (?)` + `SELECT LAST_INSERT_ID()` |
+| Oracle | `INSERT INTO users (id, name) VALUES (seq.nextval, ?) RETURNING id INTO ?` |
+| SQLite | `INSERT INTO users (name) VALUES (?)` + `SELECT last_insert_rowid()` |
+
+==== Pagination
+
+| Dialect | SQL |
+|-----|-----|
+| PostgreSQL | `SELECT * FROM users LIMIT ? OFFSET ?` |
+| MySQL | `SELECT * FROM users LIMIT ? OFFSET ?` |
+| Oracle | `SELECT * FROM users FETCH FIRST ? ROWS ONLY` |
+| SQLite | `SELECT * FROM users LIMIT ? OFFSET ?` |
+
+=== Migrating from Database-Specific Code
+
+==== Before: PostgreSQL-Specific
+
+[source,java]
+----
+// PostgreSQL-specific SQL
+String sql = "SELECT * FROM users LIMIT ? OFFSET ?";
+```
+
+==== After: Dialect-Agnostic
+
+```groovy
+// Framework auto-detects and generates appropriate SQL
+objectClass("User") {
+    table("users")
+}
+// Works for all supported dialects
+----
+
+=== Migration Tips for SQL Dialects
+
+1. Test with target database dialect
+2. Use `dialect "auto"` for automatic detection
+3. Avoid database-specific SQL in custom handlers
+4. Use framework abstractions when possible
+5. Check SQL generation logs for dialect-specific output
+
+== Performance Tuning
+
+=== Connection Pooling
+
+The framework uses connection pooling by default. Configure pool size:
+
+[source,groovy]
+----
+connector {
+    configuration {
+        jdbcUrl = "jdbc:postgresql://localhost:5432/mydb"
+        username = "admin"
+        password = "secret"
+        
+        // Pool configuration
+        initialPoolSize = 5
+        minPoolSize = 5
+        maxPoolSize = 20
+        acquireIncrement = 5
+        maxIdleTime = 300  // seconds
+    }
+}
+----
+
+=== Query Optimization
+
+==== Index Recommendations
+
+1. Ensure primary keys are indexed (auto-created)
+2. Add indexes for frequently queried columns
+3. Use composite indexes for common filter combinations
+
+[source,sql]
+----
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_username ON users(username);
+CREATE INDEX idx_users_active ON users(is_active);
+----
+
+==== Batch Operations
+
+The framework supports batch operations for better performance:
+
+[source,groovy]
+----
+// Batch insert
+connector.create("User", attributesList)
+
+// Batch update
+connector.update("User", uidList, attributesList)
+----
+
+=== Debugging Performance Issues
+
+1. **Enable SQL logging**
+[source,groovy]
+----
+connector {
+    configuration {
+        debugSql = true
+    }
+}
+----
+
+2. **Check execution plans**
+[source,sql]
+----
+EXPLAIN ANALYZE SELECT * FROM users WHERE email = ?;
+----
+
+3. **Monitor connection pool metrics**
+[source,groovy]
+----
+// Framework provides pool monitoring APIs
+----
+
+4. **Profile slow queries**
+- Use database-specific profiling tools
+- Check for missing indexes
+- Verify query parameter types
+
+=== Common Performance Patterns
+
+| Pattern | Recommendation |
+|-----|-----|
+| Large result sets | Use pagination |
+| Frequent lookups | Add appropriate indexes |
+| Batch operations | Use batch APIs |
+| Complex joins | Consider views or stored procedures |
+| High traffic | Increase pool size |
+
+== Debugging Query Issues
+
+=== Enable Query Logging
+
+[source,groovy]
+----
+connector {
+    configuration {
+        debugSql = true
+        debugQueryParams = true
+    }
+}
+----
+
+=== Common Issues and Solutions
+
+==== Issue 1: Table Not Found
+
+**Error**: `Table 'users' not found`
+
+**Causes**:
+* Schema not configured
+* Database name not specified in connection
+* Case sensitivity mismatch
+
+**Solution**:
+[source,groovy]
+----
+connector {
+    configuration {
+        jdbcUrl = "jdbc:postgresql://localhost:5432/mydb"  // Include database name
+    }
+}
+----
+
+==== Issue 2: Type Mismatch
+
+**Error**: `Cannot convert String to Integer`
+
+**Causes**:
+* Attribute type in schema doesn't match database column type
+* Custom transformer logic error
+
+**Solution**:
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") {
+        sql { type INTEGER }  // Match database column type
+    }
+}
+----
+
+==== Issue 3: Primary Key Required
+
+**Error**: `Primary key not specified for object class`
+
+**Solution**:
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") {
+        sql { type INTEGER; primaryKey true }
+    }
+}
+----
+
+==== Issue 4: SQL Syntax Error
+
+**Error**: Database-specific SQL syntax error
+
+**Causes**:
+* Wrong dialect configured
+* Custom SQL with wrong dialect
+
+**Solution**:
+[source,groovy]
+----
+connector {
+    configuration {
+        dialect = "postgresql"  // Match target database
+    }
+}
+----
+
+==== Issue 5: Connection Timeout
+
+**Error**: `Connection timeout exceeded`
+
+**Solutions**:
+[source,groovy]
+----
+connector {
+    configuration {
+        connectTimeout = 30  // seconds
+        socketTimeout = 60   // seconds
+        maxPoolSize = 50     // Increase pool size
+    }
+}
+----
+
+=== Debug Tools
+
+1. **Enable frame work logging**
+[source,properties]
+----
+log4j.logger.org.connid = DEBUG
+log4j.logger.com.evolveum = DEBUG
+----
+
+2. **Check SQL generation**
+[source,groovy]
+----
+// Framework logs generated SQL when debugSql = true
+----
+
+3. **Database-specific tools**
+* PostgreSQL: `EXPLAIN ANALYZE`
+* MySQL: `EXPLAIN`
+* Oracle: `EXPLAIN PLAN`
+* SQLite: `EXPLAIN QUERY PLAN`
+
+4. **Test with in-memory database**
+[source,groovy]
+----
+jdbcUrl = "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1"
+----
+
+== Migration Checklist: Complete
+
+=== Pre-Migration
+
+* [ ] Audit all existing SQL operations
+* [ ] Document table schemas and relationships
+* [ ] Identify all SQL queries and their parameters
+* [ ] List connection pool configuration
+* [ ] Document custom error handling
+* [ ] List all supported databases
+
+=== Migration Steps
+
+* [ ] Create framework project structure
+* [ ] Configure connection settings
+* [ ] Define object classes using Groovy DSL
+* [ ] Map attributes to database columns
+* [ ] Configure SQL dialect
+* [ ] Implement custom operations (if needed)
+* [ ] Add transformers for custom types
+* [ ] Configure connection pool settings
+* [ ] Enable query logging for debugging
+
+=== Post-Migration Testing
+
+* [ ] Test create operations
+* [ ] Test read/search operations
+* [ ] Test update operations
+* [ ] Test delete operations
+* [ ] Test filter functionality
+* [ ] Test pagination
+* [ ] Test type conversions
+* [ ] Test error handling
+* [ ] Performance benchmarking
+* [ ] Database migration verification
+
+=== Verification
+
+* [ ] All CRUD operations working
+* [ ] Search filters functioning
+* [ ] Type mappings correct
+* [ ] Connection pooling active
+* [ ] SQL generation appropriate for dialect
+* [ ] Error messages informative
+* [ ] Performance acceptable
+
+== Troubleshooting
+
+=== Common Migration Pitfalls
+
+1. **Incomplete Schema Definition**
+   - Missing primary keys
+   - Incorrect column types
+   - Missing attribute mappings
+
+2. **SQL Dialect Mismatch**
+   - Wrong dialect configured
+   - Database-specific SQL in custom handlers
+
+3. **Type Conversion Issues**
+   - SQL NULL vs Java null
+   - Precision loss in numeric types
+   - String encoding issues
+
+4. **Connection Problems**
+   - Wrong JDBC URL
+   - Missing database credentials
+   - Pool size too small
+
+### Resolution Strategy
+
+1. **Check configuration**
+   - Verify all required fields
+   - Validate SQL dialect
+   - Test connection independently
+
+2. **Enable debugging**
+   - Turn on query logging
+   - Check framework logs
+   - Review generated SQL
+
+3. **Test incrementally**
+   - Start with simplest configuration
+   - Add complexity step by step
+   - Test each operation individually
+
+4. **Consult documentation**
+   - Framework configuration guide
+   - SQL dialect documentation
+   - Type mapping reference
+
+## Summary
+
+The SQL Declarative Connector Framework provides a more maintainable, multi-database approach to SQL connector development. Key migration benefits:
+
+* **Less code** - ~90% reduction in lines
+* **Multi-database** - Automatic SQL dialect support
+* **Better maintainability** - Configuration-driven
+* ** fewer bugs** - Framework-managed resources
+* **Easier testing** - Plain schema definitions
+
+For questions or issues, refer to:
+* Framework documentation: `/home/evolveum/conndev/connector-multitable/docs/`
+* Migration examples: `connector-multitable/docs/samples/`
+* Test code: `connector-multitable/src/test/`

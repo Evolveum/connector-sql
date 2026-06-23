@@ -1,0 +1,45 @@
+= SQL Connector Framework - Sample Connectors
+
+This directory contains sample connector implementations for various SQL databases.
+
+== Available Samples
+
+* xref:postgresql.adoc[PostgreSQL] - Full-featured PostgreSQL connector
+* xref:mysql.adoc[MySQL] - MySQL/MariaDB connector
+* xref:oracle.adoc[Oracle] - Oracle Database connector
+* xref:sqlite.adoc[SQLite] - File-based SQLite connector
+* xref:h2.adoc[H2] - In-memory H2 database connector (ideal for testing)
+
+== General Configuration
+
+Each sample demonstrates:
+- JDBC URL configuration for the specific database
+- Dialect configuration (auto-detect or explicit)
+- Table and attribute mappings using SQL annotations
+- Connection pooling settings
+- CRUD operation examples
+- Database-specific considerations and best practices
+
+== Common Schema Structure
+
+All samples use a consistent `User` object class with the following attributes:
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    attribute("id") { sql { type INTEGER; primaryKey true; } }
+    attribute("username") { sql { type VARCHAR(255); } }
+    attribute("email") { sql { type VARCHAR(255); } }
+    attribute("created_at") { sql { type TIMESTAMP; } }
+}
+----
+
+== Testing
+
+Each sample includes test configuration examples:
+- In-memory databases (H2, SQLite) for unit testing
+- Container-based databases for integration testing
+- Connection pooling optimization for production
+
+See the H2 sample for testing-focused configuration.

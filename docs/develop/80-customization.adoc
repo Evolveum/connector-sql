@@ -1,0 +1,244 @@
+= Customizing generated handlers
+:page-nav-title: Customization
+:page-display-order: 1500
+:page-upkeep-status: orange
+:page-upkeep-status: orange
+:page-toc: top
+
+== Overview
+
+The framework generates default handlers based on schema definitions. You can customize them for complex business logic, special SQL syntax, or business rules.
+
+== Handler customization patterns
+
+| Operation | Default | Customization hook |
+|-----|-----|-----|
+| `create` | INSERT with generated SQL | `objectClass.create.handler` |
+| `retrieve` | SELECT by primary key | `objectClass.retrieve.handler` |
+| `search` | SELECT with filter WHERE | `objectClass.search.handler` |
+| `update` | UPDATE by primary key | `objectClass.update.handler` |
+| `delete` | DELETE by primary key | `objectClass.delete.handler` |
+
+== Custom create handler
+
+=== When to customize
+
+* Use database-specific features (RETURNING, OUTPUT clause)
+* Generate custom IDs (UUIDs, sequences)
+* Perform validation before insert
+* Log creation events
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    create {
+        handler { attributes ->
+            // Generate UUID for ID
+            def id = UUID.randomUUID().toString()
+            def sql = """
+                INSERT INTO users (id, username, email, created_at) 
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                RETURNING id, created_at
+            """
+            def result = executeQuery(sql, [id, attributes.username, attributes.email])
+            return result[0]
+        }
+    }
+}
+----
+
+== Custom retrieve handler
+
+=== When to customize
+
+* Fetch related data (joins)
+* Apply row-level security
+* Cache frequently accessed data
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    retrieve {
+        handler { uid, attributesToReturn ->
+            def sql = """
+                SELECT u.*, r.name as role_name
+                FROM users u
+                LEFT JOIN roles r ON u.role_id = r.id
+                WHERE u.id = ?
+            """
+            return executeQuery(sql, [uid.value])
+        }
+    }
+}
+----
+
+== Custom search handler
+
+=== When to customize
+
+* Implement full-text search
+* Apply custom filtering logic
+* Implement pagination manually
+* Aggregate data across tables
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    search {
+        handler { filter ->
+            def conditions = []
+            def params = []
+            
+            if (filter?.isAnd()) {
+                // AND filter
+                filter.left.each { lhs ->
+                    conditions << buildCondition(lhs, params)
+                }
+                conditions << buildCondition(filter.right, params)
+            } else {
+                conditions << buildCondition(filter, params)
+            }
+            
+            def sql = "SELECT * FROM users WHERE ${conditions.join(' AND ')}"
+            return executeQuery(sql, params)
+        }
+        
+        // Helper method for condition building
+        def buildCondition(filter, params) {
+            if (filter.isEqualTo()) {
+                params << filter.value
+                return "${filter.attributeName} = ?"
+            } else if (filter.isLike()) {
+                params << filter.value
+                return "${filter.attributeName} LIKE ?"
+            }
+            // ... handle other filter types
+        }
+    }
+}
+----
+
+== Custom update handler
+
+=== When to customize
+
+* Update related tables
+* Apply business rules
+* Log changes (audit trail)
+* Handle optimistic locking
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    update {
+        handler { attributes, options ->
+            def updates = []
+            def params = []
+            
+            // Build UPDATE clause
+            if (attributes.username) {
+                updates << "username = ?"
+                params << attributes.username
+            }
+            if (attributes.email) {
+                updates << "email = ?"
+                params << attributes.email
+            }
+            
+            if (updates.isEmpty()) {
+                return
+            }
+            
+            // Add audit logging
+            def updateSql = "UPDATE users SET ${updates.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?"
+            params << attributes.id
+            
+            executeUpdate(updateSql, params)
+            
+            // Log change
+            executeVoid("INSERT INTO audit_log (user_id, action, timestamp) VALUES (?, 'UPDATE', CURRENT_TIMESTAMP)", attributes.id)
+        }
+    }
+}
+----
+
+== Custom delete handler
+
+=== When to customize
+
+* Implement soft delete
+* Check dependencies before delete
+* Cascade delete to related tables
+* Log deletion events
+
+[source,groovy]
+----
+objectClass("User") {
+    table("users")
+    
+    delete {
+        handler { uid ->
+            // Check for related records
+            def projectsSql = "SELECT COUNT(*) FROM projects WHERE owner_id = ?"
+            def projectCount = executeQuery(projectsSql, [uid.value])[0] as Integer
+            
+            if (projectCount > 0) {
+                throw new ConnectionBrokenException(
+                    "Cannot delete user with ${projectCount} active projects"
+                )
+            }
+            
+            // Soft delete
+            executeUpdate("UPDATE users SET is_active = 0, deleted_at = CURRENT_TIMESTAMP WHERE id = ?", [uid.value])
+        }
+    }
+}
+----
+
+== Handler options reference
+
+| Option | Description | Example |
+|-----|-----|-----|
+| `handler` | Custom Groovy closure | `handler { parameters -> ... }` |
+| `returnAttributes` | Attributes to return after operation | `returnAttributes ["id", "created_at"]` |
+| `generatedKeyAttribute` | Attribute for auto-generated values | `generatedKeyAttribute "id"` |
+| `whereClause` | Custom WHERE clause | `whereClause "id = ? AND deleted_at IS NULL"` |
+
+== Framework-provided methods
+
+| Method | Description |
+|-----|-----|
+| `executeQuery(sql, params)` | Execute SELECT, return rows |
+| `executeUpdate(sql, params)` | Execute INSERT/UPDATE/DELETE |
+| `executeVoid(sql, params)` | Execute without return value |
+| `executeInsert(sql, params)` | Execute INSERT, return generated keys |
+| `getTable(name)` | Get table definition |
+| `getAttribute(name)` | Get attribute definition |
+
+== Best practices
+
+1. **Start with defaults** - Use auto-generated when possible
+2. **Keep it simple** - Custom handlers should be minimal
+3. **Fail fast** - Validate inputs and throw clear errors
+4. **Log operations** - Add logging for debugging
+5. **Test thoroughly** - Verify custom logic works correctly
+
+== Debugging
+
+Enable SQL logging:
+
+[source,groovy]
+----
+configuration {
+    logSql = true
+    logLevel = "DEBUG"
+}
+----
