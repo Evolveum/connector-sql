@@ -99,11 +99,11 @@ public class SqlValueMapper {
         if (targetType == String.class) {
             return value.toString();
         } else if (targetType == Integer.class) {
-            return value instanceof Number ? ((Number) value).intValue() : Integer.parseInt(value.toString());
+            return value instanceof Number n ? n.intValue() : Integer.parseInt(value.toString());
         } else if (targetType == Long.class) {
-            return value instanceof Number ? ((Number) value).longValue() : Long.parseLong(value.toString());
+            return value instanceof Number n ? n.longValue() : Long.parseLong(value.toString());
         } else if (targetType == Double.class) {
-            return value instanceof Number ? ((Number) value).doubleValue() : Double.parseDouble(value.toString());
+            return value instanceof Number n ? n.doubleValue() : Double.parseDouble(value.toString());
         } else if (targetType == Boolean.class) {
             return value instanceof Boolean ? value : Boolean.parseBoolean(value.toString());
         }
