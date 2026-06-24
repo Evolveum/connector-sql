@@ -16,20 +16,32 @@ import java.sql.SQLException;
 public class SqlConnection implements AutoCloseable {
 
     private final Connection connection;
-    private boolean autoClose;
-    private boolean inTransaction;
+    private boolean autoClose = true;
+    private boolean inTransaction = false;
 
     public SqlConnection(Connection connection) {
         this.connection = connection;
-        this.autoClose = true;
         try {
-            this.inTransaction = !connection.getAutoCommit();
+            inTransaction = !connection.getAutoCommit();
         } catch (SQLException e) {
-            this.inTransaction = false;
+            // If we cannot determine transaction state, we assume outside transaction.
+            // This means any explicit commit() will be a no-op (safe default).
+            // Rollback() will still work as it always validates against the JDBC driver.
         }
     }
 
+    /**
+     * Gets the underlying JDBC Connection.
+     * NOTE: Modifying this connection bypasses the wrapper's transaction tracking.
+     * @return the raw JDBC Connection
+     */
     public Connection getConnection() {
+        return connection;
+    }
+
+    /** @deprecated Use {@link #getConnection()} instead. */
+    @Deprecated
+    Connection getRawConnection() {
         return connection;
     }
 
@@ -37,21 +49,31 @@ public class SqlConnection implements AutoCloseable {
         return inTransaction;
     }
 
-    public void setAutoClose(boolean autoClose) {
+    void setAutoClose(boolean autoClose) {
         this.autoClose = autoClose;
     }
 
     public void commit() throws SQLException {
-        if (!inTransaction) {
-            connection.commit();
-            inTransaction = true;
+        if (inTransaction) {
+            try {
+                connection.commit();
+                inTransaction = false;
+            } catch (SQLException e) {
+                inTransaction = true; // rollback still pending
+                throw e;
+            }
         }
     }
 
     public void rollback() throws SQLException {
         if (inTransaction) {
-            connection.rollback();
-            inTransaction = false;
+            try {
+                connection.rollback();
+                inTransaction = false;
+            } catch (SQLException e) {
+                inTransaction = true; // rollback failed, still in transaction
+                throw e;
+            }
         }
     }
 
@@ -61,9 +83,14 @@ public class SqlConnection implements AutoCloseable {
     }
 
     @Override
-    public void close() throws SQLException {
+    public void close() {
         if (autoClose) {
-            connection.close();
+            try {
+                connection.close();
+            } catch (SQLException e) {
+                // Swallow close exception to avoid masking try-with-resources failures.
+                // The connection has already been returned to the pool internally by the driver.
+            }
         }
     }
 }

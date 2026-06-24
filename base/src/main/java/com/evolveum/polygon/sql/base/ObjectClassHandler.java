@@ -9,14 +9,12 @@ package com.evolveum.polygon.sql.base;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
 /**
- * Contract for handling operations and object classes in the context of a specific object type.
- *
- * FIXME: Move to the ConnDev / Polygon
+ * Contract for handling operations and object classes in a specific object type.
  */
 public interface ObjectClassHandler {
 
     /**
-     * Checks if specific SPI operation is supported for specific object type
+     * Checks if specific SPI operation is supported for specific object type.
      * @param operationType SPI Operation interface
      * @return Operation handler
      * @throws UnsupportedOperationException If the SPI Operation is not supported

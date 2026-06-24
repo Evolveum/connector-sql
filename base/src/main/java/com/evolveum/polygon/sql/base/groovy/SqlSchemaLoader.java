@@ -16,6 +16,10 @@ import java.nio.file.Path;
 
 /**
  * Loads Groovy schema and operation definitions.
+ *
+ * <p>If the provided schema file does not exist, this method silently
+ * returns (the file is optional). If loading fails, a RuntimeException
+ * is thrown that omits internal file path information from the message.</p>
  */
 public class SqlSchemaLoader {
 
@@ -31,6 +35,10 @@ public class SqlSchemaLoader {
         }
 
         try {
+            String desc = schemaPath.toString().contains("schema")
+                    ? schemaPath.toAbsolutePath().toString()
+                    : schemaPath.toString();
+
             Binding binding = new Binding();
             binding.setVariable("context", context);
 
@@ -39,7 +47,7 @@ public class SqlSchemaLoader {
             script.run();
 
         } catch (Exception e) {
-            throw new RuntimeException("Failed to load schema from " + schemaPath, e);
+            throw new RuntimeException("Failed to load schema from Groovy script: " + e.getMessage(), e);
         }
     }
 }

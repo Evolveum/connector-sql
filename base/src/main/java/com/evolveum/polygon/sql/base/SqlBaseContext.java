@@ -7,20 +7,28 @@
 package com.evolveum.polygon.sql.base;
 
 import com.evolveum.polygon.sql.base.schema.SqlSchema;
+import com.evolveum.polygon.sql.base.connection.HikariConnectionPool;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * Context for SQL connector operations.
  * Manages connection pool, schema, and handlers.
+ *
+ * <p>All public methods are safe to call concurrently after initialization.</p>
  */
 public class SqlBaseContext {
+
+    private static final String POOL_CLOSED_MSG = "Connection pool has been closed";
 
     private final SqlConnectorConfiguration configuration;
     private SqlSchema schema;
     private Map<ObjectClass, ObjectClassHandler> handlers;
+    private volatile HikariConnectionPool connectionPool;
 
     public SqlBaseContext(SqlConnectorConfiguration configuration) {
         this.configuration = configuration;
@@ -39,31 +47,80 @@ public class SqlBaseContext {
     }
 
     public Map<ObjectClass, ObjectClassHandler> handlers() {
-        return handlers;
+        return handlers != null ? Collections.unmodifiableMap(handlers) : Collections.emptyMap();
     }
 
     public void handlers(Map<ObjectClass, ObjectClassHandler> handlers) {
-        this.handlers = handlers;
+        if (handlers == null) {
+            this.handlers = null;
+            return;
+        }
+        this.handlers = Map.copyOf(handlers);
     }
 
     public ObjectClassHandler handlerFor(ObjectClass objectClass) {
         return handlers != null ? handlers.get(objectClass) : null;
     }
 
-    public void initializeConnectionPool() {
-        // Initialize HikariCP connection pool
+    HikariConnectionPool getConnectionPool() {
+        return connectionPool;
+    }
 
+    /**
+     * Initializes or reinitializes the connection pool, properly closing any previous pool.
+     */
+    public void initializeConnectionPool() {
+        HikariConnectionPool oldPool;
+        synchronized (this) {
+            if (connectionPool != null) {
+                oldPool = connectionPool;
+            } else {
+                oldPool = null;
+            }
+            connectionPool = new HikariConnectionPool(configuration);
+            connectionPool.initialize();
+        }
+
+        if (oldPool != null) {
+            oldPool.close();
+        }
     }
 
     public void testConnection() throws Exception {
-        // Test database connection
+        HikariConnectionPool pool = connectionPool;
+        if (pool == null) {
+            throw new IllegalStateException("Connection pool not initialized");
+        }
+        pool.test();
     }
 
+    /**
+     * Closes the connection pool and releases all resources.
+     * After calling this method, call {@link #initializeConnectionPool()} to reconnect.
+     */
     public void close() {
-        // Close connection pool
+        synchronized (this) {
+            if (connectionPool != null) {
+                connectionPool.close();
+                connectionPool = null;
+            }
+        }
     }
 
+    /**
+     * Gets a SqlConnection from the pool.
+     * @return a connection wrapper
+     * @throws IllegalStateException if pool is not initialized or closed
+     */
     public SqlConnection getConnection() {
-        throw new UnsupportedOperationException("Not supported yet.");
+        HikariConnectionPool pool = connectionPool;
+        if (pool == null) {
+            throw new IllegalStateException("Connection pool not initialized");
+        }
+        try {
+            return pool.getConnection();
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to get connection from pool", e);
+        }
     }
 }

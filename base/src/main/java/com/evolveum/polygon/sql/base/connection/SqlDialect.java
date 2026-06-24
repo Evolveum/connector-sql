@@ -20,11 +20,14 @@ public interface SqlDialect {
 
     String toSql(SqlStatement statement);
 
-    default String generateInsertWithReturns(String tableName, 
-                                              String[] columns, 
-                                              int returnCount) {
-        return "INSERT INTO " + tableName + " (" + String.join(", ", columns) + ") VALUES (" + 
-               String.join(", ", generatePlaceholders(columns.length)) + ")";
+default String generateInsertWithReturns(String tableName, 
+                                               String[] columns, 
+                                               int returnCount) {
+        return """
+            INSERT INTO %s (%s) VALUES (%s)\
+            """.formatted(tableName, 
+                         String.join(", ", columns),
+                         String.join(", ", generatePlaceholders(columns.length)));
     }
 
     default String[] generatePlaceholders(int count) {

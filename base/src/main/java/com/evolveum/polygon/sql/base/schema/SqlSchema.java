@@ -7,10 +7,13 @@
 package com.evolveum.polygon.sql.base.schema;
 
 import org.identityconnectors.framework.common.objects.*;
+import org.identityconnectors.framework.api.operations.APIOperation;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Represents the SQL database schema in a ConnId-compatible format.
@@ -48,14 +51,14 @@ public class SqlSchema {
     }
 
     public Schema connIdSchema() {
-        SchemaBuilder builder = new SchemaBuilder(null);
-        
+        Set<ObjectClassInfo> objClassInfoSet = new HashSet<>();
+
         for (SqlTableInfo table : tables) {
             // Map to ObjectClass
-            ObjectClass objectClass = new ObjectClass(table.getName().toLowerCase());
+            String objectClassName = table.getName().toLowerCase();
+            ObjectClass objectClass = new ObjectClass(objectClassName);
             var objClassBuilder = new ObjectClassInfoBuilder()
-                    .setType(table.getTableType().toLowerCase());
-
+                    .setType(objectClassName);
 
             for (SqlColumnMeta column : table.getColumns()) {
                 var attribute = new AttributeInfoBuilder()
@@ -66,9 +69,10 @@ public class SqlSchema {
                         .build();
                 objClassBuilder.addAttributeInfo(attribute);
             }
-            builder.defineObjectClass(objClassBuilder.build());
+            objClassInfoSet.add(objClassBuilder.build());
         }
-        return builder.build();
+
+        return new Schema(objClassInfoSet, Set.of(), Map.of(), Map.of());
     }
 
     private Class<?> toConnIdType(String typeName) {

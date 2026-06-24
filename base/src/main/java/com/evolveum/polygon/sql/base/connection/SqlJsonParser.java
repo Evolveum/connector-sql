@@ -6,6 +6,7 @@
  */
 package com.evolveum.polygon.sql.base.connection;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -13,11 +14,20 @@ import java.util.Map;
 
 /**
  * JSON parser for SQL operations.
- * Reuses connector-scimrest JSON utilities for parsing JSONB/CLOB columns.
+ * Parses JSONB/CLOB columns and raw JSON strings.
  */
 public class SqlJsonParser {
 
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+    private static final ObjectMapper OBJECT_MAPPER = createSecureMapper();
+
+    private static ObjectMapper createSecureMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+        // Don't fail on unknown properties (common in schema-less databases like PostgreSQL JSONB)
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        mapper.configure(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT, false);
+        mapper.configure(DeserializationFeature.ACCEPT_EMPTY_ARRAY_AS_NULL_OBJECT, false);
+        return mapper;
+    }
 
     public JsonNode parse(byte[] jsonBytes) throws IOException {
         if (jsonBytes == null) {

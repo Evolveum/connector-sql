@@ -6,22 +6,21 @@
  */
 package com.evolveum.polygon.sql.base;
 
-import org.identityconnectors.framework.common.objects.*;
+import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.spi.Connector;
-import org.identityconnectors.framework.spi.operations.*;
-
+import org.identityconnectors.framework.spi.operations.SearchOp;
 
 /**
  * Base connector with support for separate handlers per object class.
  * Allows mixing and matching different operation handlers for different object classes.
  *
- * FIXME: THis should be part of Polygon and/or ConnDev
+ * <p>All methods are called by the ConnId framework and may be invoked concurrently.
+ * Implementations must ensure thread-safety for all shared state.</p>
  */
 public abstract class ClassHandlerConnectorBase implements Connector, SearchOp<Filter> {
-    
-    public abstract SqlBaseContext context();
-    
-    public abstract ObjectClassHandler handlerFor(ObjectClass objectClass) throws UnsupportedOperationException;
 
+    public abstract SqlBaseContext context();
+
+    public abstract ObjectClassHandler handlerFor(ObjectClass objectClass) throws UnsupportedOperationException;
 }

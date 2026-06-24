@@ -62,7 +62,18 @@ public class SqlConnectorConfiguration implements Configuration {
         this.username = username;
     }
 
+    /**
+     * Returns the password for database authentication.
+     * Note: This value is sensitive and should only be used for database connection setup.
+     * It is intentionally omitted from toString() to prevent accidental exposure.
+     */
     public String getPassword() {
+        return password;
+    }
+
+    /** @deprecated Use {@link #getPassword()} instead. */
+    @Deprecated
+    String getPasswordInternal() {
         return password;
     }
 
@@ -126,5 +137,30 @@ public class SqlConnectorConfiguration implements Configuration {
         if (username == null || username.isEmpty()) {
             throw new IllegalArgumentException("Username is required");
         }
+    }
+
+    @Override
+    public String toString() {
+        return """
+            SqlConnectorConfiguration{
+                jdbcUrl='%s',
+                dialect='%s',
+                username='%s',
+                poolSize=%s,
+                connectionTimeout=%s,
+                idleTimeout=%s,
+                validateConnectionOnBorrow=%s,
+                autoDiscoverSchema=%s,
+                logSqlStatements=%s
+            }"""
+            .formatted("jdbcUrl=**hidden**", 
+                      dialect,
+                      username,
+                      poolSize,
+                      connectionTimeout,
+                      idleTimeout,
+                      validateConnectionOnBorrow,
+                      autoDiscoverSchema,
+                      logSqlStatements);
     }
 }

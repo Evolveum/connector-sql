@@ -116,11 +116,11 @@ public class SqlTableInfo {
         }
 
         public SqlTableInfo build() {
-            return new SqlTableInfo(name, schema, catalog, tableType, remarks, columns);
+            return new SqlTableInfo(name, schema, catalog, tableType, remarks, new ArrayList<>(columns));
         }
 
         public Builder columns(Collection<SqlColumnMeta> columns) {
-            columns.addAll(columns);
+            this.columns.addAll(columns);
             return this;
         }
     }
