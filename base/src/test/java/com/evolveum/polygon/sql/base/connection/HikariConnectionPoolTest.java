@@ -14,7 +14,8 @@ import org.testng.annotations.Test;
 import java.sql.Connection;
 import java.sql.SQLException;
 
-import static org.testng.Assert.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 public class HikariConnectionPoolTest {
 
@@ -46,8 +47,8 @@ public class HikariConnectionPoolTest {
         pool = new HikariConnectionPool(configuration);
         pool.initialize();
 
-        assertFalse(pool.isClosed());
-        assertNotNull(pool.getDataSource());
+        assertThat(pool.isClosed()).isFalse();
+        assertThat(pool.getDataSource()).isNotNull();
     }
 
     @Test
@@ -56,8 +57,8 @@ public class HikariConnectionPoolTest {
         pool.initialize();
 
         SqlConnection conn = pool.getConnection();
-        assertNotNull(conn);
-        assertNotNull(conn.getConnection());
+        assertThat(conn).isNotNull();
+        assertThat(conn.getConnection()).isNotNull();
         conn.close();
     }
 
@@ -67,13 +68,13 @@ public class HikariConnectionPoolTest {
         pool = new HikariConnectionPool(configuration);
         pool.initialize();
 
-        assertEquals(pool.getDataSource().getMaximumPoolSize(), 2);
+    assertThat(pool.getDataSource().getMaximumPoolSize()).isEqualTo(2);
 
         // Acquire 2 connections (pool size)
         SqlConnection conn1 = pool.getConnection();
         SqlConnection conn2 = pool.getConnection();
-        assertNotNull(conn1);
-        assertNotNull(conn2);
+    assertThat(conn1).isNotNull();
+    assertThat(conn2).isNotNull();
 
         conn1.close();
         conn2.close();
@@ -87,12 +88,12 @@ public class HikariConnectionPoolTest {
         SqlConnection conn1 = pool.getConnection();
         SqlConnection conn2 = pool.getConnection();
 
-        assertTrue(conn1 != conn2, "Should return different connection instances");
+        assertThat(conn1 != conn2).withFailMessage("Should return different connection instances").isTrue();
 
         // Connections should be independent
         Connection raw1 = conn1.getConnection();
         Connection raw2 = conn2.getConnection();
-        assertTrue(raw1 != raw2);
+        assertThat(raw1 != raw2).isTrue();
 
         conn1.close();
         conn2.close();
@@ -115,7 +116,7 @@ public class HikariConnectionPoolTest {
             pool.test();
             fail("Should throw SQLException");
         } catch (SQLException e) {
-            assertTrue(e.getMessage().contains("not initialized"));
+            assertThat(e.getMessage().contains("not initialized")).isTrue();
         }
     }
 
@@ -124,9 +125,9 @@ public class HikariConnectionPoolTest {
         pool = new HikariConnectionPool(configuration);
         pool.initialize();
 
-        assertFalse(pool.isClosed());
+        assertThat(pool.isClosed()).isFalse();
         pool.close();
-        assertTrue(pool.isClosed());
+        assertThat(pool.isClosed()).isTrue();
     }
 
     @Test
@@ -137,7 +138,7 @@ public class HikariConnectionPoolTest {
 
         // Second close should not throw
         pool.close();
-        assertTrue(pool.isClosed());
+        assertThat(pool.isClosed()).isTrue();
     }
 
     @Test
@@ -148,7 +149,7 @@ public class HikariConnectionPoolTest {
         pool = new HikariConnectionPool(configuration);
         pool.initialize();
 
-        assertEquals(pool.getDataSource().getMaximumPoolSize(), 10, "Default pool size should be 10");
+        assertThat(pool.getDataSource().getMaximumPoolSize()).withFailMessage("Default pool size should be 10").isEqualTo(10);
 
         pool.close();
     }

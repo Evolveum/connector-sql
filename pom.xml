@@ -27,6 +27,7 @@
         <failsafe.version>3.5.2</failsafe.version>
         <testng.version>7.10.2</testng.version>
         <groovy.version>4.0.25</groovy.version>
+        <conndev.version>0.1-SNAPSHOT</conndev.version>
     </properties>
 
    <repositories>
@@ -76,6 +77,11 @@
                 <groupId>net.tirasa.connid</groupId>
                 <artifactId>connector-framework</artifactId>
                 <version>${connId.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.evolveum.polygon.conndev</groupId>
+                <artifactId>conndev-base</artifactId>
+                <version>${conndev.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

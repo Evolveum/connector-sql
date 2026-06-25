@@ -11,6 +11,7 @@ import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
 import com.evolveum.polygon.sql.base.schema.SqlSchema;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
+import com.evolveum.polygon.sql.base.test.H2DatabaseInitializer;
 import org.identityconnectors.framework.common.objects.AttributeInfo;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Schema;
@@ -18,17 +19,16 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.testng.Assert.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.fail;
 
 /**
  * Integration tests for SQL schema detection and translation using H2 embedded database.
@@ -36,134 +36,25 @@ import static org.testng.Assert.*;
 @Test(singleThreaded = true)
 public class SqlSchemaDetectorIntegrationTest {
 
-    private SqlConnectorConfiguration configuration;
     private SqlBaseContext context;
 
     @BeforeMethod
     public void setUp() throws Exception {
-        String dbUrl = "jdbc:h2:mem:" + UUID.randomUUID().toString().replace("-", "_")
-                + ";DB_CLOSE_DELAY=-1;MODE=MySQL";
-
-        configuration = new SqlConnectorConfiguration();
-        configuration.setJdbcUrl(dbUrl);
-        configuration.setUsername("sa");
-        configuration.setPassword("");
-        configuration.setPoolSize(5);
-        configuration.setConnectionTimeout(30000);
-        configuration.setIdleTimeout(600000);
-        configuration.setValidateConnectionOnBorrow(true);
-        configuration.setAutoDiscoverSchema(false);
-
-        context = new SqlBaseContext(configuration);
-        context.initializeConnectionPool();
-        createTablesAndData();
+        context = H2DatabaseInitializer.create();
     }
 
     @AfterMethod
     public void tearDown() {
         if (context != null) {
             context.close();
-        }
-        context = null;
-    }
-
-    private void createTablesAndData() throws SQLException {
-        try (SqlConnection conn = context.getConnection()) {
-            Connection jdbc = conn.getConnection();
-            try (Statement stmt = jdbc.createStatement()) {
-                stmt.execute("DROP TABLE IF EXISTS ProjectMembership CASCADE");
-                stmt.execute("DROP TABLE IF EXISTS UserAddress CASCADE");
-                stmt.execute("DROP TABLE IF EXISTS Project CASCADE");
-                stmt.execute("DROP TABLE IF EXISTS \"Group\" CASCADE");
-                stmt.execute("DROP TABLE IF EXISTS \"Role\" CASCADE");
-                stmt.execute("DROP TABLE IF EXISTS \"User\" CASCADE");
-
-                stmt.execute("""
-                        CREATE TABLE "User" (\
-                        id INT PRIMARY KEY AUTO_INCREMENT, \
-                        username VARCHAR(255) NOT NULL UNIQUE, \
-                        email VARCHAR(255) UNIQUE, \
-                        created_at TIMESTAMP)""");
-                stmt.execute("""
-                        CREATE TABLE "Group" (\
-                        id INT PRIMARY KEY AUTO_INCREMENT, \
-                        name VARCHAR(255) NOT NULL, \
-                        description VARCHAR(1024))""");
-                stmt.execute("""
-                        CREATE TABLE "Role" (\
-                        id INT PRIMARY KEY AUTO_INCREMENT, \
-                        name VARCHAR(255) NOT NULL, \
-                        description VARCHAR(1024))""");
-                stmt.execute("""
-                        CREATE TABLE Project (\
-                        id INT PRIMARY KEY AUTO_INCREMENT, \
-                        name VARCHAR(255) NOT NULL, \
-                        description VARCHAR(1024), \
-                        created_at TIMESTAMP)""");
-                stmt.execute("""
-                        CREATE TABLE UserAddress (\
-                        id INT PRIMARY KEY AUTO_INCREMENT, \
-                        user_id INT NOT NULL, \
-                        street VARCHAR(255), \
-                        city VARCHAR(255), \
-                        country VARCHAR(255), \
-                        primary_flag BOOLEAN)""");
-                stmt.execute("""
-                        CREATE TABLE ProjectMembership (\
-                        id INT PRIMARY KEY AUTO_INCREMENT, \
-                        user_id INT NOT NULL, \
-                        project_id INT NOT NULL, \
-                        role_id INT NOT NULL, \
-                        joined_at TIMESTAMP)""");
-
-                stmt.execute("""
-                        ALTER TABLE UserAddress ADD CONSTRAINT fk_user_address_user \
-                        FOREIGN KEY (user_id) REFERENCES "User"(id) ON DELETE CASCADE""");
-                stmt.execute("""
-                        ALTER TABLE ProjectMembership ADD CONSTRAINT fk_membership_user \
-                        FOREIGN KEY (user_id) REFERENCES "User"(id)""");
-                stmt.execute("""
-                        ALTER TABLE ProjectMembership ADD CONSTRAINT fk_membership_project \
-                        FOREIGN KEY (project_id) REFERENCES Project(id)""");
-                stmt.execute("""
-                        ALTER TABLE ProjectMembership ADD CONSTRAINT fk_membership_role \
-                        FOREIGN KEY (role_id) REFERENCES "Role"(id)""");
-
-                stmt.execute("""
-                        INSERT INTO "User" (username, email, created_at) VALUES \
-                        ('john.doe', 'john@example.com', CURRENT_TIMESTAMP()), \
-                        ('jane.smith', 'jane@example.com', CURRENT_TIMESTAMP())""");
-                stmt.execute("""
-                        INSERT INTO "Group" (name, description) VALUES \
-                        ('Developers', 'Software developers'), \
-                        ('Admins', 'System administrators')""");
-                stmt.execute("""
-                        INSERT INTO "Role" (name, description) VALUES \
-                        ('Owner', 'Project owner'), \
-                        ('Member', 'Regular member'), \
-                        ('Reviewer', 'Code reviewer')""");
-                stmt.execute("""
-                        INSERT INTO Project (name, description, created_at) VALUES \
-                        ('Alpha', 'First project', CURRENT_TIMESTAMP()), \
-                        ('Beta', 'Second project', CURRENT_TIMESTAMP())""");
-                stmt.execute("""
-                        INSERT INTO UserAddress (user_id, street, city, country, primary_flag) VALUES \
-                        (1, '123 Main St', 'New York', 'US', true), \
-                        (1, '456 Oak Ave', 'Boston', 'US', false), \
-                        (2, '789 Elm St', 'San Francisco', 'US', true)""");
-                stmt.execute("""
-                        INSERT INTO ProjectMembership (user_id, project_id, role_id, joined_at) VALUES \
-                        (1, 1, 1, CURRENT_TIMESTAMP()), \
-                        (1, 2, 2, CURRENT_TIMESTAMP()), \
-                        (2, 1, 3, CURRENT_TIMESTAMP())""");
-            }
+            context = null;
         }
     }
 
     @Test
     public void testConnectionPoolInitialization() {
-        assertNotNull(context.getConnectionPool());
-        assertFalse(context.getConnectionPool().isClosed());
+        assertThat(context.getConnectionPool()).isNotNull();
+        assertThat(context.getConnectionPool().isClosed()).isFalse();
     }
 
     @Test
@@ -177,8 +68,8 @@ public class SqlSchemaDetectorIntegrationTest {
         detector.discover();
 
         SqlSchema schema = context.schema();
-        assertNotNull(schema);
-        assertEquals(schema.getTables().size(), 6, "Should discover exactly 6 tables");
+        assertThat(schema).isNotNull();
+        assertThat(schema.getTables().size()).withFailMessage("Should discover exactly 6 tables").isEqualTo(6);
     }
 
     @Test
@@ -187,25 +78,25 @@ public class SqlSchemaDetectorIntegrationTest {
         detector.discover();
 
         SqlTableInfo userTable = context.schema().getTable("user");
-        assertNotNull(userTable);
+        assertThat(userTable).isNotNull();
         Map<String, SqlColumnMeta> columns = toColumnMap(userTable);
 
         SqlColumnMeta idCol = columns.get("id");
-        assertNotNull(idCol);
-        assertTrue(idCol.isPrimaryKey());
-        assertFalse(idCol.isNullable());
-        assertTrue(idCol.isAutoIncrement());
+        assertThat(idCol).isNotNull();
+        assertThat(idCol.isPrimaryKey()).isTrue();
+        assertThat(idCol.isNullable()).isFalse();
+        assertThat(idCol.isAutoIncrement()).isTrue();
 
-        assertTrue(columns.containsKey("username"));
-        assertFalse(columns.get("username").isNullable());
-        assertTrue(columns.get("username").isUnique());
+        assertThat(columns.containsKey("username")).isTrue();
+        assertThat(columns.get("username").isNullable()).isFalse();
+        assertThat(columns.get("username").isUnique()).isTrue();
 
-        assertTrue(columns.containsKey("email"));
-        assertTrue(columns.get("email").isNullable());
-        assertTrue(columns.get("email").isUnique());
+        assertThat(columns.containsKey("email")).isTrue();
+        assertThat(columns.get("email").isNullable()).isTrue();
+        assertThat(columns.get("email").isUnique()).isTrue();
 
-        assertTrue(columns.containsKey("created_at"));
-        assertTrue(columns.get("created_at").isNullable());
+        assertThat(columns.containsKey("created_at")).isTrue();
+        assertThat(columns.get("created_at").isNullable()).isTrue();
     }
 
     @Test
@@ -214,9 +105,9 @@ public class SqlSchemaDetectorIntegrationTest {
         detector.discover();
 
         Map<String, SqlColumnMeta> columns = toColumnMap(context.schema().getTable("group"));
-        assertEquals(columns.size(), 3);
-        assertFalse(columns.get("id").isNullable());
-        assertTrue(columns.get("id").isPrimaryKey());
+        assertThat(columns.size()).isEqualTo(3);
+        assertThat(columns.get("id").isNullable()).isFalse();
+        assertThat(columns.get("id").isPrimaryKey()).isTrue();
     }
 
     @Test
@@ -225,9 +116,9 @@ public class SqlSchemaDetectorIntegrationTest {
         detector.discover();
 
         Map<String, SqlColumnMeta> columns = toColumnMap(context.schema().getTable("role"));
-        assertEquals(columns.size(), 3);
-        assertTrue(columns.get("id").isPrimaryKey());
-        assertFalse(columns.get("name").isNullable());
+        assertThat(columns.size()).isEqualTo(3);
+        assertThat(columns.get("id").isPrimaryKey()).isTrue();
+        assertThat(columns.get("name").isNullable()).isFalse();
     }
 
     @Test
@@ -236,9 +127,9 @@ public class SqlSchemaDetectorIntegrationTest {
         detector.discover();
 
         Map<String, SqlColumnMeta> columns = toColumnMap(context.schema().getTable("project"));
-        assertEquals(columns.size(), 4);
-        assertTrue(columns.get("id").isPrimaryKey());
-        assertFalse(columns.get("name").isNullable());
+        assertThat(columns.size()).isEqualTo(4);
+        assertThat(columns.get("id").isPrimaryKey()).isTrue();
+        assertThat(columns.get("name").isNullable()).isFalse();
     }
 
     @Test
@@ -247,13 +138,12 @@ public class SqlSchemaDetectorIntegrationTest {
         detector.discover();
 
         Map<String, SqlColumnMeta> columns = toColumnMap(context.schema().getTable("useraddress"));
-        assertEquals(columns.size(), 6);
-        assertTrue(columns.get("id").isPrimaryKey());
+        assertThat(columns.size()).isEqualTo(6);
+        assertThat(columns.get("id").isPrimaryKey()).isTrue();
 
         SqlColumnMeta userIdCol = columns.get("user_id");
-        assertNotNull(userIdCol);
-        assertFalse(userIdCol.isNullable(),
-                "UserAddress.user_id should be NOT NULL - UserAddress cannot exist without a User");
+        assertThat(userIdCol).isNotNull();
+        assertThat(userIdCol.isNullable()).withFailMessage("UserAddress.user_id should be NOT NULL - UserAddress cannot exist without a User").isFalse();
 
         assertColumnType(columns.get("street"), "VARCHAR");
         assertColumnType(columns.get("city"), "VARCHAR");
@@ -266,13 +156,13 @@ public class SqlSchemaDetectorIntegrationTest {
         detector.discover();
 
         Map<String, SqlColumnMeta> columns = toColumnMap(context.schema().getTable("projectmembership"));
-        assertEquals(columns.size(), 5);
-        assertTrue(columns.get("id").isPrimaryKey());
+        assertThat(columns.size()).isEqualTo(5);
+        assertThat(columns.get("id").isPrimaryKey()).isTrue();
 
-        assertFalse(columns.get("user_id").isNullable());
-        assertFalse(columns.get("project_id").isNullable());
-        assertFalse(columns.get("role_id").isNullable());
-        assertTrue(columns.get("joined_at").isNullable());
+        assertThat(columns.get("user_id").isNullable()).isFalse();
+        assertThat(columns.get("project_id").isNullable()).isFalse();
+        assertThat(columns.get("role_id").isNullable()).isFalse();
+        assertThat(columns.get("joined_at").isNullable()).isTrue();
     }
 
     @Test
@@ -281,7 +171,7 @@ public class SqlSchemaDetectorIntegrationTest {
         detector.discover();
 
         Schema connIdSchema = context.schema().connIdSchema();
-        assertNotNull(connIdSchema);
+        assertThat(connIdSchema).isNotNull();
 
         Map<String, ObjectClassInfo> objClasses = connIdSchema.getObjectClassInfo().stream()
                 .collect(Collectors.toMap(
@@ -289,29 +179,29 @@ public class SqlSchemaDetectorIntegrationTest {
                         Function.identity()));
 
         for (String name : List.of("user", "group", "role", "project", "useraddress", "projectmembership")) {
-            assertTrue(objClasses.containsKey(name), "Should contain '" + name + "' object class");
+            assertThat(objClasses.containsKey(name)).withFailMessage("Should contain '" + name + "' object class").isTrue();
         }
 
         // Verify User attributes
         ObjectClassInfo userClass = objClasses.get("user");
-        assertNotNull(userClass);
+        assertThat(userClass).isNotNull();
         Map<String, AttributeInfo> userAttrs = userClass.getAttributeInfo().stream()
                 .collect(Collectors.toMap(AttributeInfo::getName, Function.identity()));
-        assertEquals(userAttrs.size(), 5);  // 4 columns + __NAME__ auto-added by ConnId
+        assertThat(userAttrs.size()).isEqualTo(5);  // 4 columns + __NAME__ auto-added by ConnId
 
-        assertTrue(userAttrs.get("id").isRequired(), "User.id should be required");
-        assertFalse(userAttrs.get("email").isRequired(), "User.email should NOT be required");
+        assertThat(userAttrs.get("id").isRequired()).withFailMessage("User.id should be required").isTrue();
+        assertThat(userAttrs.get("email").isRequired()).withFailMessage("User.email should NOT be required").isFalse();
 
         // Verify ProjectMembership
         ObjectClassInfo membership = objClasses.get("projectmembership");
-        assertNotNull(membership);
+        assertThat(membership).isNotNull();
         Map<String, AttributeInfo> memberAttrs = membership.getAttributeInfo().stream()
                 .collect(Collectors.toMap(AttributeInfo::getName, Function.identity()));
-        assertEquals(memberAttrs.size(), 6);  // 5 columns + __NAME__ auto-added by ConnId
+        assertThat(memberAttrs.size()).isEqualTo(6);  // 5 columns + __NAME__ auto-added by ConnId
 
-        assertTrue(memberAttrs.get("user_id").isRequired());
-        assertTrue(memberAttrs.get("project_id").isRequired());
-        assertTrue(memberAttrs.get("role_id").isRequired());
+        assertThat(memberAttrs.get("user_id").isRequired()).isTrue();
+        assertThat(memberAttrs.get("project_id").isRequired()).isTrue();
+        assertThat(memberAttrs.get("role_id").isRequired()).isTrue();
     }
 
     @Test
@@ -322,8 +212,8 @@ public class SqlSchemaDetectorIntegrationTest {
             try (Statement s1 = conn1.getConnection().createStatement();
                  Statement s2 = conn2.getConnection().createStatement()) {
                 try (ResultSet rs = s1.executeQuery("SELECT COUNT(*) FROM \"User\"")) {
-                    assertTrue(rs.next());
-                    assertEquals(rs.getInt(1), 2);
+                    assertThat(rs.next()).isTrue();
+                    assertThat(rs.getInt(1)).isEqualTo(2);
                 }
             }
         }
@@ -338,7 +228,7 @@ public class SqlSchemaDetectorIntegrationTest {
             context.getConnection();
             fail("Should throw IllegalStateException after close");
         } catch (IllegalStateException e) {
-            assertEquals(e.getMessage(), "Connection pool not initialized");
+            assertThat(e.getMessage()).isEqualTo("Connection pool not initialized");
         }
 
         context.initializeConnectionPool();
@@ -349,7 +239,7 @@ public class SqlSchemaDetectorIntegrationTest {
             context.getConnection();
             fail("Should throw IllegalStateException after close");
         } catch (IllegalStateException e) {
-            assertEquals(e.getMessage(), "Connection pool not initialized");
+            assertThat(e.getMessage()).isEqualTo("Connection pool not initialized");
         }
     }
 
@@ -373,14 +263,6 @@ public class SqlSchemaDetectorIntegrationTest {
         // Debug which tables are discovered
         SqlSchemaDetector detector = new SqlSchemaDetector(context);
         detector.discover();
-        System.out.println("=== SCHEMA DEBUG ===");
-        for (SqlTableInfo t : context.schema().getTables()) {
-            System.out.println("DISCOVERED: " + t.getName() + " cols=" + t.getColumns().size());
-            for (SqlColumnMeta c : t.getColumns()) {
-                System.out.println("  col: " + c.getName() + " type=" + c.getTypeName() + " pk=" + c.isPrimaryKey() + " nullable=" + c.isNullable());
-            }
-        }
-        System.out.println("==================");
-        assertEquals(context.schema().getTables().size(), 6, "Should be 6");
+        assertThat(context.schema().getTables()).withFailMessage("Should be 6").hasSize(6);
     }
 }
