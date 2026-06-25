@@ -6,8 +6,8 @@
  */
 package com.evolveum.polygon.sql.base.groovy;
 
-import com.evolveum.polygon.sql.base.ObjectClassHandler;
-import com.evolveum.polygon.sql.base.ObjectClassOperation;
+import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
+import com.evolveum.polygon.conndev.spi.ObjectClassOperation;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.util.Map;

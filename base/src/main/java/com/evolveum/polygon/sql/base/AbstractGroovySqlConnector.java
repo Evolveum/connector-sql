@@ -8,6 +8,7 @@ package com.evolveum.polygon.sql.base;
 
 import java.sql.SQLException;
 
+import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;

@@ -1,0 +1,27 @@
+/*
+ * Copyright (c) 2025 Evolveum and contributors
+ *
+ * This work is licensed under European Union Public License v1.2. See LICENSE file for details.
+ *
+ */
+
+// Context for schema.groovy files
+def schemaCtx = context(scope=scriptScope(name: ".*\\.sql\\.groovy"))
+//def searchCtx = context(filenamePattern: ".*\\.search\\.groovy")
+//def opCtx = context(scope=scriptScope(),filetypes: ["op.groovy"])
+
+contributor(schemaCtx) {
+    // Delegate top-level objectClass calls to RestSchemaBuilder
+    delegatesTo(findClass('com.evolveum.polygon.sql.base.api.build.SqlSchemaBuilder'))
+}
+
+
+/*
+contribute(searchCtx) {
+    delegatesTo(findClass('com.evolveum.polygon.scimrest.groovy.api.ConnectorBuilder'))
+}
+
+contribute(opCtx) {
+    delegatesTo(findClass('com.evolveum.polygon.scimrest.groovy.api.ConnectorBuilder'))
+}
+*/

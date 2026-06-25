@@ -6,6 +6,7 @@
  */
 package com.evolveum.polygon.sql.base;
 
+import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.spi.Connector;

@@ -6,6 +6,7 @@
  */
 package com.evolveum.polygon.sql.base;
 
+import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.sql.base.schema.SqlSchema;
 import com.evolveum.polygon.sql.base.connection.HikariConnectionPool;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;

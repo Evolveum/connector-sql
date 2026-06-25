@@ -6,7 +6,7 @@
  */
 package com.evolveum.polygon.sql.base.groovy;
 
-import com.evolveum.polygon.sql.base.ObjectClassHandler;
+import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
