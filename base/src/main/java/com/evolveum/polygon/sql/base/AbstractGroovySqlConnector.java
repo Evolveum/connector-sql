@@ -6,8 +6,6 @@
  */
 package com.evolveum.polygon.sql.base;
 
-import java.sql.SQLException;
-
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
@@ -17,6 +15,8 @@ import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.spi.Configuration;
 
+import java.sql.SQLException;
+
 /**
  * Base connector class for SQL database connectors.
  * Extends ClassHandlerConnectorBase to support separate handlers per object class.
@@ -24,7 +24,7 @@ import org.identityconnectors.framework.spi.Configuration;
  * <p>This class manages its lifecycle. Operations that require a pool will
  * lazily initialize it on first call or reinitialize on each call as configured.</p>
  */
-public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfiguration> 
+public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfiguration>
         extends ClassHandlerConnectorBase {
 
     private final boolean reinitializeOnEachCall;

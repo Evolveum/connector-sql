@@ -9,7 +9,10 @@ package com.evolveum.polygon.sql.base.schema;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
 
-import java.sql.*;
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.ResultSetMetaData;
+import java.sql.SQLException;
 import java.util.*;
 
 public class SqlSchemaDetector {

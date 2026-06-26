@@ -9,6 +9,7 @@ package com.evolveum.polygon.sql.base.connection;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import java.io.IOException;
 import java.util.Map;
 

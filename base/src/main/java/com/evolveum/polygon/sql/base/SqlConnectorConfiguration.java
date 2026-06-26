@@ -8,7 +8,6 @@ package com.evolveum.polygon.sql.base;
 
 import org.identityconnectors.framework.common.objects.ConnectorMessages;
 import org.identityconnectors.framework.spi.Configuration;
-import org.identityconnectors.framework.spi.StatefulConfiguration;
 
 /**
  * Configuration class for SQL connector.

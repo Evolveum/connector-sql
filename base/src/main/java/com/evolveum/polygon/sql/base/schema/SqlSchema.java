@@ -7,7 +7,6 @@
 package com.evolveum.polygon.sql.base.schema;
 
 import org.identityconnectors.framework.common.objects.*;
-import org.identityconnectors.framework.api.operations.APIOperation;
 
 import java.util.HashMap;
 import java.util.HashSet;

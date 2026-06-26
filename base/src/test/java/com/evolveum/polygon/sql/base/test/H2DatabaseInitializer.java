@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.SQLException;
+import java.util.concurrent.ThreadLocalRandom;
 
 /**
  * H2 database initialization helper for tests.
@@ -152,7 +153,7 @@ public final class H2DatabaseInitializer {
      * Test mode configuration.
      */
     public static final class H2TestMode {
-        private final int id = (int) (Math.random() * 2147483647);
+        private final int id = (int) (ThreadLocalRandom.current().nextDouble() * 2147483647);
         private String mode = "MySQL";
         private boolean databaseToLower = false;
         private boolean databaseToUpper = true;
