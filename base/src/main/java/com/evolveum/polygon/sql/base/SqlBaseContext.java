@@ -6,10 +6,12 @@
  */
 package com.evolveum.polygon.sql.base;
 
+import com.evolveum.polygon.conndev.api.ContextLookup;
+import com.evolveum.polygon.conndev.concepts.RetrievableContext;
+import com.evolveum.polygon.conndev.schema.BaseSchema;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.sql.base.connection.HikariConnectionPool;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
-import com.evolveum.polygon.sql.base.schema.SqlSchema;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.util.Collections;
@@ -21,12 +23,12 @@ import java.util.Map;
  *
  * <p>All public methods are safe to call concurrently after initialization.</p>
  */
-public class SqlBaseContext {
+public class SqlBaseContext implements ContextLookup, RetrievableContext {
 
     private static final String POOL_CLOSED_MSG = "Connection pool has been closed";
 
     private final SqlConnectorConfiguration configuration;
-    private SqlSchema schema;
+    private BaseSchema schema;
     private Map<ObjectClass, ObjectClassHandler> handlers;
     private volatile HikariConnectionPool connectionPool;
 
@@ -38,11 +40,23 @@ public class SqlBaseContext {
         return configuration;
     }
 
-    public SqlSchema schema() {
+    /**
+     * Type-safe context retrieval required by {@link ContextLookup}. The SQL connector has a single
+     * context, so this returns itself when the requested type matches.
+     */
+    @Override
+    public <T extends RetrievableContext> T get(Class<T> contextType) {
+        if (contextType.isInstance(this)) {
+            return contextType.cast(this);
+        }
+        throw new IllegalStateException("No context of type " + contextType.getName());
+    }
+
+    public BaseSchema schema() {
         return schema;
     }
 
-    public void schema(SqlSchema schema) {
+    public void schema(BaseSchema schema) {
         this.schema = schema;
     }
 

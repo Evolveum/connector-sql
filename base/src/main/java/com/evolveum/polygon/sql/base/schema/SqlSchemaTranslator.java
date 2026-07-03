@@ -1,16 +1,24 @@
 package com.evolveum.polygon.sql.base.schema;
 
-import com.evolveum.polygon.sql.base.api.build.*;
+import com.evolveum.polygon.conndev.api.ContextLookup;
+import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinitionBuilder;
+import com.evolveum.polygon.conndev.schema.BaseSchema;
+import com.evolveum.polygon.conndev.schema.BaseSchemaBuilder;
 import com.evolveum.polygon.sql.base.schema.strategy.DefaultDetectionStrategy;
-import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
+import org.identityconnectors.framework.common.objects.AttributeInfo;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
-import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
-import org.identityconnectors.framework.common.objects.Schema;
+import org.identityconnectors.framework.spi.Connector;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Optional;
 
 /**
- * Translates a JDBC-detected SQL schema into ConnId schema-based builder objects.
+ * Translates the JDBC-detected tables into the conndev {@link BaseSchema} — the single source of the
+ * default schema mapping. Both the ConnId schema for provisioning ({@link BaseSchema#connIdSchema()})
+ * and the development-mode {@code conndev_ObjectClass} export are derived from the translated model;
+ * nothing else maps the raw JDBC metadata.
  * <p>
  * Uses composition of {@link AttributeDetectionStrategy}s to determine:
  * <ul>
@@ -21,12 +29,11 @@ import java.util.*;
  */
 public class SqlSchemaTranslator {
 
-    private final SqlSchema sourceSchema;
-    private SqlSchemaBuilder builder;
+    private final List<SqlTableInfo> tables;
     private final List<AttributeDetectionStrategy> strategies = new ArrayList<>();
 
-    public SqlSchemaTranslator(SqlSchema sourceSchema) {
-        this.sourceSchema = sourceSchema;
+    public SqlSchemaTranslator(List<SqlTableInfo> tables) {
+        this.tables = tables == null ? List.of() : tables;
     }
 
     public SqlSchemaTranslator addStrategy(AttributeDetectionStrategy strategy) {
@@ -34,73 +41,80 @@ public class SqlSchemaTranslator {
         return this;
     }
 
-    public boolean translate() {
-        if (sourceSchema == null || sourceSchema.getTables() == null || sourceSchema.getTables().isEmpty()) {
-            return false;
-        }
-
-        builder = new DefaultSqlSchemaBuilder();
-
-        for (SqlTableInfo table : sourceSchema.getTables()) {
-            translateTable(table);
-        }
-        return true;
+    public BaseSchema translate(Class<? extends Connector> connectorClass, ContextLookup contextLookup) {
+        return translate(connectorClass, contextLookup, List.of());
     }
 
-    public SqlSchemaBuilder getBuilder() {
-        return builder;
+    /**
+     * @param additionalObjectClasses ready-made ConnId object classes to expose alongside the tables
+     *                                (e.g. the shared development-mode {@code conndev_*} classes)
+     */
+    public BaseSchema translate(Class<? extends Connector> connectorClass, ContextLookup contextLookup,
+            Collection<ObjectClassInfo> additionalObjectClasses) {
+        var builder = new BaseSchemaBuilder(connectorClass, contextLookup);
+        for (SqlTableInfo table : tables) {
+            translateTable(table, builder);
+        }
+        for (ObjectClassInfo info : additionalObjectClasses) {
+            builder.defineObjectClass(info);
+        }
+        return builder.build();
     }
 
-    public Schema toConnIdSchema() {
-        Set<ObjectClassInfo> objectClassInfos = new HashSet<>();
-
-        if (sourceSchema == null || sourceSchema.getTables() == null || sourceSchema.getTables().isEmpty()) {
-            return new Schema(
-                    Collections.unmodifiableSet(objectClassInfos),
-                    Collections.emptySet(),
-                    Map.of(), Map.of());
-        }
-
-        for (SqlTableInfo table : sourceSchema.getTables()) {
-            ObjectClassInfo objClassInfo = translateTableToObjClassInfo(table);
-            objectClassInfos.add(objClassInfo);
-        }
-
-        return new Schema(
-                Collections.unmodifiableSet(objectClassInfos),
-                Collections.emptySet(),
-                Map.of(), Map.of());
-    }
-
-    private void translateTable(SqlTableInfo table) {
+    private void translateTable(SqlTableInfo table, BaseSchemaBuilder builder) {
         if (table == null || table.getColumns() == null || table.getColumns().isEmpty()) {
             return;
         }
 
-        String objectClassName = table.getName().toLowerCase();
-        SqlObjectClassSchemaBuilder objClassBuilder = builder.objectClass(objectClassName);
-
-        if (objClassBuilder instanceof DefaultSqlObjectClassSchemaBuilder defaultObj) {
-            defaultObj.setObjectClassName(objectClassName);
-        }
-
         List<AttributeDetectionStrategy> effectiveStrategies = getEffectiveStrategies();
 
-        for (AttributeDetectionStrategy strategy : effectiveStrategies) {
-            if (strategy.isEmbedded(table)) {
-                if (objClassBuilder instanceof DefaultSqlObjectClassSchemaBuilder schemaBuilder) {
-                    schemaBuilder.setEmbedded(true);
-                }
-                break;
-            }
+        BaseObjectClassDefinitionBuilder objectClass = builder.objectClass(table.getName().toLowerCase());
+        objectClass.locator(table.getName());
+        if (table.getSchema() != null) {
+            objectClass.namespace(table.getSchema());
+        }
+        if (effectiveStrategies.stream().anyMatch(strategy -> strategy.isEmbedded(table))) {
+            objectClass.embedded(true);
         }
 
         Optional<SqlColumnMeta> uidColumn = findUid(table, effectiveStrategies);
-
         List<SqlColumnMeta> attributeColumns = findAttributeColumns(table, effectiveStrategies);
 
         for (SqlColumnMeta column : attributeColumns) {
-            translateColumn(column, objClassBuilder, uidColumn);
+            translateColumn(column, objectClass);
+        }
+        if (uidColumn.isPresent() && attributeColumns.contains(uidColumn.get())) {
+            objectClass.connIdAttribute("UID", uidColumn.get().getName());
+        }
+    }
+
+    private void translateColumn(SqlColumnMeta column, BaseObjectClassDefinitionBuilder objectClass) {
+        var attribute = objectClass.attribute(column.getName());
+        attribute.nativeType(column.getTypeName());
+        attribute.required(!column.isNullable());
+        if (isLargeType(column.getTypeName())) {
+            attribute.returnedByDefault(false);
+        }
+        // DB-generated identity columns cannot be written; primary keys are not updatable.
+        if (column.isAutoIncrement()) {
+            attribute.creatable(false);
+            attribute.updatable(false);
+        } else if (column.isPrimaryKey()) {
+            attribute.updatable(false);
+        }
+        // A foreign key is a reference. Columns of one (composite) FK share the same reference name
+        // (subtype), and each carries its own target column.
+        if (column.getReferencedTable() != null) {
+            attribute.objectClass(column.getReferencedTable().toLowerCase());
+            attribute.role(AttributeInfo.RoleInReference.SUBJECT);
+            if (column.getForeignKeyName() != null) {
+                attribute.subtype(column.getForeignKeyName());
+            }
+            if (column.getReferencedColumn() != null) {
+                attribute.referencedAttribute(column.getReferencedColumn());
+            }
+        } else {
+            attribute.connId().type(connIdType(column.getTypeName()));
         }
     }
 
@@ -133,66 +147,6 @@ public class SqlSchemaTranslator {
             }
         }
         return columns;
-    }
-
-    private void translateColumn(SqlColumnMeta column, SqlObjectClassSchemaBuilder objClassBuilder,
-                                  Optional<SqlColumnMeta> uidColumn) {
-        String attrName = column.getName();
-
-        SqlAttributeBuilder attrBuilder = objClassBuilder.attribute(attrName);
-
-        if (attrBuilder instanceof DefaultSqlAttributeBuilder dbAttr) {
-            dbAttr.required(!column.isNullable())
-                    .returnedByDefault(!isLargeType(column.getTypeName()));
-            if (column.isAutoIncrement()) {
-                dbAttr.setAutoIncrement(Boolean.TRUE);
-            }
-        }
-
-        if (uidColumn.isPresent() && uidColumn.get().equals(column)) {
-            if (attrBuilder instanceof DefaultSqlAttributeBuilder attributeBuilder) {
-                attributeBuilder.setConnIdName("UID");
-            }
-        }
-    }
-
-    private ObjectClassInfo translateTableToObjClassInfo(SqlTableInfo table) {
-        ObjectClassInfoBuilder builder = new ObjectClassInfoBuilder();
-        String objectClassName = table.getName().toLowerCase();
-        builder.setType(objectClassName);
-
-        List<AttributeDetectionStrategy> effectiveStrategies = getEffectiveStrategies();
-
-        boolean isEmbedded = false;
-        for (AttributeDetectionStrategy strategy : effectiveStrategies) {
-            if (strategy.isEmbedded(table)) {
-                isEmbedded = true;
-                break;
-            }
-        }
-        builder.setEmbedded(isEmbedded);
-
-        String uidColumnName = null;
-        for (AttributeDetectionStrategy strategy : effectiveStrategies) {
-            Optional<SqlColumnMeta> uidCandidate = strategy.resolveUid(table);
-            if (uidCandidate.isPresent()) {
-                uidColumnName = uidCandidate.get().getName();
-
-                break;
-            }
-        }
-
-        for (SqlColumnMeta column : table.getColumns()) {
-            AttributeInfoBuilder attrBuilder = new AttributeInfoBuilder();
-            attrBuilder.setName(column.getName());
-            attrBuilder.setType(connIdType(column.getTypeName()));
-            attrBuilder.setRequired(!column.isNullable());
-            attrBuilder.setReturnedByDefault(!isLargeType(column.getTypeName()));
-
-            builder.addAttributeInfo(attrBuilder.build());
-        }
-
-        return builder.build();
     }
 
     private Class<?> connIdType(String typeName) {

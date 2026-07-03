@@ -8,13 +8,16 @@ package com.evolveum.polygon.sql.base;
 
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
 import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
-import com.evolveum.polygon.sql.base.schema.SqlSchema;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
+import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
 import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
 import com.evolveum.polygon.sql.base.test.H2DatabaseInitializer;
 import org.identityconnectors.framework.common.objects.AttributeInfo;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Schema;
+import org.identityconnectors.framework.common.objects.Uid;
+import org.identityconnectors.framework.spi.Configuration;
+import org.identityconnectors.framework.spi.Connector;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -35,6 +38,13 @@ import static org.assertj.core.api.Assertions.fail;
  */
 @Test(singleThreaded = true)
 public class SqlSchemaDetectorIntegrationTest {
+
+    /** Stub connector class required by the ConnId schema builder. */
+    static final class StubConnector implements Connector {
+        @Override public Configuration getConfiguration() { return null; }
+        @Override public void init(Configuration c) { }
+        @Override public void dispose() { }
+    }
 
     private SqlBaseContext context;
 
@@ -64,20 +74,16 @@ public class SqlSchemaDetectorIntegrationTest {
 
     @Test
     public void testAllTablesDiscovered() throws Exception {
-        SqlSchemaDetector detector = new SqlSchemaDetector(context);
-        detector.discover();
+        List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
 
-        SqlSchema schema = context.schema();
-        assertThat(schema).isNotNull();
-        assertThat(schema.getTables().size()).withFailMessage("Should discover exactly 6 tables").isEqualTo(6);
+        assertThat(tables.size()).withFailMessage("Should discover exactly 6 tables").isEqualTo(6);
     }
 
     @Test
     public void testUserTableSchema() throws Exception {
-        SqlSchemaDetector detector = new SqlSchemaDetector(context);
-        detector.discover();
+        List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
 
-        SqlTableInfo userTable = context.schema().getTable("user");
+        SqlTableInfo userTable = table(tables, "user");
         assertThat(userTable).isNotNull();
         Map<String, SqlColumnMeta> columns = toColumnMap(userTable);
 
@@ -101,10 +107,9 @@ public class SqlSchemaDetectorIntegrationTest {
 
     @Test
     public void testGroupTableSchema() throws Exception {
-        SqlSchemaDetector detector = new SqlSchemaDetector(context);
-        detector.discover();
+        List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
 
-        Map<String, SqlColumnMeta> columns = toColumnMap(context.schema().getTable("group"));
+        Map<String, SqlColumnMeta> columns = toColumnMap(table(tables, "group"));
         assertThat(columns.size()).isEqualTo(3);
         assertThat(columns.get("id").isNullable()).isFalse();
         assertThat(columns.get("id").isPrimaryKey()).isTrue();
@@ -112,10 +117,9 @@ public class SqlSchemaDetectorIntegrationTest {
 
     @Test
     public void testRoleTableSchema() throws Exception {
-        SqlSchemaDetector detector = new SqlSchemaDetector(context);
-        detector.discover();
+        List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
 
-        Map<String, SqlColumnMeta> columns = toColumnMap(context.schema().getTable("role"));
+        Map<String, SqlColumnMeta> columns = toColumnMap(table(tables, "role"));
         assertThat(columns.size()).isEqualTo(3);
         assertThat(columns.get("id").isPrimaryKey()).isTrue();
         assertThat(columns.get("name").isNullable()).isFalse();
@@ -123,10 +127,9 @@ public class SqlSchemaDetectorIntegrationTest {
 
     @Test
     public void testProjectTableSchema() throws Exception {
-        SqlSchemaDetector detector = new SqlSchemaDetector(context);
-        detector.discover();
+        List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
 
-        Map<String, SqlColumnMeta> columns = toColumnMap(context.schema().getTable("project"));
+        Map<String, SqlColumnMeta> columns = toColumnMap(table(tables, "project"));
         assertThat(columns.size()).isEqualTo(4);
         assertThat(columns.get("id").isPrimaryKey()).isTrue();
         assertThat(columns.get("name").isNullable()).isFalse();
@@ -134,10 +137,9 @@ public class SqlSchemaDetectorIntegrationTest {
 
     @Test
     public void testUserAddressSchema() throws Exception {
-        SqlSchemaDetector detector = new SqlSchemaDetector(context);
-        detector.discover();
+        List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
 
-        Map<String, SqlColumnMeta> columns = toColumnMap(context.schema().getTable("useraddress"));
+        Map<String, SqlColumnMeta> columns = toColumnMap(table(tables, "useraddress"));
         assertThat(columns.size()).isEqualTo(6);
         assertThat(columns.get("id").isPrimaryKey()).isTrue();
 
@@ -152,10 +154,9 @@ public class SqlSchemaDetectorIntegrationTest {
 
     @Test
     public void testProjectMembershipSchema() throws Exception {
-        SqlSchemaDetector detector = new SqlSchemaDetector(context);
-        detector.discover();
+        List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
 
-        Map<String, SqlColumnMeta> columns = toColumnMap(context.schema().getTable("projectmembership"));
+        Map<String, SqlColumnMeta> columns = toColumnMap(table(tables, "projectmembership"));
         assertThat(columns.size()).isEqualTo(5);
         assertThat(columns.get("id").isPrimaryKey()).isTrue();
 
@@ -167,10 +168,11 @@ public class SqlSchemaDetectorIntegrationTest {
 
     @Test
     public void testConnIdSchemaTranslation() throws Exception {
-        SqlSchemaDetector detector = new SqlSchemaDetector(context);
-        detector.discover();
+        List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
 
-        Schema connIdSchema = context.schema().connIdSchema();
+        Schema connIdSchema = new SqlSchemaTranslator(tables)
+                .translate(StubConnector.class, context)
+                .connIdSchema();
         assertThat(connIdSchema).isNotNull();
 
         Map<String, ObjectClassInfo> objClasses = connIdSchema.getObjectClassInfo().stream()
@@ -182,17 +184,18 @@ public class SqlSchemaDetectorIntegrationTest {
             assertThat(objClasses.containsKey(name)).withFailMessage("Should contain '" + name + "' object class").isTrue();
         }
 
-        // Verify User attributes
+        // Verify User attributes: the single-PK "id" column is mapped to __UID__
         ObjectClassInfo userClass = objClasses.get("user");
         assertThat(userClass).isNotNull();
         Map<String, AttributeInfo> userAttrs = userClass.getAttributeInfo().stream()
                 .collect(Collectors.toMap(AttributeInfo::getName, Function.identity()));
         assertThat(userAttrs.size()).isEqualTo(5);  // 4 columns + __NAME__ auto-added by ConnId
 
-        assertThat(userAttrs.get("id").isRequired()).withFailMessage("User.id should be required").isTrue();
+        assertThat(userAttrs.get(Uid.NAME).isRequired()).withFailMessage("User.id (__UID__) should be required").isTrue();
+        assertThat(userAttrs.get(Uid.NAME).getNativeName()).isEqualTo("id");
         assertThat(userAttrs.get("email").isRequired()).withFailMessage("User.email should NOT be required").isFalse();
 
-        // Verify ProjectMembership
+        // Verify ProjectMembership: FK columns are references, still required
         ObjectClassInfo membership = objClasses.get("projectmembership");
         assertThat(membership).isNotNull();
         Map<String, AttributeInfo> memberAttrs = membership.getAttributeInfo().stream()
@@ -200,6 +203,7 @@ public class SqlSchemaDetectorIntegrationTest {
         assertThat(memberAttrs.size()).isEqualTo(6);  // 5 columns + __NAME__ auto-added by ConnId
 
         assertThat(memberAttrs.get("user_id").isRequired()).isTrue();
+        assertThat(memberAttrs.get("user_id").getReferencedObjectClassName()).isEqualTo("user");
         assertThat(memberAttrs.get("project_id").isRequired()).isTrue();
         assertThat(memberAttrs.get("role_id").isRequired()).isTrue();
     }
@@ -245,6 +249,12 @@ public class SqlSchemaDetectorIntegrationTest {
 
     // --- Helpers ---
 
+    static SqlTableInfo table(List<SqlTableInfo> tables, String name) {
+        return tables.stream()
+                .filter(table -> name.equalsIgnoreCase(table.getName()))
+                .findFirst().orElse(null);
+    }
+
     private void assertColumnType(SqlColumnMeta col, String... allowedTypes) {
         String typeName = col.getTypeName().toUpperCase();
         for (String t : allowedTypes) {
@@ -256,13 +266,5 @@ public class SqlSchemaDetectorIntegrationTest {
     private Map<String, SqlColumnMeta> toColumnMap(SqlTableInfo table) {
         return table.getColumns().stream()
                 .collect(Collectors.toMap(SqlColumnMeta::getName, Function.identity(), (a, b) -> a));
-    }
-
-    @Test
-    public void testDebugTables() throws Exception {
-        // Debug which tables are discovered
-        SqlSchemaDetector detector = new SqlSchemaDetector(context);
-        detector.discover();
-        assertThat(context.schema().getTables()).withFailMessage("Should be 6").hasSize(6);
     }
 }

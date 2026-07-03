@@ -21,8 +21,12 @@ public class SqlColumnMeta {
     private final Object defaultValue;
     private final boolean autoIncrement;
 
-    public SqlColumnMeta(String name, String typeName, int typeCode, int size, 
-                         boolean nullable, boolean primaryKey, boolean unique, 
+    private String referencedTable;
+    private String referencedColumn;
+    private String foreignKeyName;
+
+    public SqlColumnMeta(String name, String typeName, int typeCode, int size,
+                         boolean nullable, boolean primaryKey, boolean unique,
                          Object defaultValue, boolean autoIncrement) {
         this.name = name;
         this.typeName = typeName;
@@ -69,6 +73,25 @@ public class SqlColumnMeta {
 
     public boolean isAutoIncrement() {
         return autoIncrement;
+    }
+
+    public String getReferencedTable() {
+        return referencedTable;
+    }
+
+    public String getReferencedColumn() {
+        return referencedColumn;
+    }
+
+    public String getForeignKeyName() {
+        return foreignKeyName;
+    }
+
+    /** Marks this column as part of a foreign key pointing to {@code referencedTable.referencedColumn}. */
+    public void setForeignKey(String referencedTable, String referencedColumn, String foreignKeyName) {
+        this.referencedTable = referencedTable;
+        this.referencedColumn = referencedColumn;
+        this.foreignKeyName = foreignKeyName;
     }
 
     public static Builder builder() {

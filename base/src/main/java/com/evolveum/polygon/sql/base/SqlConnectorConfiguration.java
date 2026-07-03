@@ -26,6 +26,7 @@ public class SqlConnectorConfiguration implements Configuration {
     private Boolean validateConnectionOnBorrow = true;
     private Boolean autoDiscoverSchema = true;
     private Boolean logSqlStatements = false;
+    private Boolean developmentMode = false;
 
     @Override
     public ConnectorMessages getConnectorMessages() {
@@ -126,6 +127,14 @@ public class SqlConnectorConfiguration implements Configuration {
 
     public void setLogSqlStatements(Boolean logSqlStatements) {
         this.logSqlStatements = logSqlStatements;
+    }
+
+    public Boolean isDevelopmentMode() {
+        return developmentMode;
+    }
+
+    public void setDevelopmentMode(Boolean developmentMode) {
+        this.developmentMode = developmentMode;
     }
 
     @Override

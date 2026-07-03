@@ -31,6 +31,12 @@ public class SqlHandlerBuilder {
         return this;
     }
 
+    /** Registers an operation handler for an object class (e.g. an {@code ObjectSearchOperation}). */
+    public SqlHandlerBuilder register(ObjectClass objectClass, Class<?> operationType, Object handler) {
+        handlers.computeIfAbsent(objectClass, k -> new HashMap<>()).put(operationType, handler);
+        return this;
+    }
+
     public Map<ObjectClass, ObjectClassHandler> build() {
         Map<ObjectClass, ObjectClassHandler> result = new HashMap<>();
         for (Map.Entry<ObjectClass, Map<Class<?>, Object>> entry : handlers.entrySet()) {

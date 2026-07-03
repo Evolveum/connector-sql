@@ -27,10 +27,10 @@ public class SqlSchemaDetector {
     }
 
     /**
-     * Discovers the database schema and sets it on the context.
+     * Discovers the database tables (with columns, keys and references) from JDBC metadata.
      * This method is idempotent and safe to call multiple times.
      */
-public void discover() throws SQLException {
+    public List<SqlTableInfo> discover() throws SQLException {
         try (SqlConnection wrapper = context.getConnection()) {
             Connection conn = wrapper.getConnection();
             tableNameToExact = new LinkedHashMap<>();
@@ -55,7 +55,6 @@ public void discover() throws SQLException {
                 }
             }
 
-            // Build and set the schema
             List<SqlTableInfo> tables = new ArrayList<>();
             for (Map.Entry<String, List<SqlColumnMeta>> entry : colMap.entrySet()) {
                 tables.add(SqlTableInfo.builder()
@@ -65,8 +64,8 @@ public void discover() throws SQLException {
                         .build());
             }
 
-            context.schema(new SqlSchema(tables));
             tableNameToExact = null;
+            return tables;
         }
     }
 
@@ -183,12 +182,33 @@ public void discover() throws SQLException {
                     cols.add(SqlColumnMeta.builder()
                             .name(colLower)
                             .typeName(resolverType(typeName))
+                            .typeCode(colsRs.getInt("DATA_TYPE"))
                             .nullable(isNullable(rawNullable))
                             .primaryKey(isPk)
                             .autoIncrement(isAutoInc(rawAutoInc))
                             .unique(isPk || uniqueCols.contains(colLower))
                             .defaultValue(null)
                             .build());
+                }
+            }
+
+            // Foreign keys: attach the referenced table/column (grouped by FK name) to the FK columns,
+            // so a reference can be expressed on the attribute (supports composite keys).
+            try (ResultSet fkRs = conn.getMetaData().getImportedKeys(null, null, exactName)) {
+                while (fkRs.next()) {
+                    String fkColumn = resolveColumn(fkRs, fkRs.getMetaData(), "FKCOLUMN_NAME");
+                    String pkTable = resolveColumn(fkRs, fkRs.getMetaData(), "PKTABLE_NAME");
+                    String pkColumn = resolveColumn(fkRs, fkRs.getMetaData(), "PKCOLUMN_NAME");
+                    String fkName = resolveColumn(fkRs, fkRs.getMetaData(), "FK_NAME");
+                    if (fkColumn == null || pkTable == null) {
+                        continue;
+                    }
+                    for (SqlColumnMeta col : cols) {
+                        if (col.getName().equalsIgnoreCase(fkColumn)) {
+                            col.setForeignKey(pkTable.toLowerCase(),
+                                    pkColumn != null ? pkColumn.toLowerCase() : null, fkName);
+                        }
+                    }
                 }
             }
         }
