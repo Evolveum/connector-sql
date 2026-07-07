@@ -1,12 +1,12 @@
-package com.evolveum.polygon.sql.base.api.build;
+package com.evolveum.polygon.sql.base.build.api;
 
 import com.evolveum.polygon.conndev.annotations.Script;
-import com.evolveum.polygon.conndev.build.SchemaBuilder;
+import com.evolveum.polygon.conndev.build.api.SchemaBuilder;
 import com.evolveum.polygon.conndev.concepts.GroovyClosures;
 import groovy.lang.Closure;
 import groovy.lang.DelegatesTo;
 
-public interface SqlSchemaBuilder extends SchemaBuilder {
+public interface SqlSchemaBuilder extends SchemaBuilder<SqlSchemaBuilder, SqlObjectClassSchemaBuilder> {
 
     @Override
     SqlObjectClassSchemaBuilder objectClass(String objectClassName);

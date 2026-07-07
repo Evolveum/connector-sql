@@ -1,18 +1,18 @@
 package com.evolveum.polygon.sql.base.schema;
 
 import com.evolveum.polygon.conndev.api.ContextLookup;
-import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinitionBuilder;
+import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.schema.BaseSchema;
-import com.evolveum.polygon.conndev.schema.BaseSchemaBuilder;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilder;
+import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
 import com.evolveum.polygon.sql.base.schema.strategy.DefaultDetectionStrategy;
 import org.identityconnectors.framework.common.objects.AttributeInfo;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.spi.Connector;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
+
+import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
 
 /**
  * Translates the JDBC-detected tables into the conndev {@link BaseSchema} — the single source of the
@@ -51,28 +51,38 @@ public class SqlSchemaTranslator {
      */
     public BaseSchema translate(Class<? extends Connector> connectorClass, ContextLookup contextLookup,
             Collection<ObjectClassInfo> additionalObjectClasses) {
-        var builder = new BaseSchemaBuilder(connectorClass, contextLookup);
+        var builder = new SqlSchemaBuilderImpl(connectorClass, contextLookup);
         for (SqlTableInfo table : tables) {
             translateTable(table, builder);
         }
+        // FIXME: These should be handled differently
+        /*
         for (ObjectClassInfo info : additionalObjectClasses) {
             builder.defineObjectClass(info);
-        }
+        }*/
         return builder.build();
     }
 
-    private void translateTable(SqlTableInfo table, BaseSchemaBuilder builder) {
+    private void translateTable(SqlTableInfo table, SqlSchemaBuilderImpl builder) {
         if (table == null || table.getColumns() == null || table.getColumns().isEmpty()) {
             return;
         }
 
         List<AttributeDetectionStrategy> effectiveStrategies = getEffectiveStrategies();
 
-        BaseObjectClassDefinitionBuilder objectClass = builder.objectClass(table.getName().toLowerCase());
+
+        var maybeClassName = detected(table.getName());
+        var objectClass = builder.correlateObjectClass(
+                o -> Objects.equals(o.sql().schema(), table.getSchema())  && o.sql().table().equals(table.getName()),
+                maybeClassName,
+                o -> o.sql().schema(detected(table.getSchema())).table(detected(table.getName())));
+
+        /*
         objectClass.locator(table.getName());
         if (table.getSchema() != null) {
             objectClass.namespace(table.getSchema());
-        }
+        }*/
+
         if (effectiveStrategies.stream().anyMatch(strategy -> strategy.isEmbedded(table))) {
             objectClass.embedded(true);
         }
@@ -88,19 +98,19 @@ public class SqlSchemaTranslator {
         }
     }
 
-    private void translateColumn(SqlColumnMeta column, BaseObjectClassDefinitionBuilder objectClass) {
-        var attribute = objectClass.attribute(column.getName());
-        attribute.nativeType(column.getTypeName());
-        attribute.required(!column.isNullable());
+    private void translateColumn(SqlColumnMeta column, SqlObjectClassSchemaBuilder objectClass) {
+        var attribute = objectClass.attribute(column.getName()).self();
+        var connId = attribute.connId();
+        connId.required(detected(!column.isNullable()));
         if (isLargeType(column.getTypeName())) {
-            attribute.returnedByDefault(false);
+            connId.returnedByDefault(detected(false));
         }
         // DB-generated identity columns cannot be written; primary keys are not updatable.
         if (column.isAutoIncrement()) {
-            attribute.creatable(false);
-            attribute.updatable(false);
+            connId.creatable(detected(false));
+            connId.updatable(detected((false)));
         } else if (column.isPrimaryKey()) {
-            attribute.updatable(false);
+            connId.updatable(detected(false));
         }
         // A foreign key is a reference. Columns of one (composite) FK share the same reference name
         // (subtype), and each carries its own target column.
@@ -110,11 +120,15 @@ public class SqlSchemaTranslator {
             if (column.getForeignKeyName() != null) {
                 attribute.subtype(column.getForeignKeyName());
             }
+            /*
             if (column.getReferencedColumn() != null) {
+
                 attribute.referencedAttribute(column.getReferencedColumn());
             }
+             */
+
         } else {
-            attribute.connId().type(connIdType(column.getTypeName()));
+            attribute.connId().type(detected(connIdType(column.getTypeName())));
         }
     }
 

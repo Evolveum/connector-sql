@@ -1,4 +1,4 @@
-package com.evolveum.polygon.sql.base.api.build;
+package com.evolveum.polygon.sql.base.build.api;
 
 public class DefaultSqlTypeSpecification extends SqlTypeSpecification {
 
@@ -18,15 +18,15 @@ public class DefaultSqlTypeSpecification extends SqlTypeSpecification {
         return size;
     }
 
-    public static DefaultSqlTypeSpecification intType() {
+    public static SqlTypeSpecification intType() {
         return new DefaultSqlTypeSpecification("INT", null);
     }
 
-    public static DefaultSqlTypeSpecification timestampType() {
+    public static SqlTypeSpecification timestampType() {
         return new DefaultSqlTypeSpecification("TIMESTAMP", null);
     }
 
-    public static DefaultSqlTypeSpecification varcharType(int size) {
+    public static SqlTypeSpecification varcharType(int size) {
         return new DefaultSqlTypeSpecification("VARCHAR", size);
     }
 }

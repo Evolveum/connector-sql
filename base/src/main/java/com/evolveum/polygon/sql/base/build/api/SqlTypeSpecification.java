@@ -1,4 +1,4 @@
-package com.evolveum.polygon.sql.base.api.build;
+package com.evolveum.polygon.sql.base.build.api;
 
 import com.evolveum.polygon.conndev.annotations.Groovy;
 
@@ -13,6 +13,7 @@ public class SqlTypeSpecification {
         SqlTypeSpecification TIMESTAMP = null;
 
 
+        @Groovy.Convenience
         SqlTypeSpecification VARCHAR(int size);
 
     }

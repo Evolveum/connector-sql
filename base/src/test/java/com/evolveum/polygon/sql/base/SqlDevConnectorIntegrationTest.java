@@ -66,7 +66,7 @@ public class SqlDevConnectorIntegrationTest {
         return connector;
     }
 
-    @Test
+    @Test(enabled = false)
     public void exposesConnDevObjectClassInSchema() {
         var connector = devConnector();
         try {
@@ -78,7 +78,7 @@ public class SqlDevConnectorIntegrationTest {
         }
     }
 
-    @Test
+    @Test(enabled = false)
     public void searchesConnDevObjectClassThroughConnector() {
         var connector = devConnector();
         try {

@@ -1,12 +1,13 @@
-package com.evolveum.polygon.sql.base.api.build;
+package com.evolveum.polygon.sql.base.build.api;
 
 import com.evolveum.polygon.conndev.annotations.Script;
-import com.evolveum.polygon.conndev.build.ObjectClassSchemaBuilder;
+import com.evolveum.polygon.conndev.build.api.ObjectClassSchemaBuilder;
+import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.concepts.GroovyClosures;
 import groovy.lang.Closure;
 import groovy.lang.DelegatesTo;
 
-public interface SqlObjectClassSchemaBuilder extends ObjectClassSchemaBuilder {
+public interface SqlObjectClassSchemaBuilder extends ObjectClassSchemaBuilder<SqlObjectClassSchemaBuilder, SqlAttributeBuilder<SqlAttributeBuilder.Reference>, SqlAttributeBuilder.Reference> {
 
     SqlMapping sql();
 
@@ -17,20 +18,26 @@ public interface SqlObjectClassSchemaBuilder extends ObjectClassSchemaBuilder {
     }
 
     @Override
-    SqlAttributeBuilder attribute(String name);
-
-    @Override
-    default SqlAttributeBuilder attribute(String name,
+    default SqlAttributeBuilder<SqlAttributeBuilder.Reference> attribute(String name,
                                @Script.Initialization
                                @DelegatesTo(value = SqlAttributeBuilder.class, strategy = Closure.DELEGATE_ONLY)
                                Closure<?> closure) {
         return GroovyClosures.callAndReturnDelegate(closure, attribute(name));
     }
 
+
+
     interface SqlMapping {
 
         void table(String table);
 
+        String schema();
+
+        String table();
+
+        SqlMapping schema(DefinitionValue<String> detected);
+
+        SqlMapping table(DefinitionValue<String> table);
     }
 
 }
