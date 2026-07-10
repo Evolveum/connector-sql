@@ -6,11 +6,19 @@
  */
 package com.evolveum.polygon.sql.base.connection;
 
+import com.querydsl.sql.MySQLTemplates;
+import com.querydsl.sql.SQLTemplates;
+
+import java.sql.DatabaseMetaData;
+
 /**
  * MySQL SQL dialect implementation.
  * Uses LAST_INSERT_ID() for returning auto-generated keys.
+ * Also supports QueryDSL templates for type-safe dynamic query building.
  */
 public class MySqlDialect implements SqlDialect {
+
+    private static final MySQLTemplates QUERYDSL_TEMPLATES = new MySQLTemplates();
 
     @Override
     public String getId() {
@@ -62,5 +70,15 @@ public class MySqlDialect implements SqlDialect {
 
     public String getLastInsertIdSql(String tableName) {
         return "SELECT LAST_INSERT_ID() AS id";
+    }
+
+    @Override
+    public SQLTemplates querydslTemplates() {
+        return QUERYDSL_TEMPLATES;
+    }
+
+    @Override
+    public SQLTemplates getSQLTemplates(DatabaseMetaData metaData) {
+        return QUERYDSL_TEMPLATES;
     }
 }

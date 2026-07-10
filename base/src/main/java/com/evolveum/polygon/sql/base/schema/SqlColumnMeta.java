@@ -1,37 +1,38 @@
-/*
- * Copyright (c) 2026 Evolveum and contributors
- *
- * This work is licensed under European Union Public License v1.2. See LICENSE file for details.
- *
- */
 package com.evolveum.polygon.sql.base.schema;
 
 /**
- * Metadata about a SQL column.
+ * Represents a column in a JDBC-detected table.
+ *
+ * <p>Populated from JDBC database metadata during schema discovery.
+ * Used by SqlSchemaTranslator to produce ConnId schema attributes,
+ * and by SqlObjectClassMapping at runtime to build queries.</p>
  */
 public class SqlColumnMeta {
 
-    private final String name;
-    private final String typeName;
-    private final int typeCode;
-    private final int size;
-    private final boolean nullable;
-    private final boolean primaryKey;
-    private final boolean unique;
-    private final Object defaultValue;
-    private final boolean autoIncrement;
+    final String name;
+    final String typeName;
+    final int typeCode;
+    final int size;
+    final java.lang.reflect.Type javaType;
+    final boolean nullable;
+    final boolean primaryKey;
+    final boolean unique;
+    final Object defaultValue;
+    final boolean autoIncrement;
 
     private String referencedTable;
     private String referencedColumn;
     private String foreignKeyName;
 
     public SqlColumnMeta(String name, String typeName, int typeCode, int size,
+                         java.lang.reflect.Type javaType,
                          boolean nullable, boolean primaryKey, boolean unique,
                          Object defaultValue, boolean autoIncrement) {
         this.name = name;
         this.typeName = typeName;
         this.typeCode = typeCode;
         this.size = size;
+        this.javaType = javaType;
         this.nullable = nullable;
         this.primaryKey = primaryKey;
         this.unique = unique;
@@ -53,6 +54,10 @@ public class SqlColumnMeta {
 
     public int getSize() {
         return size;
+    }
+
+    public java.lang.reflect.Type getJavaType() {
+        return javaType;
     }
 
     public boolean isNullable() {
@@ -98,65 +103,55 @@ public class SqlColumnMeta {
         return new Builder();
     }
 
+    /**
+     * Returns the effective column type name as a human-readable SQL type (normalized).
+     */
+    public String getEffectiveTypeName() {
+        return typeName != null ? typeName : "VARCHAR";
+    }
+
+    /**
+     * Builder for SqlColumnMeta.
+     */
     public static class Builder {
         private String name;
         private String typeName;
         private int typeCode;
         private int size;
+        private java.lang.reflect.Type javaType;
         private boolean nullable;
         private boolean primaryKey;
         private boolean unique;
         private Object defaultValue;
         private boolean autoIncrement;
+        private String referencedTable;
+        private String referencedColumn;
+        private String foreignKeyName;
 
-        public Builder name(String name) {
-            this.name = name;
+        public Builder name(String name) { this.name = name; return this; }
+        public Builder typeName(String typeName) { this.typeName = typeName; return this; }
+        public Builder typeCode(int typeCode) { this.typeCode = typeCode; return this; }
+        public Builder size(int size) { this.size = size; return this; }
+        public Builder javaType(java.lang.reflect.Type javaType) { this.javaType = javaType; return this; }
+        public Builder javaType(Class<?> clazz) { this.javaType = clazz; return this; }
+        public Builder nullable(boolean nullable) { this.nullable = nullable; return this; }
+        public Builder primaryKey(boolean primaryKey) { this.primaryKey = primaryKey; return this; }
+        public Builder unique(boolean unique) { this.unique = unique; return this; }
+        public Builder defaultValue(Object defaultValue) { this.defaultValue = defaultValue; return this; }
+        public Builder autoIncrement(boolean autoIncrement) { this.autoIncrement = autoIncrement; return this; }
+        public Builder setForeignKey(String referencedTable, String referencedColumn, String foreignKeyName) {
+            this.referencedTable = referencedTable;
+            this.referencedColumn = referencedColumn;
+            this.foreignKeyName = foreignKeyName;
             return this;
         }
-
-        public Builder typeName(String typeName) {
-            this.typeName = typeName;
-            return this;
-        }
-
-        public Builder typeCode(int typeCode) {
-            this.typeCode = typeCode;
-            return this;
-        }
-
-        public Builder size(int size) {
-            this.size = size;
-            return this;
-        }
-
-        public Builder nullable(boolean nullable) {
-            this.nullable = nullable;
-            return this;
-        }
-
-        public Builder primaryKey(boolean primaryKey) {
-            this.primaryKey = primaryKey;
-            return this;
-        }
-
-        public Builder unique(boolean unique) {
-            this.unique = unique;
-            return this;
-        }
-
-        public Builder defaultValue(Object defaultValue) {
-            this.defaultValue = defaultValue;
-            return this;
-        }
-
-        public Builder autoIncrement(boolean autoIncrement) {
-            this.autoIncrement = autoIncrement;
-            return this;
-        }
+        public Builder referencedTable(String referencedTable) { this.referencedTable = referencedTable; return this; }
+        public Builder referencedColumn(String referencedColumn) { this.referencedColumn = referencedColumn; return this; }
+        public Builder foreignKeyName(String foreignKeyName) { this.foreignKeyName = foreignKeyName; return this; }
 
         public SqlColumnMeta build() {
-            return new SqlColumnMeta(name, typeName, typeCode, size, nullable, 
-                                     primaryKey, unique, defaultValue, autoIncrement);
+            return new SqlColumnMeta(name, typeName, typeCode, size, javaType,
+                    nullable, primaryKey, unique, defaultValue, autoIncrement);
         }
     }
 }

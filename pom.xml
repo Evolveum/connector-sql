@@ -26,6 +26,7 @@
         <testng.version>7.10.2</testng.version>
         <groovy.version>4.0.25</groovy.version>
         <conndev.version>0.1-SNAPSHOT</conndev.version>
+        <querydsl.version>5.0.0</querydsl.version>
     </properties>
 
    <repositories>
@@ -80,6 +81,11 @@
                 <groupId>com.evolveum.polygon.conndev</groupId>
                 <artifactId>conndev-base</artifactId>
                 <version>${conndev.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.querydsl</groupId>
+                <artifactId>querydsl-sql</artifactId>
+                <version>${querydsl.version}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

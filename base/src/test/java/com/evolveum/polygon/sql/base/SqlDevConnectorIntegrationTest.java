@@ -7,11 +7,7 @@
 package com.evolveum.polygon.sql.base;
 
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
-import org.identityconnectors.framework.common.objects.AttributeUtil;
-import org.identityconnectors.framework.common.objects.ConnectorObject;
-import org.identityconnectors.framework.common.objects.EmbeddedObject;
-import org.identityconnectors.framework.common.objects.ObjectClass;
-import org.identityconnectors.framework.common.objects.ObjectClassInfo;
+import org.identityconnectors.framework.common.objects.*;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 

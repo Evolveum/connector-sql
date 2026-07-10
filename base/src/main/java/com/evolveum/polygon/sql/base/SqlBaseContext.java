@@ -12,6 +12,10 @@ import com.evolveum.polygon.conndev.schema.BaseSchema;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.sql.base.connection.HikariConnectionPool;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
+import com.evolveum.polygon.sql.base.connection.SqlQueryEngine;
+import com.evolveum.polygon.sql.base.objectclass.SqlObjectClassMapping;
+import com.evolveum.polygon.sql.base.schema.QueryDSLMetadata;
+import com.evolveum.polygon.sql.base.schema.SqlQuerydslMetadataFactory;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.util.Collections;
@@ -31,6 +35,9 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
     private BaseSchema schema;
     private Map<ObjectClass, ObjectClassHandler> handlers;
     private volatile HikariConnectionPool connectionPool;
+    private SqlQuerydslMetadataFactory metadataFactory;
+    private SqlQueryEngine sqlQueryEngine;
+    private Map<ObjectClass, SqlObjectClassMapping> objectClassMappings;
 
     public SqlBaseContext(SqlConnectorConfiguration configuration) {
         this.configuration = configuration;
@@ -74,6 +81,43 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
 
     public ObjectClassHandler handlerFor(ObjectClass objectClass) {
         return handlers != null ? handlers.get(objectClass) : null;
+    }
+
+    /**
+     * Sets the QueryDSL metadata factory populated during schema detection.
+     */
+    public void setMetadataFactory(SqlQuerydslMetadataFactory metadataFactory) {
+        this.metadataFactory = metadataFactory;
+    }
+
+    /**
+     * Returns the QueryDSL metadata factory, populated after schema detection.
+     */
+    public SqlQuerydslMetadataFactory getMetadataFactory() {
+        return metadataFactory;
+    }
+
+    /**
+     * Returns QueryDSL metadata for a specific table by name, or null if not found.
+     */
+    public QueryDSLMetadata getQueryDSLMetadata(String tableName) {
+        return metadataFactory != null ? metadataFactory.getMetadata(tableName) : null;
+    }
+
+    public SqlQueryEngine getSqlQueryEngine() {
+        return sqlQueryEngine;
+    }
+
+    public void setSqlQueryEngine(SqlQueryEngine sqlQueryEngine) {
+        this.sqlQueryEngine = sqlQueryEngine;
+    }
+
+    public Map<ObjectClass, SqlObjectClassMapping> getObjectClassMappings() {
+        return objectClassMappings != null ? Collections.unmodifiableMap(objectClassMappings) : Collections.emptyMap();
+    }
+
+    public void setObjectClassMappings(Map<ObjectClass, SqlObjectClassMapping> objectClassMappings) {
+        this.objectClassMappings = objectClassMappings != null ? Map.copyOf(objectClassMappings) : null;
     }
 
     HikariConnectionPool getConnectionPool() {

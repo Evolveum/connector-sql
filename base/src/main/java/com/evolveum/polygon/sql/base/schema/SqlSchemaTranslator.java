@@ -1,7 +1,6 @@
 package com.evolveum.polygon.sql.base.schema;
 
 import com.evolveum.polygon.conndev.api.ContextLookup;
-import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.schema.BaseSchema;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilder;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
@@ -76,12 +75,13 @@ public class SqlSchemaTranslator {
                 o -> Objects.equals(o.sql().schema(), table.getSchema())  && o.sql().table().equals(table.getName()),
                 maybeClassName,
                 o -> o.sql().schema(detected(table.getSchema())).table(detected(table.getName())));
-
-        /*
-        objectClass.locator(table.getName());
+        // Cast to impl type to set locator and namespace (SqlObjectClassSchemaBuilderImpl -> BaseObjectClassDefinitionBuilder)
+        @SuppressWarnings("rawtypes")
+        var implClass = (com.evolveum.polygon.conndev.schema.BaseObjectClassDefinitionBuilder) objectClass;
+        implClass.locator(table.getName());
         if (table.getSchema() != null) {
-            objectClass.namespace(table.getSchema());
-        }*/
+            implClass.namespace(table.getSchema());
+        }
 
         if (effectiveStrategies.stream().anyMatch(strategy -> strategy.isEmbedded(table))) {
             objectClass.embedded(true);
@@ -128,7 +128,7 @@ public class SqlSchemaTranslator {
              */
 
         } else {
-            attribute.connId().type(detected(connIdType(column.getTypeName())));
+            attribute.connId().type(detected(connIdType(column.getJavaType(), column.getTypeName())));
         }
     }
 
@@ -161,6 +161,64 @@ public class SqlSchemaTranslator {
             }
         }
         return columns;
+    }
+
+    private Class<?> connIdType(java.lang.reflect.Type javaType, String typeName) {
+        // Use QueryDSL resolved Java type when available and concrete
+        if (javaType != null && javaType instanceof Class<?> clazz) {
+            Class<?> resolved = mapJavaTypeToConnId(clazz);
+            if (resolved != null) {
+                return resolved;
+            }
+        }
+        // Fallback to driver-based type name string matching
+        return connIdType(typeName);
+    }
+
+    /**
+     * Maps a Java Class (from QueryDSL Configuration) to the ConnId wire type.
+     * Returns null when the class is not a known mapped type, so the translator
+     * falls back to the raw SQL TYPE_NAME.
+     */
+    private Class<?> mapJavaTypeToConnId(Class<?> javaType) {
+        // Strings and dates → String
+        if (javaType == String.class) {
+            return String.class;
+        }
+        if (java.math.BigInteger.class.isAssignableFrom(javaType)) {
+            return Long.class;
+        }
+        if (java.math.BigDecimal.class.isAssignableFrom(javaType)) {
+            return Double.class;
+        }
+        if (java.sql.Date.class.isAssignableFrom(javaType)) {
+            return String.class;
+        }
+        if (java.sql.Time.class.isAssignableFrom(javaType)) {
+            return String.class;
+        }
+        if (java.sql.Timestamp.class.isAssignableFrom(javaType)) {
+            return String.class;
+        }
+
+        // Integers (including Byte/Short) → Long
+        if (Number.class.isAssignableFrom(javaType)) {
+            return Long.class;
+        }
+
+        // Primitives (boolean, double, float)
+        if (boolean.class.equals(javaType) || Boolean.class.equals(javaType)) {
+            return Boolean.class;
+        }
+        if (double.class.equals(javaType) || double.class.equals(javaType) || Double.class.equals(javaType) ||
+            Float.class.equals(javaType) || float.class.equals(javaType)) {
+            return Double.class;
+        }
+        if (byte[].class.isAssignableFrom(javaType)) {
+            return byte[].class;
+        }
+
+        return null; // No known mapping — fall through to typeName lookup
     }
 
     private Class<?> connIdType(String typeName) {

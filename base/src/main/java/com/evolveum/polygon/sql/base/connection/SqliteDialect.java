@@ -6,9 +6,13 @@
  */
 package com.evolveum.polygon.sql.base.connection;
 
+import com.querydsl.sql.SQLTemplates;
+import com.querydsl.sql.SQLiteTemplates;
+
 /**
  * SQLite SQL dialect implementation.
  * Uses last_insert_rowid() for returning auto-generated keys.
+ * Also supports QueryDSL templates for type-safe dynamic query building.
  */
 public class SqliteDialect implements SqlDialect {
 
@@ -62,5 +66,10 @@ public class SqliteDialect implements SqlDialect {
 
     public String getLastInsertRowidSql() {
         return "SELECT last_insert_rowid() AS id";
+    }
+
+    @Override
+    public SQLTemplates querydslTemplates() {
+        return new SQLiteTemplates();
     }
 }

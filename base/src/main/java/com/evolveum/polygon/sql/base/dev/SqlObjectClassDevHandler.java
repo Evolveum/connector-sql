@@ -10,12 +10,7 @@ import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.dev.ConnDevObjectClassSerializer;
 import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
-import org.identityconnectors.framework.common.objects.AttributeUtil;
-import org.identityconnectors.framework.common.objects.ConnectorObject;
-import org.identityconnectors.framework.common.objects.Name;
-import org.identityconnectors.framework.common.objects.OperationOptions;
-import org.identityconnectors.framework.common.objects.ResultsHandler;
-import org.identityconnectors.framework.common.objects.Uid;
+import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.EqualsFilter;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 

@@ -19,6 +19,12 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
         return sqlMapping;
     }
 
+
+    @Override
+    public BaseAttributeDefinition build() {
+        return super.build();
+    }
+
     public class DefaultSqlAttributeMapping implements SqlMapping {
 
         private DefinitionValue<SqlTypeSpecification> type = DefinitionValue.emptyDefault();

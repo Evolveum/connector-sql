@@ -8,11 +8,11 @@ package com.evolveum.polygon.sql.base.schema;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
+import com.querydsl.sql.Configuration;
+import com.querydsl.sql.SQLTemplates;
+import com.querydsl.sql.SQLTemplatesRegistry;
 
-import java.sql.Connection;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
+import java.sql.*;
 import java.util.*;
 
 public class SqlSchemaDetector {
@@ -21,6 +21,12 @@ public class SqlSchemaDetector {
     
     // Cached table name mapping to avoid repeated JDBC metadata queries
     private Map<String, String> tableNameToExact;
+    
+    // QueryDSL Configuration for type mapping
+    private Configuration querydslConfig;
+    
+    // QueryDSL SQL templates, captured once during discovery (initialized during discover())
+    private SQLTemplates templates;
 
     public SqlSchemaDetector(SqlBaseContext context) {
         this.context = context;
@@ -33,6 +39,21 @@ public class SqlSchemaDetector {
     public List<SqlTableInfo> discover() throws SQLException {
         try (SqlConnection wrapper = context.getConnection()) {
             Connection conn = wrapper.getConnection();
+            DatabaseMetaData meta = conn.getMetaData();
+            
+// Initialize QueryDSL configuration for driver-aware type mapping
+            SQLTemplates templatesFromRegistry = new SQLTemplatesRegistry().getTemplates(meta);
+            if (templatesFromRegistry == null) {
+                templatesFromRegistry = SQLTemplates.DEFAULT;
+            }
+// For H2, use H2Templates with no quoting - unqualified column paths avoid table.column issues
+            String productName = meta.getDatabaseProductName();
+            if (productName != null && productName.toUpperCase().contains("H2")) {
+                templatesFromRegistry = new com.querydsl.sql.H2Templates(false);
+            }
+            templates = templatesFromRegistry;
+            querydslConfig = new Configuration(templates);
+            
             tableNameToExact = new LinkedHashMap<>();
             
             // Single metadata query to get all tables and their exact names
@@ -57,14 +78,21 @@ public class SqlSchemaDetector {
 
             List<SqlTableInfo> tables = new ArrayList<>();
             for (Map.Entry<String, List<SqlColumnMeta>> entry : colMap.entrySet()) {
+                // Use the exact-cased name from metadata to ensure correct QueryDSL SQL generation.
+                // For H2 (even MySQL mode), quoted table names like "User" must be referenced 
+                // with matching case in SQL queries.
+                String actualName = tableNameToExact != null 
+                        && tableNameToExact.containsKey(entry.getKey())
+                        ? tableNameToExact.get(entry.getKey()) : entry.getKey();
                 tables.add(SqlTableInfo.builder()
-                        .name(entry.getKey())
+                        .name(actualName)
                         .tableType("TABLE")
                         .columns(entry.getValue())
                         .build());
             }
 
             tableNameToExact = null;
+            querydslConfig = null;  // allow GC after discovery
             return tables;
         }
     }
@@ -173,16 +201,27 @@ public class SqlSchemaDetector {
                     }
 
                     String typeName = resolveColumn(colsRs, meta, "TYPE_NAME");
+                    int dataType = colsRs.getInt("DATA_TYPE");
+                    int columnSize = resolveColumnSize(colsRs);
+                    int decimalDigits = resolveColumnDigits(colsRs);
                     String rawNullable = resolveColumn(colsRs, meta, "IS_NULLABLE");
                     String rawAutoInc = resolveColumn(colsRs, meta, "IS_AUTOINCREMENT");
 
                     String colLower = colName.toLowerCase();
                     boolean isPk = pkList.contains(colLower);
 
+                    // Use QueryDSL for Java type resolution (dialect-aware)
+                    java.lang.reflect.Type javaType = resolveJavaType(dataType, typeName, columnSize, decimalDigits, exactName, colLower);
+                    
+                    // Normalize type name using driver-typical TYPE_NAME (with fallback normalization)
+                    String normalizedTypeName = normalizeTypeName(typeName);
+
                     cols.add(SqlColumnMeta.builder()
                             .name(colLower)
-                            .typeName(resolverType(typeName))
-                            .typeCode(colsRs.getInt("DATA_TYPE"))
+                            .typeName(normalizedTypeName)
+                            .typeCode(dataType)
+                            .size(columnSize)
+                            .javaType(javaType)
                             .nullable(isNullable(rawNullable))
                             .primaryKey(isPk)
                             .autoIncrement(isAutoInc(rawAutoInc))
@@ -273,9 +312,9 @@ public class SqlSchemaDetector {
 
     /**
      * Maps JDBC TYPE_NAME values (which vary by driver) to standard SQL type names.
-     * Common type names used by JDBC metadata include: INTEGER, VARCHAR, BLOB, TIMESTAMP, etc.
+     * Preserves driver-typical type names for SQL type name consistency.
      */
-    private String resolverType(String dt) {
+    private String normalizeTypeName(String dt) {
         if (dt == null) {
             return "VARCHAR";
         }
@@ -301,5 +340,79 @@ public class SqlSchemaDetector {
             case "VARBINARY": return "VARBINARY";
             default: return "VARCHAR";
         }
+    }
+
+    /**
+     * Resolves the canonical Java type from JDBC metadata using QueryDSL's
+     * driver-aware {@link Configuration}. Returns {@link Object#class} if unavailable.
+     */
+    private java.lang.reflect.Type resolveJavaType(int dataType, String typeName, int columnSize,
+                                                   int decimalDigits, String tableName,
+                                                   String columnName) {
+        if (querydslConfig == null || dataType == 0) {
+            return java.sql.Types.class;  // fallback when metadata is missing
+        }
+        try {
+            int size = (columnSize > 0) ? columnSize : 0;
+            int digits = (decimalDigits > 0) ? decimalDigits : 0;
+            Class<?> clazz = querydslConfig.getJavaType(dataType, typeName, size, digits, tableName, columnName);
+            return clazz != null ? clazz : java.lang.Object.class;
+        } catch (Exception e) {
+            return java.lang.Object.class;
+        }
+    }
+
+    private int resolveColumnSize(ResultSet rs) {
+        try {
+            Object val = rs.getObject("COLUMN_SIZE");
+            if (val instanceof Number number) {
+                return number.intValue();
+            } else if (val instanceof String string) {
+                try {
+                    return Integer.parseInt(string);
+                } catch (NumberFormatException e) {
+                    return 0;
+                }
+            }
+        } catch (SQLException ignored) {
+            // Column not supported by this driver
+        }
+        return 0;
+    }
+
+    private int resolveColumnDigits(ResultSet rs) {
+        try {
+            Object val = rs.getObject("DECIMAL_DIGITS");
+            if (val instanceof Number number) {
+                return number.intValue();
+            } else if (val instanceof String string) {
+                try {
+                    return Integer.parseInt(string);
+                } catch (NumberFormatException e) {
+                    return 0;
+                }
+            }
+        } catch (SQLException ignored) {
+            // Column not supported by this driver
+        }
+        return 0;
+    }
+
+    /**
+     * Returns the QueryDSL SQL templates that were captured during schema discovery,
+     * or null if discovery has not yet been run. These templates are needed for
+     * QueryDSL query building and must be used together with the discovered tables.
+     */
+    public SQLTemplates getSQLTemplates() {
+        return templates;
+    }
+
+    /**
+     * Returns the QueryDSL configuration that was used during discovery for type resolution.
+     * @deprecated use {@link SqlQuerydslMetadataFactory} instead
+     */
+    @Deprecated
+    public Configuration getQuerydslConfig() {
+        return querydslConfig;
     }
 }

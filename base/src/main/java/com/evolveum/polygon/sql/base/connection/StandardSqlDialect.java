@@ -6,6 +6,8 @@
  */
 package com.evolveum.polygon.sql.base.connection;
 
+import com.querydsl.sql.SQLTemplates;
+
 /**
  * Standard SQL dialect with no database-specific features.
  * Used as fallback when dialect cannot be detected or specified.
@@ -58,5 +60,10 @@ public class StandardSqlDialect implements SqlDialect {
             }
         }
         return sql.toString();
+    }
+
+    @Override
+    public SQLTemplates querydslTemplates() {
+        return null;
     }
 }

@@ -107,11 +107,12 @@ public class SqlTableInfo {
             return this;
         }
 
-        public Builder addColumn(String name, String typeName, int typeCode, int size, 
-                                 boolean nullable, boolean primaryKey, boolean unique, 
-                                 Object defaultValue, boolean autoIncrement) {
-            columns.add(new SqlColumnMeta(name, typeName, typeCode, size, nullable, 
-                                          primaryKey, unique, defaultValue, autoIncrement));
+public Builder addColumn(String name, String typeName, int typeCode, int size, 
+                                  java.lang.reflect.Type javaType,
+                                  boolean nullable, boolean primaryKey, boolean unique, 
+                                  Object defaultValue, boolean autoIncrement) {
+            columns.add(new SqlColumnMeta(name, typeName, typeCode, size, javaType, 
+                                          nullable, primaryKey, unique, defaultValue, autoIncrement));
             return this;
         }
 

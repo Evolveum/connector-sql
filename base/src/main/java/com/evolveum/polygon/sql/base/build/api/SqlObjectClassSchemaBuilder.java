@@ -38,6 +38,11 @@ public interface SqlObjectClassSchemaBuilder extends ObjectClassSchemaBuilder<Sq
         SqlMapping schema(DefinitionValue<String> detected);
 
         SqlMapping table(DefinitionValue<String> table);
+
+        /** Sets the SQL table name as the locator for this object class. */
+        default void locator(String locator) {
+            // Default: no-op. Implementing classes can override to set the locator.
+        }
     }
 
 }

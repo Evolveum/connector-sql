@@ -6,6 +6,9 @@
  */
 package com.evolveum.polygon.sql.base.connection;
 
+import com.querydsl.sql.OracleTemplates;
+import com.querydsl.sql.SQLTemplates;
+
 /**
  * Oracle SQL dialect implementation.
  * Uses RETURNING INTO for returning values.
@@ -58,5 +61,10 @@ public class OracleSqlDialect implements SqlDialect {
             }
         }
         return sql.toString();
+    }
+
+    @Override
+    public SQLTemplates querydslTemplates() {
+        return new OracleTemplates();
     }
 }

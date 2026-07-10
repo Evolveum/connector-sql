@@ -6,9 +6,14 @@
  */
 package com.evolveum.polygon.sql.base.connection;
 
+import com.querydsl.sql.SQLTemplates;
+import com.querydsl.sql.SQLTemplatesRegistry;
+
+import java.sql.DatabaseMetaData;
+
 /**
  * Base interface for SQL dialect implementations.
- * Provides dialect-specific SQL generation and normalization.
+ * Provides dialect-specific SQL generation and QueryDSL templates.
  */
 public interface SqlDialect {
 
@@ -19,6 +24,29 @@ public interface SqlDialect {
     String normalizeParameters(String sql);
 
     String toSql(SqlStatement statement);
+
+    /**
+     * Returns a QueryDSL SQL template matching this dialect.
+     * Falls back to the registry lookup via JDBC database metadata when templates
+     * are not natively known.
+     */
+    default SQLTemplates getSQLTemplates(DatabaseMetaData metaData) {
+        try {
+            SQLTemplates templates = new SQLTemplatesRegistry().getTemplates(metaData);
+            return templates != null ? templates : querydslTemplates();
+        } catch (Exception e) {
+            // registry lookup failed, fall back to dialect-specific templates
+            return querydslTemplates();
+        }
+    }
+
+    /**
+     * Returns the QueryDSL SQL templates for this dialect when database metadata
+     * lookup is not available (e.g. from a JDBC URL alone).
+     */
+    default SQLTemplates querydslTemplates() {
+        return null;
+    }
 
 default String generateInsertWithReturns(String tableName, 
                                                String[] columns, 

@@ -6,6 +6,9 @@
  */
 package com.evolveum.polygon.sql.base.connection;
 
+import com.querydsl.sql.PostgreSQLTemplates;
+import com.querydsl.sql.SQLTemplates;
+
 /**
  * PostgreSQL SQL dialect implementation.
  * Supports RETURNING clause for INSERT/UPDATE/DELETE operations.
@@ -66,5 +69,10 @@ public class PostgreSqlDialect implements SqlDialect {
             }
         }
         return sql.toString();
+    }
+
+    @Override
+    public SQLTemplates querydslTemplates() {
+        return new PostgreSQLTemplates();
     }
 }
