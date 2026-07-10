@@ -11,7 +11,7 @@ import com.evolveum.polygon.sql.base.build.spi.SpiSqlAttributeBuilder;
 import groovy.lang.Closure;
 import groovy.lang.DelegatesTo;
 
-public interface SqlAttributeBuilder<F extends SqlAttributeBuilder<F>> extends AttributeBuilder<F, BaseAttributeDefinition> {
+public interface SqlAttributeBuilder<F extends SqlAttributeBuilder<F>> extends AttributeBuilder<F, SqlAttributeDefinition> {
 
     SqlMapping sql();
 
@@ -68,7 +68,7 @@ public interface SqlAttributeBuilder<F extends SqlAttributeBuilder<F>> extends A
         }
     }
 
-    interface Reference extends SqlAttributeBuilder<Reference>, ReferenceAttributeBuilder<Reference, SqlAttributeBuilder<Reference>, BaseAttributeDefinition> {
+    interface Reference extends SqlAttributeBuilder<Reference>, ReferenceAttributeBuilder<Reference, SqlAttributeBuilder<Reference>, SqlAttributeDefinition> {
 
     }
 }

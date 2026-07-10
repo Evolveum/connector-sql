@@ -6,7 +6,7 @@ import com.evolveum.polygon.conndev.schema.BaseAttributeBuilder;
 import com.evolveum.polygon.conndev.schema.BaseAttributeDefinition;
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinitionBuilder;
 
-public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBuilderImpl, SqlAttributeBuilder<SqlAttributeBuilder.Reference>, SqlAttributeBuilder.Reference, BaseAttributeDefinition> implements SqlAttributeBuilder.Reference {
+public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBuilderImpl, SqlAttributeBuilder<SqlAttributeBuilder.Reference>, SqlAttributeBuilder.Reference, SqlAttributeDefinition> implements SqlAttributeBuilder.Reference {
 
     public SqlAttributeBuilderImpl(BaseObjectClassDefinitionBuilder restObjectClassBuilder, DefinitionValue<String> name) {
         super(restObjectClassBuilder, name);
@@ -21,8 +21,8 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
 
 
     @Override
-    public BaseAttributeDefinition build() {
-        return super.build();
+    public SqlAttributeDefinition build() {
+        return new SqlAttributeDefinition(this);
     }
 
     public class DefaultSqlAttributeMapping implements SqlMapping {

@@ -6,8 +6,12 @@ import com.evolveum.polygon.conndev.concepts.SourceLocation;
 import com.evolveum.polygon.conndev.schema.BaseAttributeDefinition;
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinitionBuilder;
 
-public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBuilder<SqlObjectClassSchemaBuilder,
-        SqlAttributeBuilder<SqlAttributeBuilder.Reference>, SqlAttributeBuilder.Reference, SqlAttributeBuilderImpl, BaseAttributeDefinition> implements SqlObjectClassSchemaBuilder {
+public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBuilder<
+        SqlObjectClassSchemaBuilder,
+        SqlObjectClassDefinition,
+        SqlAttributeBuilder<SqlAttributeBuilder.Reference>,
+        SqlAttributeBuilder.Reference,
+        SqlAttributeBuilderImpl, SqlAttributeDefinition> implements SqlObjectClassSchemaBuilder {
 
     private DefinitionValue<String> schema = DefinitionValue.emptyDefault();
     private DefinitionValue<String> table;

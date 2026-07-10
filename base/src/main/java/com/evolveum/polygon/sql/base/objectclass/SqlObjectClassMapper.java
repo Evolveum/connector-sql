@@ -8,6 +8,8 @@ package com.evolveum.polygon.sql.base.objectclass;
 
 import com.evolveum.polygon.conndev.schema.BaseAttributeDefinition;
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinition;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
+import com.evolveum.polygon.sql.base.build.api.SqlSchema;
 import com.evolveum.polygon.sql.base.schema.QueryDSLMetadata;
 import com.evolveum.polygon.sql.base.schema.SqlQuerydslMetadataFactory;
 import org.identityconnectors.framework.common.objects.ObjectClass;
@@ -28,13 +30,13 @@ public class SqlObjectClassMapper {
      * Builds mappings for all object classes in the schema.
      */
     public static Map<ObjectClass, SqlObjectClassMapping> buildAll(
-            com.evolveum.polygon.conndev.schema.BaseSchema schema,
+            SqlSchema schema,
             SqlQuerydslMetadataFactory metadataFactory) {
         if (schema == null) {
             return Map.of();
         }
         Map<ObjectClass, SqlObjectClassMapping> result = new java.util.LinkedHashMap<>();
-        for (BaseObjectClassDefinition ocDef : schema.objectClasses()) {
+        for (SqlObjectClassDefinition ocDef : schema.objectClasses()) {
             SqlObjectClassMapping mapping = build(ocDef, metadataFactory);
             if (mapping != null) {
                 result.put(ocDef.objectClass(), mapping);
@@ -48,7 +50,7 @@ public class SqlObjectClassMapper {
      *
      * @return the mapping, or null if the object class is not backed by a SQL table
      */
-    static SqlObjectClassMapping build(BaseObjectClassDefinition ocDef,
+    static SqlObjectClassMapping build(SqlObjectClassDefinition ocDef,
                                       SqlQuerydslMetadataFactory metadataFactory) {
         String locator = ocDef.locator();
         if (locator == null || locator.isEmpty()) {

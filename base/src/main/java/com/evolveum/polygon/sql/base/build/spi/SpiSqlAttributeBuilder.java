@@ -4,9 +4,10 @@ import com.evolveum.polygon.conndev.build.spi.SpiAttributeBuilder;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.schema.BaseAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeBuilder;
+import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlTypeSpecification;
 
-public interface SpiSqlAttributeBuilder<B extends SqlAttributeBuilder<B>> extends SpiAttributeBuilder<B, BaseAttributeDefinition> {
+public interface SpiSqlAttributeBuilder<B extends SqlAttributeBuilder<B>> extends SpiAttributeBuilder<B, SqlAttributeDefinition> {
 
 
     interface  SqlMapping {

@@ -10,6 +10,7 @@ import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.concepts.RetrievableContext;
 import com.evolveum.polygon.conndev.schema.BaseSchema;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
+import com.evolveum.polygon.sql.base.build.api.SqlSchema;
 import com.evolveum.polygon.sql.base.connection.HikariConnectionPool;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
 import com.evolveum.polygon.sql.base.connection.SqlQueryEngine;
@@ -32,7 +33,7 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
     private static final String POOL_CLOSED_MSG = "Connection pool has been closed";
 
     private final SqlConnectorConfiguration configuration;
-    private BaseSchema schema;
+    private SqlSchema schema;
     private Map<ObjectClass, ObjectClassHandler> handlers;
     private volatile HikariConnectionPool connectionPool;
     private SqlQuerydslMetadataFactory metadataFactory;
@@ -59,11 +60,11 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
         throw new IllegalStateException("No context of type " + contextType.getName());
     }
 
-    public BaseSchema schema() {
+    public SqlSchema schema() {
         return schema;
     }
 
-    public void schema(BaseSchema schema) {
+    public void schema(SqlSchema schema) {
         this.schema = schema;
     }
 

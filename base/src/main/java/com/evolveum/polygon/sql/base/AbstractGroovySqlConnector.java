@@ -137,6 +137,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                 // part of the schema, so midPoint can search the discovered schema.
                 var additional = Boolean.TRUE.equals(context.configuration().isDevelopmentMode())
                         ? ConnDevSchema.objectClassInfos() : List.<ObjectClassInfo>of();
+
                 context.schema(new SqlSchemaTranslator(tables).translate(getClass(), context, additional));
 
                 // Build SQL <-> ConnId object class mappings for QueryDSL search
