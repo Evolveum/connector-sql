@@ -47,7 +47,7 @@ public class SqlQueryEngine {
 
         if (selectedColumns != null && !selectedColumns.isEmpty()) {
             for (String col : selectedColumns) {
-                QueryDSLMetadata.ColumnMeta colMeta = metadata.getColumn(col);
+                var colMeta = metadata.getColumn(col);
                 if (colMeta != null) {
                     com.querydsl.core.types.Path<?> colPath = buildTypedColumnPath(entityPath, colMeta);
                     selectExprs.add(colPath);
@@ -76,7 +76,7 @@ public class SqlQueryEngine {
         // ORDER BY
         if (orderBys != null && !orderBys.isEmpty()) {
             for (String col : orderBys) {
-                QueryDSLMetadata.ColumnMeta colMeta = metadata.getColumn(col);
+                var colMeta = metadata.getColumn(col);
                 if (colMeta != null) {
                     com.querydsl.core.types.Path<?> colPath = buildTypedColumnPath(entityPath, colMeta);
                     query.orderBy(((com.querydsl.core.types.dsl.ComparablePath<?>) buildTypedColumnPath(entityPath, colMeta)).asc());
@@ -138,7 +138,7 @@ public class SqlQueryEngine {
         for (com.querydsl.core.Tuple tuple : rows) {
             Map<String, Object> row = new LinkedHashMap<>();
             for (int i = 0; i < columnNames.length && i < tuple.size(); i++) {
-                String col = columnNames[i];
+                var col = columnNames[i];
                 row.put(col, tuple.get(i, String.class));
             }
             results.add(row);
@@ -189,7 +189,7 @@ public class SqlQueryEngine {
 
         for (int i = 0; i < tuple.size(); i++) {
             String colName = i < colNames.size() ? colNames.get(i) : String.valueOf(i);
-            QueryDSLMetadata.ColumnMeta colMeta = metadata.getColumn(colName);
+            var colMeta = metadata.getColumn(colName);
             if (colMeta != null) {
                 Class<?> javaType = colMeta.getJavaType();
                 if (javaType == String.class || javaType == null) {

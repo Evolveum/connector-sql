@@ -49,7 +49,7 @@ public class SqlStatementBuilder {
     }
 
     public SqlStatementBuilder where(String whereClause, Object... params) {
-        String normalizedWhere = dialect.normalizeParameters(whereClause);
+        var normalizedWhere = dialect.normalizeParameters(whereClause);
         builder.where(normalizedWhere);
         return this;
     }

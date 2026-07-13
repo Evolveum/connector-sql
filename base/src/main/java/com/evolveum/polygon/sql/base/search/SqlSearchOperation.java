@@ -9,14 +9,14 @@ package com.evolveum.polygon.sql.base.search;
 import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
-import com.evolveum.polygon.sql.base.connection.SqlConnection;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
+import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
 import com.evolveum.polygon.sql.base.objectclass.SqlObjectClassMapping;
 import com.evolveum.polygon.sql.base.schema.QueryDSLMetadata;
 import com.evolveum.polygon.sql.base.schema.SqlQuerydslMetadataFactory;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 
-import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -24,53 +24,33 @@ import java.util.Map;
 /**
  * QueryDSL-based search operation for SQL object classes.
  *
- * <p>Maps SQL {@link QueryDSLMetadata} to ConnId {@link ConnectorObject}s via
- * {@link SqlObjectClassMapping} instances built by
- * {@link com.evolveum.polygon.sql.base.objectclass.SqlObjectClassMapper}.</p>
  */
 public class SqlSearchOperation implements ObjectSearchOperation {
 
     private final SqlBaseContext context;
-    private final SqlQuerydslMetadataFactory metadataFactory;
-    private final ObjectClass objectClass;
-    private SqlObjectClassMapping mapping;
-    private QueryDSLMetadata querydslMetadata;
+    private final SqlObjectClassDefinition objectClass;
+    private final QueryDSLMetadata querydslMetadata;
 
-    public SqlSearchOperation(SqlBaseContext context, SqlQuerydslMetadataFactory metadataFactory, ObjectClass objectClass) {
+    public SqlSearchOperation(SqlBaseContext context, SqlQuerydslMetadataFactory metadataFactory, SqlObjectClassDefinition objectClass) {
         this.context = context;
-        this.metadataFactory = metadataFactory;
         this.objectClass = objectClass;
-        String tableName = null;
-        for (Map.Entry<ObjectClass, SqlObjectClassMapping> entry : context.getObjectClassMappings().entrySet()) {
-            if (entry.getKey() != null && entry.getKey().getObjectClassValue()
-                    .equalsIgnoreCase(objectClass.getObjectClassValue())) {
-                tableName = entry.getValue().getTableName();
-                this.mapping = entry.getValue();
-                break;
-            }
-        }
+        String tableName = objectClass.sql().getTableName();
         this.querydslMetadata = tableName != null ? metadataFactory.getMetadata(tableName) : null;
     }
 
     @Override
     public void executeQuery(ContextLookup c, Filter filter, ResultsHandler resultsHandler,
-                              OperationOptions options) {
-        List<String> selectedColumns = null;
+                             OperationOptions options) {
+        var selectedColumns = selectColumns(options);
 
-        if (mapping == null || querydslMetadata == null) {
-            return;
-        }
-
-        selectedColumns = mapping.getReturnedByDefaultColumnNames();
-
-        try (SqlConnection conn = context.getConnection()) {
+        try (var conn = context.getConnection()) {
 
             // Check filter support - throw UnsupportedOperationException if filter is non-null
             if (filter != null) {
                 throw new UnsupportedOperationException("Filter support not yet implemented, got: " + filter);
             }
 
-            Connection jdbcConn = conn.getConnection();
+            var jdbcConn = conn.getConnection();
             int pageSize = 200;
             int offset = 0;
 
@@ -79,7 +59,7 @@ public class SqlSearchOperation implements ObjectSearchOperation {
                 try {
                     rows = context.getSqlQueryEngine().select(
                             jdbcConn,
-                            mapping.getTableName(),
+                            objectClass.sql().getTableName(),
                             querydslMetadata,
                             selectedColumns,
                             null,  // predicate (none)
@@ -89,7 +69,7 @@ public class SqlSearchOperation implements ObjectSearchOperation {
                     );
 
                     for (Map<String, Object> row : rows) {
-                        ConnectorObject obj = buildConnectorObject(row, mapping);
+                        var obj = buildConnectorObject(row);
                         if (!resultsHandler.handle(obj)) {
                             return;
                         }
@@ -108,31 +88,25 @@ public class SqlSearchOperation implements ObjectSearchOperation {
         }
     }
 
-private ConnectorObject buildConnectorObject(Map<String, Object> row,
-                                                   SqlObjectClassMapping mapping) {
-        ConnectorObjectBuilder builder = new ConnectorObjectBuilder();
-        builder.setObjectClass(objectClass);
+    private List<String> selectColumns(OperationOptions options) {
+        return objectClass.attributes().stream().filter(a -> a.sql() != null)
+                .filter(a -> a.connId().isReturnedByDefault())
+                .map(a -> a.sql().column().value())
+                .toList();
+    }
 
-        String uidValue = mapping.getUidValueStr(row);
-        if (uidValue != null) {
-            builder.setUid(uidValue);
-            builder.setName(new Name(uidValue));
-        }
-
-        for (SqlObjectClassMapping.SqlAttributeMapping attr : mapping.getAttributeMappings()) {
-            if (attr.isReturnedByDefault()) {
-                String connIdName = attr.getConnIdName();
-                Object value = row.get(attr.getSqlColumn());
-                if (value != null) {
-                    // __UID__ attribute must be String, not Long/Integer/etc.
-                    if (Uid.NAME.equals(connIdName)) {
-                        value = String.valueOf(value);
+    private ConnectorObject buildConnectorObject(Map<String, Object> row) {
+        var builder = new ConnectorObjectBuilder();
+        builder.setObjectClass(objectClass.objectClass());
+        for (var attr : objectClass.attributes()) {
+                var mapping = attr.sql();
+                if (mapping != null) {
+                    var value = mapping.valuesFromObject(row);
+                    if (value != null) {
+                        builder.addAttribute(attr.attributeOf(value));
                     }
-                    builder.addAttribute(AttributeBuilder.build(connIdName, value));
                 }
-            }
         }
-
         return builder.build();
     }
 }

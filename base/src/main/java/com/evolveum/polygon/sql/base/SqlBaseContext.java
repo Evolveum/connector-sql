@@ -8,8 +8,8 @@ package com.evolveum.polygon.sql.base;
 
 import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.concepts.RetrievableContext;
-import com.evolveum.polygon.conndev.schema.BaseSchema;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlSchema;
 import com.evolveum.polygon.sql.base.connection.HikariConnectionPool;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
@@ -36,9 +36,7 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
     private SqlSchema schema;
     private Map<ObjectClass, ObjectClassHandler> handlers;
     private volatile HikariConnectionPool connectionPool;
-    private SqlQuerydslMetadataFactory metadataFactory;
     private SqlQueryEngine sqlQueryEngine;
-    private Map<ObjectClass, SqlObjectClassMapping> objectClassMappings;
 
     public SqlBaseContext(SqlConnectorConfiguration configuration) {
         this.configuration = configuration;
@@ -84,26 +82,6 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
         return handlers != null ? handlers.get(objectClass) : null;
     }
 
-    /**
-     * Sets the QueryDSL metadata factory populated during schema detection.
-     */
-    public void setMetadataFactory(SqlQuerydslMetadataFactory metadataFactory) {
-        this.metadataFactory = metadataFactory;
-    }
-
-    /**
-     * Returns the QueryDSL metadata factory, populated after schema detection.
-     */
-    public SqlQuerydslMetadataFactory getMetadataFactory() {
-        return metadataFactory;
-    }
-
-    /**
-     * Returns QueryDSL metadata for a specific table by name, or null if not found.
-     */
-    public QueryDSLMetadata getQueryDSLMetadata(String tableName) {
-        return metadataFactory != null ? metadataFactory.getMetadata(tableName) : null;
-    }
 
     public SqlQueryEngine getSqlQueryEngine() {
         return sqlQueryEngine;
@@ -113,13 +91,6 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
         this.sqlQueryEngine = sqlQueryEngine;
     }
 
-    public Map<ObjectClass, SqlObjectClassMapping> getObjectClassMappings() {
-        return objectClassMappings != null ? Collections.unmodifiableMap(objectClassMappings) : Collections.emptyMap();
-    }
-
-    public void setObjectClassMappings(Map<ObjectClass, SqlObjectClassMapping> objectClassMappings) {
-        this.objectClassMappings = objectClassMappings != null ? Map.copyOf(objectClassMappings) : null;
-    }
 
     HikariConnectionPool getConnectionPool() {
         return connectionPool;
@@ -146,7 +117,7 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
     }
 
     public void testConnection() throws Exception {
-        HikariConnectionPool pool = connectionPool;
+        var pool = connectionPool;
         if (pool == null) {
             throw new IllegalStateException("Connection pool not initialized");
         }
@@ -172,7 +143,7 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
      * @throws IllegalStateException if pool is not initialized or closed
      */
     public SqlConnection getConnection() {
-        HikariConnectionPool pool = connectionPool;
+        var pool = connectionPool;
         if (pool == null) {
             throw new IllegalStateException("Connection pool not initialized");
         }

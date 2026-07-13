@@ -7,7 +7,6 @@
 package com.evolveum.polygon.sql.base.schema;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
-import com.evolveum.polygon.sql.base.connection.SqlConnection;
 import com.querydsl.sql.Configuration;
 import com.querydsl.sql.SQLTemplates;
 import com.querydsl.sql.SQLTemplatesRegistry;
@@ -37,17 +36,17 @@ public class SqlSchemaDetector {
      * This method is idempotent and safe to call multiple times.
      */
     public List<SqlTableInfo> discover() throws SQLException {
-        try (SqlConnection wrapper = context.getConnection()) {
-            Connection conn = wrapper.getConnection();
-            DatabaseMetaData meta = conn.getMetaData();
+        try (var wrapper = context.getConnection()) {
+            var conn = wrapper.getConnection();
+            var meta = conn.getMetaData();
             
 // Initialize QueryDSL configuration for driver-aware type mapping
-            SQLTemplates templatesFromRegistry = new SQLTemplatesRegistry().getTemplates(meta);
+            var templatesFromRegistry = new SQLTemplatesRegistry().getTemplates(meta);
             if (templatesFromRegistry == null) {
                 templatesFromRegistry = SQLTemplates.DEFAULT;
             }
 // For H2, use H2Templates with no quoting - unqualified column paths avoid table.column issues
-            String productName = meta.getDatabaseProductName();
+            var productName = meta.getDatabaseProductName();
             if (productName != null && productName.toUpperCase().contains("H2")) {
                 templatesFromRegistry = new com.querydsl.sql.H2Templates(false);
             }
@@ -66,7 +65,7 @@ public class SqlSchemaDetector {
                 if (colMap.containsKey(tableName)) {
                     continue;
                 }
-                String exactName = getExactTableName(conn, tableName);
+                var exactName = getExactTableName(conn, tableName);
                 if (exactName == null) {
                     continue;
                 }
@@ -103,16 +102,16 @@ public class SqlSchemaDetector {
      */
     private List<String> getTableNames(Connection conn) throws SQLException {
         List<String> names = new ArrayList<>();
-        try (ResultSet rs = conn.getMetaData().getTables(null, null, "%", new String[]{"TABLE"})) {
-            ResultSetMetaData meta = rs.getMetaData();
+        try (var rs = conn.getMetaData().getTables(null, null, "%", new String[]{"TABLE"})) {
+            var meta = rs.getMetaData();
             while (rs.next()) {
-                String schema = resolveColumn(rs, meta, "TABLE_SCHEM");
+                var schema = resolveColumn(rs, meta, "TABLE_SCHEM");
                 if (schema != null && schema.equalsIgnoreCase("information_schema")) {
                     continue;
                 }
-                String name = resolveColumn(rs, meta, "TABLE_NAME");
+                var name = resolveColumn(rs, meta, "TABLE_NAME");
                 if (name != null) {
-                    String lowerName = name.toLowerCase();
+                    var lowerName = name.toLowerCase();
                     names.add(lowerName);
                     if (tableNameToExact != null) {
                         tableNameToExact.put(lowerName, name);
@@ -151,19 +150,19 @@ public class SqlSchemaDetector {
     private String getExactTableName(Connection conn, String lowerName) throws SQLException {
         // First try the cache
         if (tableNameToExact != null) {
-            String cached = tableNameToExact.get(lowerName);
+            var cached = tableNameToExact.get(lowerName);
             if (cached != null) {
                 return cached;
             }
         }
         // Fallback: re-query (should not happen in normal flow)
-        try (ResultSet rs = conn.getMetaData().getTables(null, null, "%", new String[]{"TABLE"})) {
+        try (var rs = conn.getMetaData().getTables(null, null, "%", new String[]{"TABLE"})) {
             while (rs.next()) {
-                String schema = resolveColumn(rs, rs.getMetaData(), "TABLE_SCHEM");
+                var schema = resolveColumn(rs, rs.getMetaData(), "TABLE_SCHEM");
                 if (schema != null && schema.equalsIgnoreCase("information_schema")) {
                     continue;
                 }
-                String name = resolveColumn(rs, rs.getMetaData(), "TABLE_NAME");
+                var name = resolveColumn(rs, rs.getMetaData(), "TABLE_NAME");
                 if (name != null && name.toLowerCase().equals(lowerName)) {
                     return name;
                 }
@@ -179,12 +178,12 @@ public class SqlSchemaDetector {
     private List<SqlColumnMeta> getColumnMetas(Connection conn, String exactName) throws SQLException {
         List<SqlColumnMeta> cols = new ArrayList<>();
         // Use try-with-resources: multiple ResultSets on the same Connection is supported in JDBC 4.0+
-        try (ResultSet pkRs = conn.getMetaData().getPrimaryKeys(null, null, exactName);
-             ResultSet idxRs = conn.getMetaData().getIndexInfo(null, null, exactName, false, false)) {
+        try (var pkRs = conn.getMetaData().getPrimaryKeys(null, null, exactName);
+             var idxRs = conn.getMetaData().getIndexInfo(null, null, exactName, false, false)) {
 
             List<String> pkList = new ArrayList<>();
             while (pkRs.next()) {
-                String colName = resolveColumn(pkRs, pkRs.getMetaData(), "COLUMN_NAME");
+                var colName = resolveColumn(pkRs, pkRs.getMetaData(), "COLUMN_NAME");
                 if (colName != null) {
                     pkList.add(colName.toLowerCase());
                 }
@@ -192,29 +191,29 @@ public class SqlSchemaDetector {
 
             Set<String> uniqueCols = collectUniqueConstraintColumns(conn, exactName);
 
-            try (ResultSet colsRs = conn.getMetaData().getColumns(null, null, exactName, null)) {
-                ResultSetMetaData meta = colsRs.getMetaData();
+            try (var colsRs = conn.getMetaData().getColumns(null, null, exactName, null)) {
+                var meta = colsRs.getMetaData();
                 while (colsRs.next()) {
-                    String colName = resolveColumn(colsRs, meta, "COLUMN_NAME");
+                    var colName = resolveColumn(colsRs, meta, "COLUMN_NAME");
                     if (colName == null) {
                         continue;
                     }
 
-                    String typeName = resolveColumn(colsRs, meta, "TYPE_NAME");
+                    var typeName = resolveColumn(colsRs, meta, "TYPE_NAME");
                     int dataType = colsRs.getInt("DATA_TYPE");
                     int columnSize = resolveColumnSize(colsRs);
                     int decimalDigits = resolveColumnDigits(colsRs);
-                    String rawNullable = resolveColumn(colsRs, meta, "IS_NULLABLE");
-                    String rawAutoInc = resolveColumn(colsRs, meta, "IS_AUTOINCREMENT");
+                    var rawNullable = resolveColumn(colsRs, meta, "IS_NULLABLE");
+                    var rawAutoInc = resolveColumn(colsRs, meta, "IS_AUTOINCREMENT");
 
-                    String colLower = colName.toLowerCase();
+                    var colLower = colName.toLowerCase();
                     boolean isPk = pkList.contains(colLower);
 
                     // Use QueryDSL for Java type resolution (dialect-aware)
-                    java.lang.reflect.Type javaType = resolveJavaType(dataType, typeName, columnSize, decimalDigits, exactName, colLower);
+                    var javaType = resolveJavaType(dataType, typeName, columnSize, decimalDigits, exactName, colLower);
                     
                     // Normalize type name using driver-typical TYPE_NAME (with fallback normalization)
-                    String normalizedTypeName = normalizeTypeName(typeName);
+                    var normalizedTypeName = normalizeTypeName(typeName);
 
                     cols.add(SqlColumnMeta.builder()
                             .name(colLower)
@@ -233,12 +232,12 @@ public class SqlSchemaDetector {
 
             // Foreign keys: attach the referenced table/column (grouped by FK name) to the FK columns,
             // so a reference can be expressed on the attribute (supports composite keys).
-            try (ResultSet fkRs = conn.getMetaData().getImportedKeys(null, null, exactName)) {
+            try (var fkRs = conn.getMetaData().getImportedKeys(null, null, exactName)) {
                 while (fkRs.next()) {
-                    String fkColumn = resolveColumn(fkRs, fkRs.getMetaData(), "FKCOLUMN_NAME");
-                    String pkTable = resolveColumn(fkRs, fkRs.getMetaData(), "PKTABLE_NAME");
-                    String pkColumn = resolveColumn(fkRs, fkRs.getMetaData(), "PKCOLUMN_NAME");
-                    String fkName = resolveColumn(fkRs, fkRs.getMetaData(), "FK_NAME");
+                    var fkColumn = resolveColumn(fkRs, fkRs.getMetaData(), "FKCOLUMN_NAME");
+                    var pkTable = resolveColumn(fkRs, fkRs.getMetaData(), "PKTABLE_NAME");
+                    var pkColumn = resolveColumn(fkRs, fkRs.getMetaData(), "PKCOLUMN_NAME");
+                    var fkName = resolveColumn(fkRs, fkRs.getMetaData(), "FK_NAME");
                     if (fkColumn == null || pkTable == null) {
                         continue;
                     }
@@ -259,13 +258,13 @@ public class SqlSchemaDetector {
      */
     private Set<String> collectUniqueConstraintColumns(Connection conn, String exactName) throws SQLException {
         Set<String> uniqueCols = new HashSet<>();
-        try (ResultSet rs = conn.getMetaData().getIndexInfo(null, null, exactName, false, false)) {
-            ResultSetMetaData meta = rs.getMetaData();
+        try (var rs = conn.getMetaData().getIndexInfo(null, null, exactName, false, false)) {
+            var meta = rs.getMetaData();
             while (rs.next()) {
-                String isUniqueStr = resolveColumn(rs, meta, "NON_UNIQUE");
+                var isUniqueStr = resolveColumn(rs, meta, "NON_UNIQUE");
                 boolean isNonUnique = resolveNonUnique(isUniqueStr);
                 if (!isNonUnique) {  // This is a unique index
-                    String colName = resolveColumn(rs, meta, "COLUMN_NAME");
+                    var colName = resolveColumn(rs, meta, "COLUMN_NAME");
                     if (colName != null) {
                         uniqueCols.add(colName.toLowerCase());
                     }
@@ -284,7 +283,7 @@ public class SqlSchemaDetector {
         if (raw == null) {
             return true;  // default to non-unique (safe assumption)
         }
-        String trimmed = raw.trim();
+        var trimmed = raw.trim();
         // Numeric check: "0" or "FALSE" or "0.0" = unique, "1" or "TRUE" or any other = non-unique
         try {
             double numVal = Double.parseDouble(trimmed);
@@ -318,7 +317,7 @@ public class SqlSchemaDetector {
         if (dt == null) {
             return "VARCHAR";
         }
-        String u = dt.toUpperCase().trim();
+        var u = dt.toUpperCase().trim();
 
         switch (u) {
             case "INTEGER":
@@ -364,7 +363,7 @@ public class SqlSchemaDetector {
 
     private int resolveColumnSize(ResultSet rs) {
         try {
-            Object val = rs.getObject("COLUMN_SIZE");
+            var val = rs.getObject("COLUMN_SIZE");
             if (val instanceof Number number) {
                 return number.intValue();
             } else if (val instanceof String string) {
@@ -382,7 +381,7 @@ public class SqlSchemaDetector {
 
     private int resolveColumnDigits(ResultSet rs) {
         try {
-            Object val = rs.getObject("DECIMAL_DIGITS");
+            var val = rs.getObject("DECIMAL_DIGITS");
             if (val instanceof Number number) {
                 return number.intValue();
             } else if (val instanceof String string) {
@@ -407,12 +406,4 @@ public class SqlSchemaDetector {
         return templates;
     }
 
-    /**
-     * Returns the QueryDSL configuration that was used during discovery for type resolution.
-     * @deprecated use {@link SqlQuerydslMetadataFactory} instead
-     */
-    @Deprecated
-    public Configuration getQuerydslConfig() {
-        return querydslConfig;
-    }
 }

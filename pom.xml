@@ -199,7 +199,8 @@
                         <activeRecipes>
                             <recipe>org.openrewrite.java.OrderImports</recipe>
                             <recipe>org.openrewrite.java.RemoveUnusedImports</recipe>
-                            <recipe>org.openrewrite.java.migrate.UpgradeToJava21</recipe>
+                            <recipe>org.openrewrite.java.migrate.lang.var.UseVarForObject</recipe>
+			    <recipe>org.openrewrite.java.migrate.UpgradeToJava21</recipe>
                         </activeRecipes>
                     </configuration>
                     <dependencies>

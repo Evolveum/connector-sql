@@ -6,27 +6,25 @@
  */
 package com.evolveum.polygon.sql.base.connection;
 
-import java.util.Set;
+import com.evolveum.polygon.conndev.spi.ValueMapping;
+
+import java.sql.JDBCType;
+import java.util.Arrays;
 
 /**
  * Represents a mapping between ConnId types and SQL wire types.
  * Extends the ValueMapping interface from connector-scimrest.
- *
- * @param <C> ConnId type
- * @param <P> SQL wire type (e.g., String, Integer, JsonNode for JSONB)
  */
-public interface SqlValueMapping<C, P> {
+public interface SqlValueMapping extends ValueMapping<Object, Object> {
 
-    Class<? extends C> connIdType();
-    
-    Class<? extends P> primaryWireType();
-    
-    default Set<Class<? extends P>> supportedWireTypes() {
-        return Set.of(primaryWireType());
+    public static SqlValueMapping from(int typeCode) {
+        var jdbcType = JDBCType.valueOf(typeCode);
+        return Arrays.stream(SqlSchemaValueMapping.values()).filter(s -> jdbcType.equals(s.jdbcType())).findFirst().orElse(null);
     }
 
-    P toWireValue(C value) throws IllegalArgumentException;
-
-    C toConnIdValue(P value) throws IllegalArgumentException;
-
+    Class<?> connIdType();
+    
+    Class<?> primaryWireType();
+    
+    JDBCType jdbcType();
 }

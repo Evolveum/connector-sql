@@ -10,7 +10,6 @@ import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
-import java.sql.Connection;
 import java.sql.SQLException;
 
 /**
@@ -26,25 +25,25 @@ public class HikariConnectionPool {
     }
 
     public void initialize() {
-        HikariConfig config = new HikariConfig();
+        var config = new HikariConfig();
 
         config.setJdbcUrl(configuration.getJdbcUrl());
         config.setUsername(configuration.getUsername());
         config.setPassword(configuration.getPassword());
 
-        Integer poolSize = configuration.getPoolSize();
+        var poolSize = configuration.getPoolSize();
         if (poolSize != null && poolSize > 0) {
             config.setMaximumPoolSize(poolSize);
         } else {
             config.setMaximumPoolSize(10);
         }
 
-        Integer connectionTimeout = configuration.getConnectionTimeout();
+        var connectionTimeout = configuration.getConnectionTimeout();
         if (connectionTimeout != null) {
             config.setConnectionTimeout(connectionTimeout.longValue());
         }
 
-        Integer idleTimeout = configuration.getIdleTimeout();
+        var idleTimeout = configuration.getIdleTimeout();
         if (idleTimeout != null) {
             config.setIdleTimeout(idleTimeout.longValue());
         }
@@ -52,7 +51,7 @@ public class HikariConnectionPool {
         config.setAutoCommit(true);
         config.setPoolName("PolygonSQLPool");
 
-        Boolean validateOnBorrow = configuration.isValidateConnectionOnBorrow();
+        var validateOnBorrow = configuration.isValidateConnectionOnBorrow();
         if (validateOnBorrow != null && validateOnBorrow) {
             config.setConnectionTestQuery("SELECT 1");
             config.setValidationTimeout(3000);
@@ -71,7 +70,7 @@ public class HikariConnectionPool {
             throw new SQLException("Connection pool is closed", (Throwable) null);
         }
         try {
-            Connection connection = dataSource.getConnection();
+            var connection = dataSource.getConnection();
             if (connection == null) {
                 throw new SQLException("Pool returned a null connection", (Throwable) null);
             }
@@ -87,7 +86,7 @@ public class HikariConnectionPool {
         if (dataSource == null || dataSource.isClosed()) {
             throw new SQLException("Connection pool not initialized", (Throwable) null);
         }
-        try (Connection conn = dataSource.getConnection()) {
+        try (var conn = dataSource.getConnection()) {
             conn.createStatement().executeQuery("SELECT 1");
         }
     }

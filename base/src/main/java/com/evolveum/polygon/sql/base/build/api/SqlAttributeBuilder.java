@@ -6,7 +6,6 @@ import com.evolveum.polygon.conndev.build.api.ReferenceAttributeBuilder;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.concepts.GroovyClosures;
 import com.evolveum.polygon.conndev.concepts.SourceLocation;
-import com.evolveum.polygon.conndev.schema.BaseAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.spi.SpiSqlAttributeBuilder;
 import groovy.lang.Closure;
 import groovy.lang.DelegatesTo;
@@ -66,6 +65,8 @@ public interface SqlAttributeBuilder<F extends SqlAttributeBuilder<F>> extends A
         default SqlMapping autoIncrement(boolean value) {
             return autoIncrement(DefinitionValue.from(value, SourceLocation.capture()));
         }
+
+        DefinitionValue<String> column();
     }
 
     interface Reference extends SqlAttributeBuilder<Reference>, ReferenceAttributeBuilder<Reference, SqlAttributeBuilder<Reference>, SqlAttributeDefinition> {

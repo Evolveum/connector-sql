@@ -34,10 +34,10 @@ public class SqlQueryExecutor {
     }
 
     public List<Map<String, Object>> executeQuery(SqlStatement statement) throws SQLException {
-        try (SqlConnection conn = context.getConnection();
-             PreparedStatement ps = buildPreparedStatement(conn.getConnection(), statement)) {
+        try (var conn = context.getConnection();
+             var ps = buildPreparedStatement(conn.getConnection(), statement)) {
             List<Map<String, Object>> results = new ArrayList<>();
-            try (ResultSet rs = ps.executeQuery()) {
+            try (var rs = ps.executeQuery()) {
                 while (rs.next()) {
                     results.add(mapResultSet(rs, statement.getSelectColumns()));
                 }
@@ -47,18 +47,18 @@ public class SqlQueryExecutor {
     }
 
     public int executeUpdate(SqlStatement statement) throws SQLException {
-        try (SqlConnection conn = context.getConnection();
-             PreparedStatement ps = buildPreparedStatement(conn.getConnection(), statement)) {
+        try (var conn = context.getConnection();
+             var ps = buildPreparedStatement(conn.getConnection(), statement)) {
             return ps.executeUpdate();
         }
     }
 
     public Object executeInsert(SqlStatement statement, String[] returnColumns) throws SQLException {
-        try (SqlConnection conn = context.getConnection();
-             PreparedStatement ps = buildPreparedStatement(conn.getConnection(), statement)) {
+        try (var conn = context.getConnection();
+             var ps = buildPreparedStatement(conn.getConnection(), statement)) {
             int affected = ps.executeUpdate();
             if (affected > 0 && returnColumns != null && returnColumns.length > 0) {
-                try (ResultSet rs = ps.getGeneratedKeys()) {
+                try (var rs = ps.getGeneratedKeys()) {
                     if (rs.next()) {
                         Map<String, Object> result = new HashMap<>();
                         for (String col : returnColumns) {
@@ -73,9 +73,9 @@ public class SqlQueryExecutor {
     }
 
     public Object executeScalar(SqlStatement statement) throws SQLException {
-        try (SqlConnection conn = context.getConnection();
-             PreparedStatement ps = buildPreparedStatement(conn.getConnection(), statement);
-             ResultSet rs = ps.executeQuery()) {
+        try (var conn = context.getConnection();
+             var ps = buildPreparedStatement(conn.getConnection(), statement);
+             var rs = ps.executeQuery()) {
             if (rs.next()) {
                 return rs.getObject(1);
             }
@@ -84,8 +84,8 @@ public class SqlQueryExecutor {
     }
 
     private PreparedStatement buildPreparedStatement(Connection connection, SqlStatement statement) throws SQLException {
-        String sql = toSqlWithParameters(statement);
-        PreparedStatement ps = connection.prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+        var sql = toSqlWithParameters(statement);
+        var ps = connection.prepareStatement(sql, ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
         
         int paramIndex = 1;
         for (Object value : statement.getInsertValues().values()) {
@@ -107,8 +107,8 @@ public class SqlQueryExecutor {
         if (columns.isEmpty()) {
             int colCount = rs.getMetaData().getColumnCount();
             for (int i = 1; i <= colCount; i++) {
-                String colName = rs.getMetaData().getColumnName(i);
-                Object value = rs.getObject(i);
+                var colName = rs.getMetaData().getColumnName(i);
+                var value = rs.getObject(i);
                 result.put(colName, value);
             }
         } else {

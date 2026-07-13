@@ -11,7 +11,6 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import java.sql.Connection;
 import java.sql.SQLException;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -56,7 +55,7 @@ public class HikariConnectionPoolTest {
         pool = new HikariConnectionPool(configuration);
         pool.initialize();
 
-        SqlConnection conn = pool.getConnection();
+        var conn = pool.getConnection();
         assertThat(conn).isNotNull();
         assertThat(conn.getConnection()).isNotNull();
         conn.close();
@@ -71,8 +70,8 @@ public class HikariConnectionPoolTest {
     assertThat(pool.getDataSource().getMaximumPoolSize()).isEqualTo(2);
 
         // Acquire 2 connections (pool size)
-        SqlConnection conn1 = pool.getConnection();
-        SqlConnection conn2 = pool.getConnection();
+        var conn1 = pool.getConnection();
+        var conn2 = pool.getConnection();
     assertThat(conn1).isNotNull();
     assertThat(conn2).isNotNull();
 
@@ -85,14 +84,14 @@ public class HikariConnectionPoolTest {
         pool = new HikariConnectionPool(configuration);
         pool.initialize();
 
-        SqlConnection conn1 = pool.getConnection();
-        SqlConnection conn2 = pool.getConnection();
+        var conn1 = pool.getConnection();
+        var conn2 = pool.getConnection();
 
         assertThat(conn1 != conn2).withFailMessage("Should return different connection instances").isTrue();
 
         // Connections should be independent
-        Connection raw1 = conn1.getConnection();
-        Connection raw2 = conn2.getConnection();
+        var raw1 = conn1.getConnection();
+        var raw2 = conn2.getConnection();
         assertThat(raw1 != raw2).isTrue();
 
         conn1.close();

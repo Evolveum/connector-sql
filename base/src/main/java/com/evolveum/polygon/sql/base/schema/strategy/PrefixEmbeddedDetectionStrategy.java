@@ -21,7 +21,7 @@ public class PrefixEmbeddedDetectionStrategy implements AttributeDetectionStrate
 
     @Override
     public boolean isEmbedded(SqlTableInfo table) {
-        String tableName = table.getName().toLowerCase();
+        var tableName = table.getName().toLowerCase();
         return tableName.endsWith("_" + parentTablePrefix)
                 || tableName.startsWith(parentTablePrefix + "_");
     }

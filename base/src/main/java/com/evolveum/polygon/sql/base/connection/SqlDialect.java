@@ -32,7 +32,7 @@ public interface SqlDialect {
      */
     default SQLTemplates getSQLTemplates(DatabaseMetaData metaData) {
         try {
-            SQLTemplates templates = new SQLTemplatesRegistry().getTemplates(metaData);
+            var templates = new SQLTemplatesRegistry().getTemplates(metaData);
             return templates != null ? templates : querydslTemplates();
         } catch (Exception e) {
             // registry lookup failed, fall back to dialect-specific templates

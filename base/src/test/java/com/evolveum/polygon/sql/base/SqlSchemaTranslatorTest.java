@@ -48,7 +48,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testDefaultStrategySinglePkUid() throws Exception {
-        SqlSchemaTranslator translator = new SqlSchemaTranslator(discovered())
+        var translator = new SqlSchemaTranslator(discovered())
                 .addStrategy(new DefaultDetectionStrategy());
 
         assertThat(translated(translator).connIdSchema().getObjectClassInfo()).hasSize(6);
@@ -56,7 +56,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testNamedColumnUidStrategy() throws Exception {
-        SqlSchemaTranslator translator = new SqlSchemaTranslator(discovered())
+        var translator = new SqlSchemaTranslator(discovered())
                 .addStrategy(new NamedColumnUidStrategy("uid"));
 
         assertThat(translated(translator).connIdSchema().getObjectClassInfo()).hasSize(6);
@@ -64,7 +64,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testNonPkColumnsOnlyStrategy() throws Exception {
-        SqlSchemaTranslator translator = new SqlSchemaTranslator(discovered())
+        var translator = new SqlSchemaTranslator(discovered())
                 .addStrategy(new NonPkColumnsOnlyStrategy());
 
         assertThat(translated(translator).connIdSchema().getObjectClassInfo()).hasSize(6);
@@ -72,7 +72,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testPrefixEmbeddedDetectionStrategy() throws Exception {
-        SqlSchemaTranslator translator = new SqlSchemaTranslator(discovered())
+        var translator = new SqlSchemaTranslator(discovered())
                 .addStrategy(new PrefixEmbeddedDetectionStrategy("user"));
 
         assertThat(translated(translator).connIdSchema().getObjectClassInfo()).hasSize(6);
@@ -80,7 +80,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testStrategyComposition() throws Exception {
-        SqlSchemaTranslator translator = new SqlSchemaTranslator(discovered())
+        var translator = new SqlSchemaTranslator(discovered())
                 .addStrategy(new NamedColumnUidStrategy("id"))
                 .addStrategy(new NonPkColumnsOnlyStrategy())
                 .addStrategy(new PrefixEmbeddedDetectionStrategy("user"));
@@ -90,7 +90,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testEmptySchema() throws Exception {
-        SqlSchemaTranslator translator = new SqlSchemaTranslator(List.of());
+        var translator = new SqlSchemaTranslator(List.of());
 
         // an empty model still yields the __Dummy workaround class required for test connection
         var objectClasses = translated(translator).connIdSchema().getObjectClassInfo();
@@ -100,7 +100,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testNullSchema() throws Exception {
-        SqlSchemaTranslator translator = new SqlSchemaTranslator(null);
+        var translator = new SqlSchemaTranslator(null);
 
         var objectClasses = translated(translator).connIdSchema().getObjectClassInfo();
         assertThat(objectClasses).hasSize(1);
@@ -109,7 +109,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testTranslatedModelKeepsNativeSide() throws Exception {
-        BaseSchema schema = translated(new SqlSchemaTranslator(discovered()));
+        var schema = translated(new SqlSchemaTranslator(discovered()));
 
         var user = schema.objectClass("user");
         assertThat(user).isNotNull();
@@ -127,7 +127,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testForeignKeyBecomesReference() throws Exception {
-        BaseSchema schema = translated(new SqlSchemaTranslator(discovered()));
+        var schema = translated(new SqlSchemaTranslator(discovered()));
 
         var membership = schema.objectClass("projectmembership");
         var userId = membership.attributeFromProtocolName("user_id");
@@ -139,7 +139,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testTableWithCompositePk() throws Exception {
-        SqlTableInfo tableWithCompositePk = SqlTableInfo.builder()
+        var tableWithCompositePk = SqlTableInfo.builder()
                 .name("composite_table")
                 .addColumn(SqlColumnMeta.builder().name("col1").typeName("INT").primaryKey(true).build())
                 .addColumn(SqlColumnMeta.builder().name("col2").typeName("INT").primaryKey(true).build())
@@ -155,7 +155,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testTableWithSinglePk() throws Exception {
-        SqlTableInfo table = SqlTableInfo.builder()
+        var table = SqlTableInfo.builder()
                 .name("simple_table")
                 .addColumn(SqlColumnMeta.builder().name("id").typeName("INT").primaryKey(true).autoIncrement(true).build())
                 .addColumn(SqlColumnMeta.builder().name("name").typeName("VARCHAR").nullable(true).build())
@@ -171,7 +171,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testTableWithNoPk() throws Exception {
-        SqlTableInfo table = SqlTableInfo.builder()
+        var table = SqlTableInfo.builder()
                 .name("no_pk_table")
                 .addColumn(SqlColumnMeta.builder().name("field1").typeName("VARCHAR").build())
                 .build();
@@ -182,7 +182,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testNamedColumnUidStrategyWithNoMatch() throws Exception {
-        SqlTableInfo table = SqlTableInfo.builder()
+        var table = SqlTableInfo.builder()
                 .name("test_table")
                 .addColumn(SqlColumnMeta.builder().name("id").typeName("INT").primaryKey(true).build())
                 .addColumn(SqlColumnMeta.builder().name("name").typeName("VARCHAR").build())
@@ -195,14 +195,14 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testNonPkColumnsOnlyStrategyFiltersPks() throws Exception {
-        SqlTableInfo table = SqlTableInfo.builder()
+        var table = SqlTableInfo.builder()
                 .name("test_table")
                 .addColumn(SqlColumnMeta.builder().name("id").typeName("INT").primaryKey(true).build())
                 .addColumn(SqlColumnMeta.builder().name("name").typeName("VARCHAR").build())
                 .addColumn(SqlColumnMeta.builder().name("email").typeName("VARCHAR").build())
                 .build();
 
-        NonPkColumnsOnlyStrategy strategy = new NonPkColumnsOnlyStrategy();
+        var strategy = new NonPkColumnsOnlyStrategy();
         List<SqlColumnMeta> columns = strategy.detectColumns(table);
 
         assertThat(columns).hasSize(2);
@@ -212,7 +212,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testIsEmbeddedDefault() throws Exception {
-        SqlTableInfo table = SqlTableInfo.builder()
+        var table = SqlTableInfo.builder()
                 .name("user")
                 .addColumn(SqlColumnMeta.builder().name("id").typeName("INT").primaryKey(true).build())
                 .build();
@@ -223,7 +223,7 @@ public class SqlSchemaTranslatorTest {
 
     @Test
     public void testH2UserTableTranslation() throws Exception {
-        BaseSchema schema = translated(new SqlSchemaTranslator(discovered()));
+        var schema = translated(new SqlSchemaTranslator(discovered()));
 
         assertThat(schema.connIdSchema().getObjectClassInfo()).isNotEmpty();
     }

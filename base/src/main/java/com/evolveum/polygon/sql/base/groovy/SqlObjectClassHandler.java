@@ -28,7 +28,7 @@ public class SqlObjectClassHandler implements ObjectClassHandler {
     @Override
     @SuppressWarnings("unchecked")
     public <T extends ObjectClassOperation> T checkSupported(Class<T> operationType) throws UnsupportedOperationException {
-        Object handler = handlers.get(operationType);
+        var handler = handlers.get(operationType);
         if (handler == null) {
             throw new UnsupportedOperationException("Operation %s is not supported for %s"
                 .formatted(operationType.getName(), objectClass));

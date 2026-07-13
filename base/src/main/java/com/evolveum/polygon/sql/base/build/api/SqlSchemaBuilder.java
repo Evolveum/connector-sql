@@ -18,4 +18,8 @@ public interface SqlSchemaBuilder extends SchemaBuilder<SqlSchemaBuilder, SqlObj
                                                  Closure<?> closure) {
         return GroovyClosures.callAndReturnDelegate(closure, objectClass(name));
     }
+
+    SqlSchemaBuilder onlyExplicitlyListed(boolean value);
+
+    Boolean getOnlyExplicitlyListed();
 }

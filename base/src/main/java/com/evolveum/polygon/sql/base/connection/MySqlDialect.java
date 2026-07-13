@@ -32,7 +32,7 @@ public class MySqlDialect implements SqlDialect {
 
     @Override
     public String toSql(SqlStatement statement) {
-        StringBuilder sql = new StringBuilder();
+        var sql = new StringBuilder();
         if (!statement.getInsertValues().isEmpty()) {
             sql.append("INSERT INTO ").append(statement.getTableName()).append(" (");
             sql.append(String.join(", ", statement.getInsertValues().keySet())).append(") VALUES (");

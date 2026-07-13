@@ -1,6 +1,5 @@
-<?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) 2025 Evolveum and contributors
+  ~ Copyright (c) 2026 Evolveum and contributors
   ~
   ~ This work is licensed under European Union Public License v1.2. See LICENSE file for details.
   ~
@@ -23,8 +22,15 @@
 
     <properties>
         <connectorPackage>com.evolveum.polygon.sql.groovy.impl</connectorPackage>
-        <connectorClass>ManifestBasedConnector</connectorClass>
     </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.evolveum.polygon.sql</groupId>
+            <artifactId>connector-sql-base</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+    </dependencies>
 
     <build>
         <plugins>
@@ -35,7 +41,7 @@
                     <archive>
                         <index>true</index>
                         <manifestEntries>
-                            <ConnectorBundle-ConnectorClass>com.evolveum.polygon.sql.groovy.impl.ManifestBasedConnector</ConnectorBundle-ConnectorClass>
+                            <ConnectorBundle-ConnectorClass>com.evolveum.polygon.sql.base.groovy.impl.ManifestBasedConnector</ConnectorBundle-ConnectorClass>
                         </manifestEntries>
                     </archive>
                 </configuration>

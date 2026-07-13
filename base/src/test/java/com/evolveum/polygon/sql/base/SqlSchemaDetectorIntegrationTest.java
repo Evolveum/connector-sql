@@ -6,7 +6,6 @@
  */
 package com.evolveum.polygon.sql.base;
 
-import com.evolveum.polygon.sql.base.connection.SqlConnection;
 import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
@@ -14,7 +13,6 @@ import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
 import com.evolveum.polygon.sql.base.test.H2DatabaseInitializer;
 import org.identityconnectors.framework.common.objects.AttributeInfo;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
-import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.Connector;
@@ -22,9 +20,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -87,7 +83,7 @@ public class SqlSchemaDetectorIntegrationTest {
         assertThat(userTable).isNotNull();
         Map<String, SqlColumnMeta> columns = toColumnMap(userTable);
 
-        SqlColumnMeta idCol = columns.get("id");
+        var idCol = columns.get("id");
         assertThat(idCol).isNotNull();
         assertThat(idCol.isPrimaryKey()).isTrue();
         assertThat(idCol.isNullable()).isFalse();
@@ -143,7 +139,7 @@ public class SqlSchemaDetectorIntegrationTest {
         assertThat(columns.size()).isEqualTo(6);
         assertThat(columns.get("id").isPrimaryKey()).isTrue();
 
-        SqlColumnMeta userIdCol = columns.get("user_id");
+        var userIdCol = columns.get("user_id");
         assertThat(userIdCol).isNotNull();
         assertThat(userIdCol.isNullable()).withFailMessage("UserAddress.user_id should be NOT NULL - UserAddress cannot exist without a User").isFalse();
 
@@ -170,7 +166,7 @@ public class SqlSchemaDetectorIntegrationTest {
     public void testConnIdSchemaTranslation() throws Exception {
         List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
 
-        Schema connIdSchema = new SqlSchemaTranslator(tables)
+        var connIdSchema = new SqlSchemaTranslator(tables)
                 .translate(StubConnector.class, context)
                 .connIdSchema();
         assertThat(connIdSchema).isNotNull();
@@ -185,7 +181,7 @@ public class SqlSchemaDetectorIntegrationTest {
         }
 
         // Verify User attributes: the single-PK "id" column is mapped to __UID__
-        ObjectClassInfo userClass = objClasses.get("user");
+        var userClass = objClasses.get("user");
         assertThat(userClass).isNotNull();
         Map<String, AttributeInfo> userAttrs = userClass.getAttributeInfo().stream()
                 .collect(Collectors.toMap(AttributeInfo::getName, Function.identity()));
@@ -196,7 +192,7 @@ public class SqlSchemaDetectorIntegrationTest {
         assertThat(userAttrs.get("email").isRequired()).withFailMessage("User.email should NOT be required").isFalse();
 
         // Verify ProjectMembership: FK columns are references, still required
-        ObjectClassInfo membership = objClasses.get("projectmembership");
+        var membership = objClasses.get("projectmembership");
         assertThat(membership).isNotNull();
         Map<String, AttributeInfo> memberAttrs = membership.getAttributeInfo().stream()
                 .collect(Collectors.toMap(AttributeInfo::getName, Function.identity()));
@@ -210,12 +206,12 @@ public class SqlSchemaDetectorIntegrationTest {
 
     @Test
     public void testMultiplePoolConnections() throws SQLException {
-        try (SqlConnection conn1 = context.getConnection();
-             SqlConnection conn2 = context.getConnection()) {
+        try (var conn1 = context.getConnection();
+             var conn2 = context.getConnection()) {
 
-            try (Statement s1 = conn1.getConnection().createStatement();
-                 Statement s2 = conn2.getConnection().createStatement()) {
-                try (ResultSet rs = s1.executeQuery("SELECT COUNT(*) FROM \"User\"")) {
+            try (var s1 = conn1.getConnection().createStatement();
+                 var s2 = conn2.getConnection().createStatement()) {
+                try (var rs = s1.executeQuery("SELECT COUNT(*) FROM \"User\"")) {
                     assertThat(rs.next()).isTrue();
                     assertThat(rs.getInt(1)).isEqualTo(2);
                 }
@@ -256,7 +252,7 @@ public class SqlSchemaDetectorIntegrationTest {
     }
 
     private void assertColumnType(SqlColumnMeta col, String... allowedTypes) {
-        String typeName = col.getTypeName().toUpperCase();
+        var typeName = col.getTypeName().toUpperCase();
         for (String t : allowedTypes) {
             if (typeName.equals(t) || typeName.contains(t)) return;
         }

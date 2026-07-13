@@ -6,16 +6,14 @@
  */
 package com.evolveum.polygon.sql.base;
 
-import org.identityconnectors.framework.common.objects.ConnectorMessages;
-import org.identityconnectors.framework.spi.Configuration;
+import com.evolveum.polygon.conndev.groovy.BaseGroovyConnectorConfiguration;
 
 /**
  * Configuration class for SQL connector.
  * Supports multiple SQL dialects with auto-discovery.
  */
-public class SqlConnectorConfiguration implements Configuration {
+public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration {
 
-    private ConnectorMessages messages;
     private String jdbcUrl;
     private String dialect; // postgresql, mysql, oracle, sqlite, auto
     private String username;
@@ -26,17 +24,7 @@ public class SqlConnectorConfiguration implements Configuration {
     private Boolean validateConnectionOnBorrow = true;
     private Boolean autoDiscoverSchema = true;
     private Boolean logSqlStatements = false;
-    private Boolean developmentMode = false;
-
-    @Override
-    public ConnectorMessages getConnectorMessages() {
-        return messages;
-    }
-
-    @Override
-    public void setConnectorMessages(ConnectorMessages messages) {
-        this.messages = messages;
-    }
+    private Boolean onlyExplicitlyListed = false;
 
     public String getJdbcUrl() {
         return jdbcUrl;
@@ -68,12 +56,6 @@ public class SqlConnectorConfiguration implements Configuration {
      * It is intentionally omitted from toString() to prevent accidental exposure.
      */
     public String getPassword() {
-        return password;
-    }
-
-    /** @deprecated Use {@link #getPassword()} instead. */
-    @Deprecated
-    String getPasswordInternal() {
         return password;
     }
 
@@ -129,16 +111,17 @@ public class SqlConnectorConfiguration implements Configuration {
         this.logSqlStatements = logSqlStatements;
     }
 
-    public Boolean isDevelopmentMode() {
-        return developmentMode;
+    public Boolean isOnlyExplicitlyListed() {
+        return onlyExplicitlyListed;
     }
 
-    public void setDevelopmentMode(Boolean developmentMode) {
-        this.developmentMode = developmentMode;
+    public void setOnlyExplicitlyListed(Boolean onlyExplicitlyListed) {
+        this.onlyExplicitlyListed = onlyExplicitlyListed;
     }
 
     @Override
     public void validate() {
+        super.validate();
         if (jdbcUrl == null || jdbcUrl.isEmpty()) {
             throw new IllegalArgumentException("JDBC URL is required");
         }
@@ -162,13 +145,13 @@ public class SqlConnectorConfiguration implements Configuration {
                 logSqlStatements=%s
             }"""
             .formatted("jdbcUrl=**hidden**", 
-                      dialect,
-                      username,
-                      poolSize,
-                      connectionTimeout,
-                      idleTimeout,
-                      validateConnectionOnBorrow,
-                      autoDiscoverSchema,
-                      logSqlStatements);
+                       dialect,
+                       username,
+                       poolSize,
+                       connectionTimeout,
+                       idleTimeout,
+                       validateConnectionOnBorrow,
+                       autoDiscoverSchema,
+                       logSqlStatements);
     }
 }

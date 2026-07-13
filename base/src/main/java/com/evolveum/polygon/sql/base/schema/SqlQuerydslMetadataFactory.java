@@ -35,8 +35,8 @@ public class SqlQuerydslMetadataFactory {
                         // H2 (default): unquoted identifiers uppercased, quoted identifiers case-sensitive
                         // H2 (MySQL mode): lowercase, case-insensitive
                         // PostgreSQL: unquoted lowercase, quoted case-sensitive
-                        String tableName = table.getName();
-                        String lowerKeyName = tableName.toLowerCase();
+                        var tableName = table.getName();
+                        var lowerKeyName = tableName.toLowerCase();
                         tableMetadata.put(lowerKeyName, new QueryDSLMetadata(tableName, columns));
                     }
                 }
@@ -80,7 +80,7 @@ public class SqlQuerydslMetadataFactory {
         if (sqlTypeName == null) {
             return String.class;
         }
-        String upper = sqlTypeName.toUpperCase();
+        var upper = sqlTypeName.toUpperCase();
         switch (upper) {
             case "INT":
             case "INTEGER":

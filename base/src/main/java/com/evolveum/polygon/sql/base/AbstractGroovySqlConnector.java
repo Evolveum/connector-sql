@@ -11,9 +11,11 @@ import com.evolveum.polygon.conndev.dev.ConnDevSchema;
 import com.evolveum.polygon.conndev.spi.ClassHandlerConnectorBase;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
+import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
 import com.evolveum.polygon.sql.base.dev.SqlObjectClassDevHandler;
+import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
-import com.evolveum.polygon.sql.base.objectclass.SqlObjectClassMapper;
 import com.evolveum.polygon.sql.base.schema.SqlQuerydslMetadataFactory;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
@@ -42,11 +44,6 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
     private boolean initialized;
     private SqlBaseContext context;
     private java.util.concurrent.atomic.AtomicBoolean closed = new java.util.concurrent.atomic.AtomicBoolean(false);
-
-    @Deprecated
-    protected AbstractGroovySqlConnector() {
-        this(true);
-    }
 
     protected AbstractGroovySqlConnector(boolean reinitializeOnEachCall) {
         this.reinitializeOnEachCall = reinitializeOnEachCall;
@@ -108,6 +105,14 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
 
         SqlQuerydslMetadataFactory metadataFactory = null;
 
+        var builder = new SqlSchemaBuilderImpl(getClass(), context);
+        var groovyContext = context.configuration().groovyContext();
+
+        // Load Groovy scripts into the builder via subclass-provided init method
+        var loader = new SqlGroovySchemaLoader(context, builder, groovyContext);
+        initializeSchema(loader);
+
+
         // Auto-discover schema if enabled: detect raw JDBC metadata, then translate it into the one
         // framework schema model (conndev BaseSchema); everything else derives from that model.
         if (context.configuration().isAutoDiscoverSchema()) {
@@ -130,19 +135,16 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                     templates = com.querydsl.sql.SQLTemplates.DEFAULT;
                 }
                 metadataFactory = new SqlQuerydslMetadataFactory(tables, templates);
-                context.setMetadataFactory(metadataFactory);
                 context.setSqlQueryEngine(metadataFactory.getQueryEngine());
 
                 // In development mode the shared conndev_ObjectClass / conndev_Attribute classes are
                 // part of the schema, so midPoint can search the discovered schema.
-                var additional = Boolean.TRUE.equals(context.configuration().isDevelopmentMode())
+                var additional = Boolean.TRUE.equals(context.configuration().getDevelopmentMode())
                         ? ConnDevSchema.objectClassInfos() : List.<ObjectClassInfo>of();
 
-                context.schema(new SqlSchemaTranslator(tables).translate(getClass(), context, additional));
-
-                // Build SQL <-> ConnId object class mappings for QueryDSL search
-                var objectClassMappings = SqlObjectClassMapper.buildAll(context.schema(), metadataFactory);
-                context.setObjectClassMappings(objectClassMappings);
+                context.schema(new SqlSchemaTranslator(builder, tables)
+                        .connector(getClass(), context)
+                        .translate(additional));
             } catch (SQLException e) {
                 throw new ConnectionFailedException("Schema detection failed: " + e.getMessage(), e);
             }
@@ -151,17 +153,21 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         // Initialize handlers
         var handlerBuilder = new SqlHandlerBuilder(context);
         initializeObjectClassHandler(handlerBuilder);
-        if (Boolean.TRUE.equals(context.configuration().isDevelopmentMode())) {
+
+        if (Boolean.TRUE.equals(context.configuration().getDevelopmentMode())) {
             handlerBuilder.register(new ObjectClass(ConnDevObjectClass.OBJECT_CLASS_NAME),
                     ObjectSearchOperation.class, new SqlObjectClassDevHandler(context));
         }
 
         // Register QueryDSL-based search operation for all application object classes (tables)
-        if (context.getObjectClassMappings() != null) {
-            for (var entry : context.getObjectClassMappings().entrySet()) {
-                var objectClass = entry.getKey();
-                handlerBuilder.register(objectClass, ObjectSearchOperation.class,
-                        new SqlSearchOperation(context, metadataFactory, objectClass));
+        if (context.schema() != null) {
+            for (SqlObjectClassDefinition def : context.schema().objectClasses()) {
+                var oc = def.objectClass();
+                var mapping = def.sql();
+                if (mapping != null) {
+                    handlerBuilder.register(oc, ObjectSearchOperation.class,
+                            new SqlSearchOperation(context, metadataFactory, def));
+                }
             }
         }
 
@@ -169,9 +175,16 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
     }
 
     /**
-     * Creates initial configuration for Abstract Groovy SQL Connector
+     * Initializes schema by loading Groovy scripts into the provided loader.
      *
-     * @param builder handler builder for object class handlers
+     * @param loader the Groovy schema loader to populate
+     */
+    protected abstract void initializeSchema(SqlGroovySchemaLoader loader);
+
+    /**
+     * Initializes operation handlers for object classes by loading Groovy scripts.
+     *
+     * @param builder the handler builder to populate
      */
     protected abstract void initializeObjectClassHandler(SqlHandlerBuilder builder);
 

@@ -2,11 +2,9 @@ package com.evolveum.polygon.sql.base.test;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
-import com.evolveum.polygon.sql.base.connection.SqlConnection;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
-import java.io.InputStream;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.concurrent.ThreadLocalRandom;
@@ -47,7 +45,7 @@ public final class H2DatabaseInitializer {
      */
     public static SqlBaseContext create() {
         try {
-            H2TestMode mode = new H2TestMode();
+            var mode = new H2TestMode();
             return createContext(mode, null);
         } catch (Exception e) {
             throw new RuntimeException("Failed to create test context", e);
@@ -62,7 +60,7 @@ public final class H2DatabaseInitializer {
      */
     public static SqlBaseContext create(Class<?> dialectClass) {
         try {
-            H2TestMode mode = new H2TestMode();
+            var mode = new H2TestMode();
             return createContext(mode, dialectClass);
         } catch (Exception e) {
             throw new RuntimeException("Failed to create test context", e);
@@ -77,7 +75,7 @@ public final class H2DatabaseInitializer {
      */
     public static SqlBaseContext create(java.util.function.Consumer<H2TestMode> modeConfigurer) {
         try {
-            H2TestMode mode = new H2TestMode();
+            var mode = new H2TestMode();
             if (modeConfigurer != null) {
                 modeConfigurer.accept(mode);
             }
@@ -88,7 +86,7 @@ public final class H2DatabaseInitializer {
     }
 
     private static SqlBaseContext createContext(H2TestMode mode, Class<?> dialectClass) throws Exception {
-        SqlConnectorConfiguration config = new SqlConnectorConfiguration();
+        var config = new SqlConnectorConfiguration();
         config.setJdbcUrl(buildUrl(mode));
         config.setUsername("sa");
         config.setPassword("");
@@ -98,11 +96,11 @@ public final class H2DatabaseInitializer {
         config.setValidateConnectionOnBorrow(true);
         config.setAutoDiscoverSchema(false);
 
-        SqlBaseContext ctx = new SqlBaseContext(config);
+        var ctx = new SqlBaseContext(config);
         ctx.initializeConnectionPool();
 
-        try (SqlConnection conn = ctx.getConnection()) {
-            Connection jdbc = conn.getConnection();
+        try (var conn = ctx.getConnection()) {
+            var jdbc = conn.getConnection();
             executeSql(jdbc, SCHEMA_RESOURCE);
             executeSql(jdbc, DATA_RESOURCE);
         } catch (Exception e) {
@@ -111,7 +109,7 @@ public final class H2DatabaseInitializer {
         }
 
         if (dialectClass != null) {
-            java.lang.reflect.Field f = SqlBaseContext.class.getDeclaredField("dialect");
+            var f = SqlBaseContext.class.getDeclaredField("dialect");
             f.setAccessible(true);
             f.set(ctx, dialectClass.getDeclaredConstructor().newInstance());
         }
@@ -120,12 +118,12 @@ public final class H2DatabaseInitializer {
     }
 
     private static String buildUrl(H2TestMode mode) {
-        StringBuilder url = new StringBuilder();
+        var url = new StringBuilder();
         url.append("jdbc:h2:mem:test_").append(mode.uniqueId())
            .append(";DB_CLOSE_DELAY=-1");
 
         // Add MODE parameter if it's not the default
-        String m = mode.mode();
+        var m = mode.mode();
         if (m != null && !"Standard".equals(m) && !"MySQL".equals(m)) {
             url.append(";MODE=").append(m);
         }
@@ -137,13 +135,13 @@ public final class H2DatabaseInitializer {
     }
 
     private static void executeSql(Connection conn, String resourcePath) throws SQLException, IOException {
-        try (InputStream is = Thread.currentThread().getContextClassLoader()
+        try (var is = Thread.currentThread().getContextClassLoader()
                 .getResourceAsStream(resourcePath)) {
             if (is == null) {
                 throw new FileNotFoundException(resourcePath);
             }
-            String sql = new String(is.readAllBytes());
-            try (java.sql.Statement stmt = conn.createStatement()) {
+            var sql = new String(is.readAllBytes());
+            try (var stmt = conn.createStatement()) {
                 stmt.execute(sql);
             }
         }

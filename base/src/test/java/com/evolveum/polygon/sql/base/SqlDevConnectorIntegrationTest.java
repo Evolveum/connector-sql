@@ -6,6 +6,7 @@
  */
 package com.evolveum.polygon.sql.base;
 
+import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
 import org.identityconnectors.framework.common.objects.*;
 import org.testng.annotations.BeforeMethod;
@@ -37,6 +38,11 @@ public class SqlDevConnectorIntegrationTest {
         @Override
         protected void initializeObjectClassHandler(SqlHandlerBuilder builder) {
             // no application object-class handlers needed for this test
+        }
+
+        @Override
+        protected void initializeSchema(SqlGroovySchemaLoader loader) {
+            // No scripts to load - schema is auto-discovered from DB tables
         }
     }
 

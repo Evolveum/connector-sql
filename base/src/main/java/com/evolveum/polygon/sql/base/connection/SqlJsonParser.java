@@ -22,7 +22,7 @@ public class SqlJsonParser {
     private static final ObjectMapper OBJECT_MAPPER = createSecureMapper();
 
     private static ObjectMapper createSecureMapper() {
-        ObjectMapper mapper = new ObjectMapper();
+        var mapper = new ObjectMapper();
         // Don't fail on unknown properties (common in schema-less databases like PostgreSQL JSONB)
         mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.configure(DeserializationFeature.ACCEPT_EMPTY_STRING_AS_NULL_OBJECT, false);
