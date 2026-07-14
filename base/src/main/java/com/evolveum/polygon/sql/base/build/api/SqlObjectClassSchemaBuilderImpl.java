@@ -6,6 +6,8 @@ import com.evolveum.polygon.conndev.concepts.SourceLocation;
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinitionBuilder;
 import com.evolveum.polygon.sql.base.objectclass.SqlObjectClassMapping;
 import com.evolveum.polygon.sql.base.schema.SqlAttributeMapping;
+import com.evolveum.polygon.sql.base.sync.SyncOperationDefinition;
+import com.evolveum.polygon.sql.base.sync.SyncStrategy;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Uid;
@@ -23,7 +25,8 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
 
     private DefinitionValue<String> schema = DefinitionValue.emptyDefault();
     private DefinitionValue<String> table;
-    private Boolean onlyExplicitlyListed = false;
+private Boolean onlyExplicitlyListed = false;
+    private SyncBuilder syncBuilder;
     private final java.util.Set<String> explicitRemoteNames = new java.util.LinkedHashSet<>();
 
     public SqlObjectClassSchemaBuilderImpl(SqlSchemaBuilderImpl restSchemaBuilder, DefinitionValue<String> name) {
@@ -95,14 +98,29 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
     }
 
     @Override
+    public SyncOperationSchemaBuilder sync() {
+        if (syncBuilder == null) {
+            syncBuilder = new SyncBuilder();
+        }
+        return syncBuilder;
+    }
+
+    /**
+     * Returns the sync builder, or null if sync is not configured.
+     */
+    public SyncBuilder getSyncBuilder() {
+        return syncBuilder;
+    }
+
+    @Override
     protected SqlObjectClassDefinition buildImpl(ObjectClassInfo connIdInfo,
                                                  Map<String, SqlAttributeDefinition> nativeAttrs,
                                                  Map<String, SqlAttributeDefinition> connIdAttrs) {
 
         if (!connIdAttrs.containsKey(Name.NAME)) {
             var uidAttribute = connIdAttrs.get(Uid.NAME);
-                if (uidAttribute != null) {
-                var attributeBuilder =  newAttribute(DefinitionValue.defaultFrom(Name.NAME));
+            if (uidAttribute != null) {
+                var attributeBuilder = newAttribute(DefinitionValue.defaultFrom(Name.NAME));
                 attributeBuilder.emulated(DefinitionValue.detected(true));
                 attributeBuilder.sql().column(uidAttribute.sql().column());
                 attributeBuilder.sql().valueMapping(DefinitionValue.detected(uidAttribute.sql().sqlMapping()));
@@ -112,7 +130,142 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
             }
         }
 
-        return new SqlObjectClassDefinition(connIdInfo, nativeAttrs, connIdAttrs);
+        SyncOperationDefinition syncDef = null;
+        if (syncBuilder != null && syncBuilder.isConfigured()) {
+            syncDef = syncBuilder.build();
+        } else {
+            // Auto-enable sync if the table has an "updated_at" column
+            if (hasExplicitRemoteName("updated_at")) {
+                SyncBuilder autoSync = new SyncBuilder();
+                autoSync.timestampColumn("updated_at");
+                if (hasExplicitRemoteName("deleted_at")) {
+                    autoSync.deletedAtColumn("deleted_at");
+                }
+                syncDef = autoSync.build();
+            }
+        }
+
+        var def = new SqlObjectClassDefinition(connIdInfo, nativeAttrs, connIdAttrs);
+        def.setSync(syncDef);
+        return def;
     }
 
+    /**
+     * Internal builder for sync configuration, implementing {@link SyncOperationSchemaBuilder}.
+     */
+    public static class SyncBuilder implements SyncOperationSchemaBuilder {
+        private boolean enabled = true;
+        private SyncStrategy strategy = SyncStrategy.TIMESTAMP_POLLING;
+        private String timestampColumn;
+        private String deletedAtColumn;
+        private String auditTable;
+        private boolean databaseToken;
+
+        @Override
+        public void enabled(boolean enabled) {
+            this.enabled = enabled;
+        }
+
+        @Override
+        public boolean getEnabled() {
+            return enabled;
+        }
+
+        @Override
+        public void strategy(SyncStrategy strategy) {
+            this.strategy = strategy;
+        }
+
+        @Override
+        public void strategy(String strategyName) {
+            if (strategyName == null) return;
+            try {
+                this.strategy = SyncStrategy.valueOf(strategyName.toUpperCase());
+            } catch (IllegalArgumentException e) {
+                throw new IllegalArgumentException("Unknown sync strategy: " + strategyName
+                        + ". Available: TIMESTAMP_POLLING, AUDIT_TABLE, POSTGRESQL_XMIN, ORACLE_ROWVERSION, SQLITE_ROWID", e);
+            }
+        }
+
+        @Override
+        public SyncStrategy getStrategy() {
+            return strategy;
+        }
+
+        @Override
+        public void timestampColumn(String timestampColumn) {
+            this.timestampColumn = timestampColumn;
+        }
+
+        @Override
+        public String getTimestampColumn() {
+            return timestampColumn;
+        }
+
+        @Override
+        public void deletedAtColumn(String deletedAtColumn) {
+            this.deletedAtColumn = deletedAtColumn;
+        }
+
+        @Override
+        public String getDeletedAtColumn() {
+            return deletedAtColumn;
+        }
+
+        @Override
+        public void auditTable(String auditTable) {
+            this.auditTable = auditTable;
+        }
+
+        @Override
+        public String getAuditTable() {
+            return auditTable;
+        }
+
+        @Override
+        public void databaseToken(boolean databaseToken) {
+            this.databaseToken = databaseToken;
+        }
+
+        @Override
+        public boolean getDatabaseToken() {
+            return databaseToken;
+        }
+
+        /**
+         * Returns true if sync is explicitly configured (not just default).
+         */
+        public boolean isConfigured() {
+            // Consider it configured if strategy is not the default (TIMESTAMP_POLLING), or if any non-default option is set
+            if (strategy != SyncStrategy.TIMESTAMP_POLLING || databaseToken) {
+                return true;
+            }
+            if (timestampColumn != null || deletedAtColumn != null || auditTable != null) {
+                return true;
+            }
+            if (!enabled) {
+                return true;
+            }
+            return false;
+        }
+
+        /**
+         * Builds the {@link SyncOperationDefinition}.
+         */
+        public SyncOperationDefinition build() {
+            String tsCol = timestampColumn;
+            if (strategy == SyncStrategy.TIMESTAMP_POLLING && (tsCol == null || tsCol.isBlank())) {
+                tsCol = "updated_at";
+            }
+            if (strategy == SyncStrategy.POSTGRESQL_XMIN) {
+                tsCol = "xmin";
+            }
+            if (strategy == SyncStrategy.SQLITE_ROWID) {
+                tsCol = "rowid";
+            }
+            return new SyncOperationDefinition(
+                    enabled, strategy,
+                    tsCol, deletedAtColumn, auditTable, databaseToken);
+        }
+    }
 }

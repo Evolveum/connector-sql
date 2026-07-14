@@ -37,6 +37,7 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
     private Map<ObjectClass, ObjectClassHandler> handlers;
     private volatile HikariConnectionPool connectionPool;
     private SqlQueryEngine sqlQueryEngine;
+    private SqlQuerydslMetadataFactory querydslMetadataFactory;
 
     public SqlBaseContext(SqlConnectorConfiguration configuration) {
         this.configuration = configuration;
@@ -89,6 +90,14 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
 
     public void setSqlQueryEngine(SqlQueryEngine sqlQueryEngine) {
         this.sqlQueryEngine = sqlQueryEngine;
+    }
+
+    public SqlQuerydslMetadataFactory getQuerydslMetadataFactory() {
+        return querydslMetadataFactory;
+    }
+
+    public void setQuerydslMetadataFactory(SqlQuerydslMetadataFactory metadataFactory) {
+        this.querydslMetadataFactory = metadataFactory;
     }
 
 

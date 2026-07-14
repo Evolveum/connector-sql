@@ -3,6 +3,7 @@ package com.evolveum.polygon.sql.base.build.api;
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinition;
 import com.evolveum.polygon.sql.base.objectclass.SqlObjectClassMapping;
 import com.evolveum.polygon.sql.base.schema.SqlAttributeMapping;
+import com.evolveum.polygon.sql.base.sync.SyncOperationDefinition;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Uid;
 
@@ -13,6 +14,7 @@ import java.util.List;
 public class SqlObjectClassDefinition extends BaseObjectClassDefinition<SqlAttributeDefinition> {
 
     private SqlObjectClassMapping sqlMapping;
+    private SyncOperationDefinition syncDefinition;
 
     public SqlObjectClassDefinition(ObjectClassInfo connId,
                                     java.util.Map<String, SqlAttributeDefinition> nativeAttrs,
@@ -82,5 +84,19 @@ public class SqlObjectClassDefinition extends BaseObjectClassDefinition<SqlAttri
     @SuppressWarnings("unchecked")
     void setSqlMapping(SqlObjectClassMapping mapping) {
         this.sqlMapping = mapping;
+    }
+
+    /**
+     * Returns the sync operation definition for this object class, or null if sync is not configured.
+     */
+    public SyncOperationDefinition sync() {
+        return syncDefinition;
+    }
+
+    /**
+     * Sets the sync operation definition for this object class.
+     */
+    public void setSync(SyncOperationDefinition definition) {
+        this.syncDefinition = definition;
     }
 }

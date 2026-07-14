@@ -1,0 +1,51 @@
+/*
+ * Copyright (c) 2026 Evolveum and contributors
+ *
+ * This work is licensed under European Union Public License v1.2. See LICENSE file for details.
+ *
+ */
+package com.evolveum.polygon.sql.base.sync;
+
+import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
+import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
+import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.sql.base.build.api.SqlSchema;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
+import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
+import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
+import org.identityconnectors.framework.common.objects.*;
+import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
+import org.testng.annotations.*;
+
+import java.sql.*;
+import java.util.*;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Integration tests for SQL sync operations.
+ */
+@Test(singleThreaded = true)
+public class SyncOperationIntegrationTest {
+
+    private static final String URL = "jdbc:h2:mem:synctest;DB_CLOSE_DELAY=-1;MODE=MySQL";
+    private TestSqlConnector connector;
+
+    private static class TestSqlConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+        TestSqlConnector() { super(false); }
+
+        @Override
+        protected void initializeSchema(SqlGroovySchemaLoader loader) {
+            // No scripts loaded - everything done programmatically in initObjectClassHandler
+        }
+
+        @Override
+        protected void initializeObjectClassHandler(SqlHandlerBuilder builder) {
+            // Create sync-enabled object class definitions programmatically
+            // by manipulating the context schema after init completes.
+        }
+    }
+
+    @BeforeMethod
+    public void setUp() throws Exception {
+        // Create tables

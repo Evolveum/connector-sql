@@ -78,8 +78,10 @@ public class SqlQueryEngine {
             for (String col : orderBys) {
                 var colMeta = metadata.getColumn(col);
                 if (colMeta != null) {
-                    com.querydsl.core.types.Path<?> colPath = buildTypedColumnPath(entityPath, colMeta);
-                    query.orderBy(((com.querydsl.core.types.dsl.ComparablePath<?>) buildTypedColumnPath(entityPath, colMeta)).asc());
+                    com.querydsl.core.types.Path<?> path = buildTypedColumnPath(entityPath, colMeta);
+                    if (path instanceof com.querydsl.core.types.dsl.ComparablePath<?> cmp) {
+                        query.orderBy(cmp.asc());
+                    }
                 } else {
                     query.orderBy(com.querydsl.core.types.dsl.Expressions.stringPath(col).asc());
                 }
@@ -125,11 +127,7 @@ public class SqlQueryEngine {
             query.where(predicate);
         }
 
-        if (orderBys != null) {
-            for (String col : orderBys) {
-                query.orderBy(com.querydsl.core.types.dsl.Expressions.stringPath(col).asc());
-            }
-        }
+        // Note: ORDER BY not supported in metadata-less mode (SimplePath doesn't have .asc())
 
         query.limit(pageSize).offset(pageOffset);
 
@@ -153,16 +151,15 @@ public class SqlQueryEngine {
         // with quoted table names
         Class<?> javaType = colMeta.getJavaType();
         if (javaType == null || javaType == String.class) {
-            return com.querydsl.core.types.dsl.Expressions.path(String.class, colMeta.getName());
+            return com.querydsl.core.types.dsl.Expressions.stringPath(colMeta.getName());
         }
         if (isAssignableFrom(javaType, java.lang.Number.class)) {
-            return com.querydsl.core.types.dsl.Expressions.path(java.lang.Long.class, colMeta.getName());
+            return com.querydsl.core.types.dsl.Expressions.numberPath(Long.class, colMeta.getName());
         }
         if (isAssignableFrom(javaType, java.lang.Boolean.class)) {
-            return com.querydsl.core.types.dsl.Expressions.path(Boolean.class, colMeta.getName());
+            return com.querydsl.core.types.dsl.Expressions.booleanPath(colMeta.getName());
         }
-        // Binary / date / time default to String
-        return com.querydsl.core.types.dsl.Expressions.path(String.class, colMeta.getName());
+        return com.querydsl.core.types.dsl.Expressions.stringPath(colMeta.getName());
     }
 
     private boolean isAssignableFrom(Class<?> clazz, Class<?> supertype) {

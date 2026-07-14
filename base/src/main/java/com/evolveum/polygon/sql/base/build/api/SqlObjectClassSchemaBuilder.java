@@ -11,6 +11,9 @@ import com.evolveum.polygon.conndev.build.api.ObjectClassSchemaBuilder;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.concepts.GroovyClosures;
 import com.evolveum.polygon.conndev.concepts.SourceLocation;
+import com.evolveum.polygon.conndev.concepts.GroovyClosures;
+import com.evolveum.polygon.sql.base.build.api.SyncOperationSchemaBuilder;
+import com.evolveum.polygon.sql.base.sync.SyncStrategy;
 import groovy.lang.Closure;
 import groovy.lang.DelegatesTo;
 
@@ -45,6 +48,22 @@ public interface SqlObjectClassSchemaBuilder extends ObjectClassSchemaBuilder<Sq
                                @DelegatesTo(value = SqlAttributeBuilder.class, strategy = Closure.DELEGATE_ONLY)
                                Closure<?> closure) {
         return GroovyClosures.callAndReturnDelegate(closure, attribute(name));
+    }
+
+/**
+     * Returns the sync operation builder for this object class.
+     *
+     * <p>Used in Groovy scripts to configure sync behavior per-table:
+     */
+    SyncOperationSchemaBuilder sync();
+
+    /**
+     * Configures the sync operation using a Groovy closure.
+     */
+    default SyncOperationSchemaBuilder sync(@Script.Initialization
+                                      @DelegatesTo(value = SyncOperationSchemaBuilder.class, strategy = Closure.DELEGATE_ONLY)
+                                      Closure<?> closure) {
+        return GroovyClosures.callAndReturnDelegate(closure, sync());
     }
 
     /**
