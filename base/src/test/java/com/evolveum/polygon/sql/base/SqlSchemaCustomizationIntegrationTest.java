@@ -50,16 +50,18 @@ public class SqlSchemaCustomizationIntegrationTest {
              var s = c.createStatement()) {
             s.execute("DROP TABLE IF EXISTS app_user CASCADE");
             s.execute("DROP TABLE IF EXISTS app_group CASCADE");
-            s.execute("CREATE TABLE app_user ("
-                    + "user_id INT PRIMARY KEY, "
-                    + "user_name VARCHAR(50) NOT NULL, "
-                    + "user_email VARCHAR(100), "
-                    + "user_created_at TIMESTAMP, "
-                    + "user_status VARCHAR(20))");
-            s.execute("CREATE TABLE app_group ("
-                    + "group_id INT PRIMARY KEY, "
-                    + "group_name VARCHAR(50) NOT NULL, "
-                    + "group_description VARCHAR(200))");
+            s.execute("""
+                    CREATE TABLE app_user (\
+                    user_id INT PRIMARY KEY, \
+                    user_name VARCHAR(50) NOT NULL, \
+                    user_email VARCHAR(100), \
+                    user_created_at TIMESTAMP, \
+                    user_status VARCHAR(20))""");
+            s.execute("""
+                    CREATE TABLE app_group (\
+                    group_id INT PRIMARY KEY, \
+                    group_name VARCHAR(50) NOT NULL, \
+                    group_description VARCHAR(200))""");
             s.execute("INSERT INTO app_user VALUES (1, 'alice', 'alice@test.com', CURRENT_TIMESTAMP(), 'active')");
             s.execute("INSERT INTO app_user VALUES (2, 'bob', 'bob@test.com', CURRENT_TIMESTAMP(), 'active')");
             s.execute("INSERT INTO app_group VALUES (10, 'Admins', 'System administrators')");

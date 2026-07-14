@@ -52,8 +52,9 @@ public class SqlDevConnectorIntegrationTest {
             s.execute("DROP ALL OBJECTS");
             s.execute("CREATE TABLE app_user (id INT PRIMARY KEY AUTO_INCREMENT, username VARCHAR(50) NOT NULL)");
             s.execute("CREATE TABLE app_group (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(50))");
-            s.execute("CREATE TABLE membership (id INT PRIMARY KEY AUTO_INCREMENT, user_id INT NOT NULL, "
-                    + "CONSTRAINT fk_m_user FOREIGN KEY (user_id) REFERENCES app_user(id))");
+            s.execute("""
+                    CREATE TABLE membership (id INT PRIMARY KEY AUTO_INCREMENT, user_id INT NOT NULL, \
+                    CONSTRAINT fk_m_user FOREIGN KEY (user_id) REFERENCES app_user(id))""");
         }
     }
 

@@ -104,4 +104,8 @@ public record SqlAttributeMapping(DefinitionValue<String> column,
         }
         return Expressions.path(Object.class, parent, column.value());
     }
+
+    public Object toSqlValue(Object connIdValue) {
+        return valueMapping().toWireValue(connIdValue);
+    }
 }

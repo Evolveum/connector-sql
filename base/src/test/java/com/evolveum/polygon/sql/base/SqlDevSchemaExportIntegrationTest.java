@@ -79,14 +79,16 @@ public class SqlDevSchemaExportIntegrationTest {
     public void mapsCompositeForeignKeyWithSharedReference() throws Exception {
         try (var connection = context.getConnection();
                 var statement = connection.getConnection().createStatement()) {
-            statement.execute("CREATE TABLE department ("
-                    + "company_id INT, dept_code INT, name VARCHAR(100), "
-                    + "PRIMARY KEY (company_id, dept_code))");
-            statement.execute("CREATE TABLE dept_membership ("
-                    + "id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, dept_id INT NOT NULL, "
-                    + "role VARCHAR(50), "
-                    + "CONSTRAINT fk_dept FOREIGN KEY (company_id, dept_id) "
-                    + "REFERENCES department(company_id, dept_code))");
+            statement.execute("""
+                    CREATE TABLE department (\
+                    company_id INT, dept_code INT, name VARCHAR(100), \
+                    PRIMARY KEY (company_id, dept_code))""");
+            statement.execute("""
+                    CREATE TABLE dept_membership (\
+                    id INT PRIMARY KEY AUTO_INCREMENT, company_id INT NOT NULL, dept_id INT NOT NULL, \
+                    role VARCHAR(50), \
+                    CONSTRAINT fk_dept FOREIGN KEY (company_id, dept_id) \
+                    REFERENCES department(company_id, dept_code))""");
         }
 
         var object = export("dept_membership");

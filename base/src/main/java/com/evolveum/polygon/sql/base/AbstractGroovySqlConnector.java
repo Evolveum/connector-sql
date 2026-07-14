@@ -13,10 +13,10 @@ import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
+import com.evolveum.polygon.sql.base.connection.SqlQueryEngine;
 import com.evolveum.polygon.sql.base.dev.SqlObjectClassDevHandler;
 import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
-import com.evolveum.polygon.sql.base.schema.SqlQuerydslMetadataFactory;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
 import com.evolveum.polygon.sql.base.search.SqlSearchOperation;
@@ -106,7 +106,6 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         // detection needs a live connection.
         context.initializeConnectionPool();
 
-        SqlQuerydslMetadataFactory metadataFactory = null;
 
         var builder = new SqlSchemaBuilderImpl(getClass(), context);
         var groovyContext = context.configuration().groovyContext();
@@ -137,8 +136,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                 if (templates == null) {
                     templates = SQLTemplates.DEFAULT;
                 }
-                metadataFactory = new SqlQuerydslMetadataFactory(tables, templates);
-                context.setSqlQueryEngine(metadataFactory.getQueryEngine());
+                context.setSqlQueryEngine(new SqlQueryEngine(templates));
 
                 // In development mode the shared conndev_ObjectClass / conndev_Attribute classes are
                 // part of the schema, so midPoint can search the discovered schema.
@@ -168,8 +166,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                 var oc = def.objectClass();
                 var mapping = def.sql();
                 if (mapping != null) {
-                    handlerBuilder.register(oc, ObjectSearchOperation.class,
-                            new SqlSearchOperation(context, metadataFactory, def));
+                    handlerBuilder.register(oc, ObjectSearchOperation.class, new SqlSearchOperation(context, def));
                 }
             }
         }

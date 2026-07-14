@@ -11,10 +11,10 @@ import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
-import com.evolveum.polygon.sql.base.schema.QueryDSLMetadata;
-import com.evolveum.polygon.sql.base.schema.SqlQuerydslMetadataFactory;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Path;
+import com.querydsl.core.types.Predicate;
+import com.querydsl.sql.RelationalPathBase;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
@@ -35,28 +35,24 @@ public class SqlSearchOperation implements ObjectSearchOperation {
 
     private final SqlBaseContext context;
     private final SqlObjectClassDefinition objectClass;
-    private final QueryDSLMetadata querydslMetadata;
 
-    public SqlSearchOperation(SqlBaseContext context, SqlQuerydslMetadataFactory metadataFactory, SqlObjectClassDefinition objectClass) {
+    public SqlSearchOperation(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
         this.context = context;
         this.objectClass = objectClass;
-        var tableName = objectClass.sql().getTableName();
-        this.querydslMetadata = tableName != null ? metadataFactory.getMetadata(tableName) : null;
+    }
+
+    private RelationalPathBase<?> getTablePath() {
+        return objectClass.sql().pathAlias("o");
     }
 
     @Override
     public void executeQuery(ContextLookup c, Filter filter, ResultsHandler resultsHandler,
-                             OperationOptions options) {
+                              OperationOptions options) {
 
         var tablePath = objectClass.sql().pathAlias("o");
         var selectedColumns = selectColumns(tablePath, options);
 
         try (var conn = context.getConnection()) {
-
-            // Check filter support - throw UnsupportedOperationException if filter is non-null
-            if (filter != null) {
-                throw new UnsupportedOperationException("Filter support not yet implemented, got: " + filter);
-            }
 
             var jdbcConn = conn.getConnection();
             int pageSize = 200;
@@ -65,8 +61,13 @@ public class SqlSearchOperation implements ObjectSearchOperation {
             while (true) {
                 List<Tuple> rows;
                 try {
-                    rows = context.getSqlQueryEngine().select(jdbcConn,tablePath,selectedColumns.values(),
-                            null,  // predicate (none)
+                    Predicate predicate = null;
+                    if (filter != null) {
+                        predicate = SqlFilterTranslator.translate(objectClass, tablePath, filter);
+                    }
+
+                    rows = context.getSqlQueryEngine().select(jdbcConn, tablePath, selectedColumns.values(),
+                            predicate,
                             null,  // order by (none)
                             pageSize,
                             offset
