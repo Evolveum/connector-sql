@@ -1,9 +1,6 @@
 package com.evolveum.polygon.sql.base.build.api;
 
-import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.schema.BaseAttributeDefinition;
-import com.evolveum.polygon.sql.base.connection.SqlValueMapping;
-import com.evolveum.polygon.sql.base.schema.SqlAttributeMapping;
 
 public class SqlAttributeDefinition extends BaseAttributeDefinition {
 

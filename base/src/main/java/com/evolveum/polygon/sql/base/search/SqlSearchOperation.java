@@ -9,15 +9,20 @@ package com.evolveum.polygon.sql.base.search;
 import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
-import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
-import com.evolveum.polygon.sql.base.objectclass.SqlObjectClassMapping;
 import com.evolveum.polygon.sql.base.schema.QueryDSLMetadata;
 import com.evolveum.polygon.sql.base.schema.SqlQuerydslMetadataFactory;
+import com.querydsl.core.Tuple;
+import com.querydsl.core.types.Path;
+import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.core.types.dsl.PathBuilder;
+import com.querydsl.sql.RelationalPathBase;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 
 import java.sql.SQLException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -41,7 +46,9 @@ public class SqlSearchOperation implements ObjectSearchOperation {
     @Override
     public void executeQuery(ContextLookup c, Filter filter, ResultsHandler resultsHandler,
                              OperationOptions options) {
-        var selectedColumns = selectColumns(options);
+
+        var tablePath = objectClass.sql().pathAlias("o");
+        var selectedColumns = selectColumns(tablePath, options);
 
         try (var conn = context.getConnection()) {
 
@@ -55,21 +62,17 @@ public class SqlSearchOperation implements ObjectSearchOperation {
             int offset = 0;
 
             while (true) {
-                List<Map<String, Object>> rows;
+                List<Tuple> rows;
                 try {
-                    rows = context.getSqlQueryEngine().select(
-                            jdbcConn,
-                            objectClass.sql().getTableName(),
-                            querydslMetadata,
-                            selectedColumns,
+                    rows = context.getSqlQueryEngine().select(jdbcConn,tablePath,selectedColumns.values(),
                             null,  // predicate (none)
                             null,  // order by (none)
                             pageSize,
                             offset
                     );
 
-                    for (Map<String, Object> row : rows) {
-                        var obj = buildConnectorObject(row);
+                    for (var row : rows) {
+                        var obj = buildConnectorObject(row, selectedColumns);
                         if (!resultsHandler.handle(obj)) {
                             return;
                         }
@@ -88,23 +91,25 @@ public class SqlSearchOperation implements ObjectSearchOperation {
         }
     }
 
-    private List<String> selectColumns(OperationOptions options) {
-        return objectClass.attributes().stream().filter(a -> a.sql() != null)
-                .filter(a -> a.connId().isReturnedByDefault())
-                .map(a -> a.sql().column().value())
-                .toList();
+    private Map<SqlAttributeDefinition, Path<?>> selectColumns(Path<?> table, OperationOptions options) {
+        Map<SqlAttributeDefinition, Path<?>> columns = new HashMap<>();
+        for (var attr : objectClass.attributes()) {
+            if (attr.sql() != null && attr.connId().isReturnedByDefault()) {
+                columns.put(attr, attr.sql().dslPath(table));
+            }
+        }
+        return columns;
     }
 
-    private ConnectorObject buildConnectorObject(Map<String, Object> row) {
+    private ConnectorObject buildConnectorObject(Tuple row, Map<SqlAttributeDefinition, Path<?>> attributes) {
         var builder = new ConnectorObjectBuilder();
         builder.setObjectClass(objectClass.objectClass());
-        for (var attr : objectClass.attributes()) {
-                var mapping = attr.sql();
+        for (var attrEntry : attributes.entrySet()) {
+            var attr = attrEntry.getKey();
+            var mapping = attr.sql();
                 if (mapping != null) {
-                    var value = mapping.valuesFromObject(row);
-                    if (value != null) {
-                        builder.addAttribute(attr.attributeOf(value));
-                    }
+                    var value = mapping.valuesFromAttribute(row.get(attrEntry.getValue()));
+                    builder.addAttribute(attr.attributeOf(value));
                 }
         }
         return builder.build();

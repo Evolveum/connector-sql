@@ -4,14 +4,10 @@ package com.evolveum.polygon.sql.base.build.api;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.concepts.SourceLocation;
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinitionBuilder;
-import com.evolveum.polygon.sql.base.objectclass.SqlObjectClassMapping;
-import com.evolveum.polygon.sql.base.schema.SqlAttributeMapping;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Uid;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 
 public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBuilder<
@@ -101,8 +97,8 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
 
         if (!connIdAttrs.containsKey(Name.NAME)) {
             var uidAttribute = connIdAttrs.get(Uid.NAME);
-                if (uidAttribute != null) {
-                var attributeBuilder =  newAttribute(DefinitionValue.defaultFrom(Name.NAME));
+            if (uidAttribute != null) {
+                var attributeBuilder = newAttribute(DefinitionValue.defaultFrom(Name.NAME));
                 attributeBuilder.emulated(DefinitionValue.detected(true));
                 attributeBuilder.sql().column(uidAttribute.sql().column());
                 attributeBuilder.sql().valueMapping(DefinitionValue.detected(uidAttribute.sql().sqlMapping()));
@@ -112,7 +108,10 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
             }
         }
 
-        return new SqlObjectClassDefinition(connIdInfo, nativeAttrs, connIdAttrs);
+        var sql = new SqlSchemaBuilderImpl.SqlObjectClassMapping(schema, table);
+
+        return  new SqlObjectClassDefinition(connIdInfo, nativeAttrs, connIdAttrs, sql);
     }
+
 
 }

@@ -1,23 +1,18 @@
 package com.evolveum.polygon.sql.base.build.api;
 
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinition;
-import com.evolveum.polygon.sql.base.objectclass.SqlObjectClassMapping;
-import com.evolveum.polygon.sql.base.schema.SqlAttributeMapping;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
-import org.identityconnectors.framework.common.objects.Uid;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
 
 public class SqlObjectClassDefinition extends BaseObjectClassDefinition<SqlAttributeDefinition> {
 
-    private SqlObjectClassMapping sqlMapping;
+    private final SqlSchemaBuilderImpl.SqlObjectClassMapping sql;
 
     public SqlObjectClassDefinition(ObjectClassInfo connId,
                                     java.util.Map<String, SqlAttributeDefinition> nativeAttrs,
-                                    java.util.Map<String, SqlAttributeDefinition> connIdAttrs) {
+                                    java.util.Map<String, SqlAttributeDefinition> connIdAttrs, SqlSchemaBuilderImpl.SqlObjectClassMapping sql) {
         super(connId, nativeAttrs, connIdAttrs);
+        this.sql = sql;
     }
 
     /**
@@ -34,53 +29,10 @@ public class SqlObjectClassDefinition extends BaseObjectClassDefinition<SqlAttri
      *   returnedByDefault  → getReturnedByDefaultColumns()
      * </pre>
      *
-     * @return the {@link SqlObjectClassMapping}, or null if no locator is set
+     * @return the {@link SqlSchemaBuilderImpl.SqlObjectClassMapping}, or null if no locator is set
      */
-    public SqlObjectClassMapping sql() {
-        var m = this.sqlMapping;
-        if (m != null) {
-            return m;
-        }
-
-        var locator = locator();
-        if (locator == null) {
-            return null;
-        }
-
-        Collection<SqlAttributeDefinition> attrs = attributes();
-        if (attrs == null || attrs.isEmpty()) {
-            return null;
-        }
-
-        // Collect attribute mappings and find UID column
-        List<SqlAttributeMapping> mappings = new ArrayList<>();
-        String uidSqlColumn = null;
-        for (SqlAttributeDefinition attr : attrs) {
-            var am = attr.sql();
-            mappings.add(am);
-            if (Uid.NAME.equals(attr.connId().getName())) {
-                uidSqlColumn = am.column().value();
-            }
-        }
-
-        if (mappings.isEmpty()) {
-            return null;
-        }
-
-        // Fallback: if no UID attribute, use first attribute's column
-        if (uidSqlColumn == null) {
-            uidSqlColumn = mappings.getFirst().column().value();
-        }
-        m = new SqlObjectClassMapping(
-                objectClass(),
-                locator,
-                uidSqlColumn);
-        this.sqlMapping = m;
-        return m;
+    public SqlSchemaBuilderImpl.SqlObjectClassMapping sql() {
+        return this.sql;
     }
 
-    @SuppressWarnings("unchecked")
-    void setSqlMapping(SqlObjectClassMapping mapping) {
-        this.sqlMapping = mapping;
-    }
 }

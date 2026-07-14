@@ -4,13 +4,15 @@
  * This work is licensed under European Union Public License v1.2. See LICENSE file for details.
  *
  */
-package com.evolveum.polygon.sql.base.schema;
+package com.evolveum.polygon.sql.base.build.api;
 
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.spi.AttributeProtocolMapping;
 import com.evolveum.polygon.conndev.spi.ValueMapping;
 import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
 import com.evolveum.polygon.sql.base.connection.SqlValueMapping;
+import com.querydsl.core.types.Path;
+import com.querydsl.core.types.dsl.Expressions;
 
 import java.util.Collections;
 import java.util.List;
@@ -94,5 +96,12 @@ public record SqlAttributeMapping(DefinitionValue<String> column,
     @Override
     public String toString() {
         return "SqlAttributeMapping{column='" + column + "', connIdType=" + connIdType() + "}";
+    }
+
+    public Path<?> dslPath(Path<?> parent) {
+        if (sqlMapping instanceof SqlValueMapping.SingleColumn single) {
+            return single.pathFor(parent, column.value());
+        }
+        return Expressions.path(Object.class, parent, column.value());
     }
 }

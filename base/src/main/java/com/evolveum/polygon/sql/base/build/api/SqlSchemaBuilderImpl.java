@@ -4,6 +4,8 @@ import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.build.api.RelationshipBuilder;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.schema.BaseSchemaBuilder;
+import com.querydsl.core.types.PathMetadataFactory;
+import com.querydsl.sql.RelationalPathBase;
 import groovy.lang.Closure;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
@@ -73,5 +75,22 @@ public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl
 
         var connIdSchema = freshSchemaBuilder.build();
         return new SqlSchema(connIdSchema, sqlObjectClassMap);
+    }
+
+    /**
+     * Bridges SQL-side table metadata and ConnId-side attribute definitions.
+     */
+    public static record SqlObjectClassMapping(
+            DefinitionValue<String> schema,
+            DefinitionValue<String> table) {
+
+        public String getTableName() {
+            return table.value();
+        }
+
+
+        public RelationalPathBase<?> pathAlias(String alias) {
+            return new RelationalPathBase<>(Object.class, PathMetadataFactory.forVariable(alias), schema.value(), table.value());
+        }
     }
 }

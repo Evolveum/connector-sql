@@ -12,7 +12,6 @@ import com.evolveum.polygon.conndev.schema.AttributeProtocolMappingBuilder;
 import com.evolveum.polygon.conndev.schema.BaseAttributeBuilder;
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinitionBuilder;
 import com.evolveum.polygon.sql.base.connection.SqlValueMapping;
-import com.evolveum.polygon.sql.base.schema.SqlAttributeMapping;
 
 public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBuilderImpl, SqlAttributeBuilder<SqlAttributeBuilder.Reference>, SqlAttributeBuilder.Reference, SqlAttributeDefinition> implements SqlAttributeBuilder.Reference {
 

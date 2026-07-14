@@ -7,6 +7,7 @@
 package com.evolveum.polygon.sql.base.connection;
 
 import com.evolveum.polygon.conndev.spi.ValueMapping;
+import com.querydsl.core.types.Path;
 
 import java.sql.JDBCType;
 import java.util.Arrays;
@@ -27,4 +28,10 @@ public interface SqlValueMapping extends ValueMapping<Object, Object> {
     Class<?> primaryWireType();
     
     JDBCType jdbcType();
+
+    interface SingleColumn extends SqlValueMapping {
+
+        Path<?> pathFor(Path<?> parent, String column);
+
+    }
 }

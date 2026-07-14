@@ -96,25 +96,6 @@ public class SqlSchemaTranslator {
         this.strategies.add(strategy);
         return this;
     }
-
-    /**
-     * Translate tables into schema using previously set connector/class and context.
-     */
-    @SuppressWarnings("UnusedMethod")
-    public SqlSchema translate(Class<? extends Connector> connectorClass, ContextLookup contextLookup,
-                               Collection<ObjectClassInfo> additionalObjectClasses) {
-        translateInternal(connectorClass != null ? connectorClass : this.connectorClass,
-                           contextLookup != null ? contextLookup : this.contextLookup);
-        return builder.build();
-    }
-
-    /**
-     * Translate using previously set connector class and context.
-     */
-    public SqlSchema translate() {
-        return translateInternal(this.connectorClass, this.contextLookup);
-    }
-
     /**
      * Translate with additional object classes, using previously set connector/class and context.
      */
@@ -161,15 +142,17 @@ public class SqlSchemaTranslator {
                 }
         );
         // Set locator and namespace (not on interface, cast needed)
-        var ocDef = objectClass;
-        ocDef.locator(table.getName());
+        objectClass.locator(table.getName());
         if (table.getSchema() != null) {
-            ocDef.namespace(table.getSchema());
+            objectClass.namespace(table.getSchema());
+        }
+        if (table.getRemarks() != null && !table.getRemarks().isBlank()) {
+            objectClass.description(detected(table.getRemarks()));
         }
         // Apply detection strategies for embedded classification
         List<AttributeDetectionStrategy> effectiveStrategies = getEffectiveStrategies();
         if (effectiveStrategies.stream().anyMatch(strategy -> strategy.isEmbedded(table))) {
-            objectClass.embedded(true);
+            objectClass.embedded(detected(true));
         }
         // Resolve UID column
         Optional<SqlColumnMeta> uidColumn = findUid(table, strategies);

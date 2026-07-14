@@ -9,14 +9,10 @@ package com.evolveum.polygon.sql.base;
 import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.concepts.RetrievableContext;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
-import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlSchema;
 import com.evolveum.polygon.sql.base.connection.HikariConnectionPool;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
 import com.evolveum.polygon.sql.base.connection.SqlQueryEngine;
-import com.evolveum.polygon.sql.base.objectclass.SqlObjectClassMapping;
-import com.evolveum.polygon.sql.base.schema.QueryDSLMetadata;
-import com.evolveum.polygon.sql.base.schema.SqlQuerydslMetadataFactory;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.util.Collections;
