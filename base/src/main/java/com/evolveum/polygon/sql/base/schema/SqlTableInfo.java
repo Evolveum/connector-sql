@@ -22,7 +22,7 @@ public class SqlTableInfo {
     private final String remarks;
     private final List<SqlColumnMeta> columns;
 
-    public SqlTableInfo(String name, String schema, String catalog, String tableType, 
+    public SqlTableInfo(String name, String schema, String catalog, String tableType,
                         String remarks, List<SqlColumnMeta> columns) {
         this.name = name;
         this.schema = schema;
@@ -56,14 +56,6 @@ public class SqlTableInfo {
         return new ArrayList<>(columns);
     }
 
-    public SqlColumnMeta getColumn(String name) {
-        for (SqlColumnMeta column : columns) {
-            if (column.getName().equals(name)) {
-                return column;
-            }
-        }
-        return null;
-    }
 
     public static Builder builder() {
         return new Builder();
@@ -104,15 +96,6 @@ public class SqlTableInfo {
 
         public Builder addColumn(SqlColumnMeta column) {
             columns.add(column);
-            return this;
-        }
-
-public Builder addColumn(String name, String typeName, int typeCode, int size, 
-                                  java.lang.reflect.Type javaType,
-                                  boolean nullable, boolean primaryKey, boolean unique, 
-                                  Object defaultValue, boolean autoIncrement) {
-            columns.add(new SqlColumnMeta(name, typeName, typeCode, size, javaType, 
-                                          nullable, primaryKey, unique, defaultValue, autoIncrement));
             return this;
         }
 
