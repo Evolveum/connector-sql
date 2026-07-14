@@ -9,10 +9,13 @@ import com.querydsl.sql.RelationalPathBase;
 import groovy.lang.Closure;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
+import org.identityconnectors.framework.common.objects.SchemaBuilder;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Connector;
 
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl, SqlObjectClassSchemaBuilderImpl,
@@ -39,8 +42,8 @@ public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl
         return Boolean.TRUE.equals(onlyExplicitlyListed);
     }
 
-    public java.util.List<SqlObjectClassSchemaBuilderImpl> allObjectClassBuilders() {
-        return new java.util.ArrayList<>(objectClasses.values());
+    public List<SqlObjectClassSchemaBuilderImpl> allObjectClassBuilders() {
+        return new ArrayList<>(objectClasses.values());
     }
 
     @Override
@@ -64,7 +67,7 @@ public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl
             }
         }
 
-        var freshSchemaBuilder = new org.identityconnectors.framework.common.objects.SchemaBuilder(connectorClass);
+        var freshSchemaBuilder = new SchemaBuilder(connectorClass);
         Map<ObjectClass, SqlObjectClassDefinition> sqlObjectClassMap = new HashMap<>();
 
         for (SqlObjectClassSchemaBuilderImpl obc : objectClasses.values()) {

@@ -20,6 +20,8 @@ import com.evolveum.polygon.sql.base.schema.SqlQuerydslMetadataFactory;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
 import com.evolveum.polygon.sql.base.search.SqlSearchOperation;
+import com.querydsl.sql.H2Templates;
+import com.querydsl.sql.SQLTemplates;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
 import org.identityconnectors.framework.common.exceptions.InvalidCredentialException;
 import org.identityconnectors.framework.common.objects.ObjectClass;
@@ -29,6 +31,7 @@ import org.identityconnectors.framework.spi.Configuration;
 
 import java.sql.SQLException;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Base connector class for SQL database connectors.
@@ -43,7 +46,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
     private final boolean reinitializeOnEachCall;
     private boolean initialized;
     private SqlBaseContext context;
-    private java.util.concurrent.atomic.AtomicBoolean closed = new java.util.concurrent.atomic.AtomicBoolean(false);
+    private AtomicBoolean closed = new AtomicBoolean(false);
 
     protected AbstractGroovySqlConnector(boolean reinitializeOnEachCall) {
         this.reinitializeOnEachCall = reinitializeOnEachCall;
@@ -125,14 +128,14 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                     try (var conn = context.getConnection()) {
                         var dbProductName = conn.getConnection().getMetaData().getDatabaseProductName();
                         if (dbProductName.toUpperCase().contains("H2")) {
-                            templates = new com.querydsl.sql.H2Templates();
+                            templates = new H2Templates();
                         }
                     } catch (SQLException e) {
                         // Use default if we can't detect the database
                     }
                 }
                 if (templates == null) {
-                    templates = com.querydsl.sql.SQLTemplates.DEFAULT;
+                    templates = SQLTemplates.DEFAULT;
                 }
                 metadataFactory = new SqlQuerydslMetadataFactory(tables, templates);
                 context.setSqlQueryEngine(metadataFactory.getQueryEngine());

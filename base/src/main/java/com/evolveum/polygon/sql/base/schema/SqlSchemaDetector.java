@@ -8,6 +8,7 @@ package com.evolveum.polygon.sql.base.schema;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.querydsl.sql.Configuration;
+import com.querydsl.sql.H2Templates;
 import com.querydsl.sql.SQLTemplates;
 import com.querydsl.sql.SQLTemplatesRegistry;
 
@@ -48,7 +49,7 @@ public class SqlSchemaDetector {
 // For H2, use H2Templates with no quoting - unqualified column paths avoid table.column issues
             var productName = meta.getDatabaseProductName();
             if (productName != null && productName.toUpperCase().contains("H2")) {
-                templatesFromRegistry = new com.querydsl.sql.H2Templates(false);
+                templatesFromRegistry = new H2Templates(false);
             }
             templates = templatesFromRegistry;
             querydslConfig = new Configuration(templates);
@@ -349,7 +350,7 @@ public class SqlSchemaDetector {
                                                    int decimalDigits, String tableName,
                                                    String columnName) {
         if (querydslConfig == null || dataType == 0) {
-            return java.sql.Types.class;  // fallback when metadata is missing
+            return Types.class;  // fallback when metadata is missing
         }
         try {
             int size = (columnSize > 0) ? columnSize : 0;

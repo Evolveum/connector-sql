@@ -6,16 +6,19 @@
  */
 package com.evolveum.polygon.sql.base.connection;
 
-import com.evolveum.polygon.sql.base.schema.QueryDSLMetadata;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Path;
 import com.querydsl.core.types.Predicate;
+import com.querydsl.core.types.dsl.ComparablePath;
 import com.querydsl.sql.RelationalPathBase;
+import com.querydsl.sql.SQLQuery;
+import com.querydsl.sql.SQLTemplates;
 import org.jetbrains.annotations.UnknownNullability;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.*;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * QueryDSL-based SQL query engine for SELECT operations.
@@ -24,9 +27,9 @@ import java.util.*;
  */
 public class SqlQueryEngine {
 
-    private final com.querydsl.sql.SQLTemplates templates;
+    private final SQLTemplates templates;
 
-    public SqlQueryEngine(com.querydsl.sql.SQLTemplates templates) {
+    public SqlQueryEngine(SQLTemplates templates) {
         this.templates = templates;
     }
 
@@ -40,12 +43,12 @@ public class SqlQueryEngine {
             Predicate predicate, List<Path<?>> orderBys,
             int pageSize, int pageOffset) throws SQLException {
 
-        com.querydsl.sql.SQLQuery<?> query =
-                new com.querydsl.sql.SQLQuery<>(conn, templates);
+        SQLQuery<?> query =
+                new SQLQuery<>(conn, templates);
 
         // Use the actual table name from metadata for correct case handling
         // Build list of select expressions (type-safe with correct path types)
-        query.select(selectedColumns.toArray(new com.querydsl.core.types.Path[0]));
+        query.select(selectedColumns.toArray(new Path[0]));
         query.from(entityPath);
 
         if (predicate != null) {
@@ -55,7 +58,7 @@ public class SqlQueryEngine {
         // ORDER BY
         if (orderBys != null && !orderBys.isEmpty()) {
             for (Path<?> path : orderBys) {
-                if (path instanceof com.querydsl.core.types.dsl.ComparablePath<?> cmp) {
+                if (path instanceof ComparablePath<?> cmp) {
                     query.orderBy(cmp.asc());
                 }
             }

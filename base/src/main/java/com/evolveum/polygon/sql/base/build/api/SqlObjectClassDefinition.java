@@ -3,14 +3,16 @@ package com.evolveum.polygon.sql.base.build.api;
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinition;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 
+import java.util.Map;
+
 
 public class SqlObjectClassDefinition extends BaseObjectClassDefinition<SqlAttributeDefinition> {
 
     private final SqlSchemaBuilderImpl.SqlObjectClassMapping sql;
 
     public SqlObjectClassDefinition(ObjectClassInfo connId,
-                                    java.util.Map<String, SqlAttributeDefinition> nativeAttrs,
-                                    java.util.Map<String, SqlAttributeDefinition> connIdAttrs, SqlSchemaBuilderImpl.SqlObjectClassMapping sql) {
+                                    Map<String, SqlAttributeDefinition> nativeAttrs,
+                                    Map<String, SqlAttributeDefinition> connIdAttrs, SqlSchemaBuilderImpl.SqlObjectClassMapping sql) {
         super(connId, nativeAttrs, connIdAttrs);
         this.sql = sql;
     }

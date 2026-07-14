@@ -9,6 +9,7 @@ package com.evolveum.polygon.sql.base.schema;
 import com.evolveum.polygon.sql.base.connection.SqlQueryEngine;
 import com.querydsl.sql.SQLTemplates;
 
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -114,7 +115,7 @@ public class SqlQuerydslMetadataFactory {
         return tableMetadata.get(tableName.toLowerCase());
     }
 
-    public java.util.Collection<String> getTableNames() {
+    public Collection<String> getTableNames() {
         return tableMetadata.keySet();
     }
 

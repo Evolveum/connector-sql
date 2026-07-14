@@ -7,7 +7,7 @@
 package com.evolveum.polygon.sql.base.groovy;
 
 import com.evolveum.polygon.conndev.concepts.GroovyClosures;
-import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
+import com.evolveum.polygon.conndev.spi.*;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import groovy.lang.Closure;
 import groovy.lang.GroovyShell;
@@ -128,22 +128,22 @@ public class SqlHandlerBuilder {
         }
 
         public GroovyHandlerFacade search(Object handler) {
-            handlers.put(com.evolveum.polygon.conndev.spi.ObjectSearchOperation.class, handler);
+            handlers.put(ObjectSearchOperation.class, handler);
             return this;
         }
 
         public GroovyHandlerFacade create(Object handler) {
-            handlers.put(com.evolveum.polygon.conndev.spi.ObjectCreateOperation.class, handler);
+            handlers.put(ObjectCreateOperation.class, handler);
             return this;
         }
 
         public GroovyHandlerFacade update(Object handler) {
-            handlers.put(com.evolveum.polygon.conndev.spi.ObjectUpdateOperation.class, handler);
+            handlers.put(ObjectUpdateOperation.class, handler);
             return this;
         }
 
         public GroovyHandlerFacade delete(Object handler) {
-            handlers.put(com.evolveum.polygon.conndev.spi.ObjectDeleteOperation.class, handler);
+            handlers.put(ObjectDeleteOperation.class, handler);
             return this;
         }
     }

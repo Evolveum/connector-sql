@@ -18,6 +18,11 @@ import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Connector;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
+import java.sql.Date;
+import java.sql.Time;
+import java.sql.Timestamp;
 import java.util.*;
 
 import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
@@ -290,19 +295,19 @@ public class SqlSchemaTranslator {
         if (javaType == String.class) {
             return String.class;
         }
-        if (java.math.BigInteger.class.isAssignableFrom(javaType)) {
+        if (BigInteger.class.isAssignableFrom(javaType)) {
             return Long.class;
         }
-        if (java.math.BigDecimal.class.isAssignableFrom(javaType)) {
+        if (BigDecimal.class.isAssignableFrom(javaType)) {
             return Double.class;
         }
-        if (java.sql.Date.class.isAssignableFrom(javaType)) {
+        if (Date.class.isAssignableFrom(javaType)) {
             return String.class;
         }
-        if (java.sql.Time.class.isAssignableFrom(javaType)) {
+        if (Time.class.isAssignableFrom(javaType)) {
             return String.class;
         }
-        if (java.sql.Timestamp.class.isAssignableFrom(javaType)) {
+        if (Timestamp.class.isAssignableFrom(javaType)) {
             return String.class;
         }
         if (Number.class.isAssignableFrom(javaType)) {

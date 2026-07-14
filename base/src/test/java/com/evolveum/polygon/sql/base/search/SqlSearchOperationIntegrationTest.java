@@ -15,6 +15,7 @@ import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
+import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.ArrayList;
@@ -73,7 +74,7 @@ public class SqlSearchOperationIntegrationTest {
         if (connector != null) { connector.dispose(); connector = null; }
     }
 
-    private static String readResource(String path) throws java.io.IOException {
+    private static String readResource(String path) throws IOException {
         var is = Thread.currentThread().getContextClassLoader().getResourceAsStream(path);
         if (is == null) throw new IllegalArgumentException("Resource not found: " + path);
         return new String(is.readAllBytes());

@@ -8,6 +8,7 @@ import java.io.IOException;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.function.Consumer;
 
 /**
  * H2 database initialization helper for tests.
@@ -73,7 +74,7 @@ public final class H2DatabaseInitializer {
      * @param modeConfigurer configuration function for the database mode
      * @return configured SqlBaseContext ready for testing
      */
-    public static SqlBaseContext create(java.util.function.Consumer<H2TestMode> modeConfigurer) {
+    public static SqlBaseContext create(Consumer<H2TestMode> modeConfigurer) {
         try {
             var mode = new H2TestMode();
             if (modeConfigurer != null) {

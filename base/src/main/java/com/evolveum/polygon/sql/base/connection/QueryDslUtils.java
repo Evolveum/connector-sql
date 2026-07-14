@@ -7,7 +7,6 @@ import com.querydsl.core.types.dsl.Expressions;
 
 import java.sql.Time;
 import java.sql.Timestamp;
-import java.time.ZonedDateTime;
 import java.util.function.BiFunction;
 
 public class QueryDslUtils {

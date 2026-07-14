@@ -15,10 +15,11 @@ import com.evolveum.polygon.sql.base.schema.QueryDSLMetadata;
 import com.evolveum.polygon.sql.base.schema.SqlQuerydslMetadataFactory;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Path;
-import com.querydsl.core.types.dsl.Expressions;
-import com.querydsl.core.types.dsl.PathBuilder;
-import com.querydsl.sql.RelationalPathBase;
-import org.identityconnectors.framework.common.objects.*;
+import org.identityconnectors.framework.common.exceptions.ConnectorException;
+import org.identityconnectors.framework.common.objects.ConnectorObject;
+import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
+import org.identityconnectors.framework.common.objects.OperationOptions;
+import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 
 import java.sql.SQLException;
@@ -39,7 +40,7 @@ public class SqlSearchOperation implements ObjectSearchOperation {
     public SqlSearchOperation(SqlBaseContext context, SqlQuerydslMetadataFactory metadataFactory, SqlObjectClassDefinition objectClass) {
         this.context = context;
         this.objectClass = objectClass;
-        String tableName = objectClass.sql().getTableName();
+        var tableName = objectClass.sql().getTableName();
         this.querydslMetadata = tableName != null ? metadataFactory.getMetadata(tableName) : null;
     }
 
@@ -84,7 +85,7 @@ public class SqlSearchOperation implements ObjectSearchOperation {
 
                     offset += pageSize;
                 } catch (SQLException e) {
-                    throw new org.identityconnectors.framework.common.exceptions.ConnectorException(
+                    throw new ConnectorException(
                             "QueryDSL select failed: " + e.getMessage(), e);
                 }
             }

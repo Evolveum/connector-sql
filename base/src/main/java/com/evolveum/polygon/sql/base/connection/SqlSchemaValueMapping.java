@@ -11,9 +11,15 @@ import com.querydsl.core.types.dsl.Expressions;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.sql.Date;
 import java.sql.JDBCType;
+import java.sql.Time;
 import java.sql.Timestamp;
-import java.time.*;
+import java.sql.Types;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Set;
 import java.util.function.BiFunction;
 
@@ -58,19 +64,19 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
             return super.toConnIdValue(value);
         }
     },
-    DATE(JDBCType.DATE, LocalDate.class, java.sql.Date.class, QueryDslUtils.dateTimePath(java.sql.Date.class)) {
+    DATE(JDBCType.DATE, LocalDate.class, Date.class, QueryDslUtils.dateTimePath(Date.class)) {
         @Override
         public Object toConnIdValue(Object value) {
-            if (value instanceof java.sql.Date d) {
+            if (value instanceof Date d) {
                 return d.toLocalDate();
             }
             return super.toConnIdValue(value);
         }
     },
-    TIME(JDBCType.TIME, LocalTime.class, java.sql.Time.class, QueryDslUtils.timePath(java.sql.Time.class)) {
+    TIME(JDBCType.TIME, LocalTime.class, Time.class, QueryDslUtils.timePath(Time.class)) {
         @Override
         public Object toConnIdValue(Object value) {
-            if (value instanceof java.sql.Time t) {
+            if (value instanceof Time t) {
                 return t.toLocalTime();
             }
             return super.toConnIdValue(value);
@@ -211,36 +217,36 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
      */
     public static SqlSchemaValueMapping fromJdbcType(int sqlType) {
         switch (sqlType) {
-            case java.sql.Types.VARCHAR:
-            case java.sql.Types.CHAR:
-            case java.sql.Types.LONGVARCHAR:
+            case Types.VARCHAR:
+            case Types.CHAR:
+            case Types.LONGVARCHAR:
                 return VARCHAR;
-            case java.sql.Types.INTEGER:
+            case Types.INTEGER:
                 return INTEGER;
-            case java.sql.Types.BIGINT:
+            case Types.BIGINT:
                 return BIGINT;
-            case java.sql.Types.SMALLINT:
+            case Types.SMALLINT:
                 return SMALLINT;
-            case java.sql.Types.TINYINT:
+            case Types.TINYINT:
                 return TINYINT;
-            case java.sql.Types.DECIMAL:
-            case java.sql.Types.NUMERIC:
+            case Types.DECIMAL:
+            case Types.NUMERIC:
                 return DECIMAL;
-            case java.sql.Types.FLOAT:
-            case java.sql.Types.REAL:
+            case Types.FLOAT:
+            case Types.REAL:
                 return FLOAT;
-            case java.sql.Types.DOUBLE:
+            case Types.DOUBLE:
                 return DOUBLE;
-            case java.sql.Types.BOOLEAN:
-            case java.sql.Types.BIT:
+            case Types.BOOLEAN:
+            case Types.BIT:
                 return BIT;
-            case java.sql.Types.DATE:
+            case Types.DATE:
                 return DATE;
-            case java.sql.Types.TIME:
+            case Types.TIME:
                 return TIME;
-            case java.sql.Types.TIMESTAMP:
+            case Types.TIMESTAMP:
                 return TIMESTAMP;
-            case java.sql.Types.BLOB:
+            case Types.BLOB:
                 return BLOB;
             default:
                 return null;

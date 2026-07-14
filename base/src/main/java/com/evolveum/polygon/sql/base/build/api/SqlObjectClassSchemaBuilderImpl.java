@@ -8,7 +8,9 @@ import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Uid;
 
+import java.util.LinkedHashSet;
 import java.util.Map;
+import java.util.Set;
 
 public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBuilder<
         SqlObjectClassSchemaBuilder,
@@ -20,7 +22,7 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
     private DefinitionValue<String> schema = DefinitionValue.emptyDefault();
     private DefinitionValue<String> table;
     private Boolean onlyExplicitlyListed = false;
-    private final java.util.Set<String> explicitRemoteNames = new java.util.LinkedHashSet<>();
+    private final Set<String> explicitRemoteNames = new LinkedHashSet<>();
 
     public SqlObjectClassSchemaBuilderImpl(SqlSchemaBuilderImpl restSchemaBuilder, DefinitionValue<String> name) {
         super(restSchemaBuilder, name);
@@ -54,7 +56,7 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
     /**
      * Returns the set of explicitly defined attribute column names.
      */
-    public java.util.Set<String> getExplicitRemoteNames() {
+    public Set<String> getExplicitRemoteNames() {
         return explicitRemoteNames;
     }
 
