@@ -9,6 +9,7 @@ package com.evolveum.polygon.sql.base.search;
 import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.sql.base.SqlTuple;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.querydsl.core.Tuple;
@@ -23,6 +24,7 @@ import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 
 import java.sql.SQLException;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -66,7 +68,8 @@ public class SqlSearchOperation implements ObjectSearchOperation {
                         predicate = SqlFilterTranslator.translate(objectClass, tablePath, filter);
                     }
 
-                    rows = context.getSqlQueryEngine().select(jdbcConn, tablePath, selectedColumns.values(),
+                    var columns = selectedColumns.values().stream().flatMap(Collection::stream).toList();
+                    rows = context.getSqlQueryEngine().select(jdbcConn, tablePath, columns,
                             predicate,
                             null,  // order by (none)
                             pageSize,
@@ -93,24 +96,24 @@ public class SqlSearchOperation implements ObjectSearchOperation {
         }
     }
 
-    private Map<SqlAttributeDefinition, Path<?>> selectColumns(Path<?> table, OperationOptions options) {
-        Map<SqlAttributeDefinition, Path<?>> columns = new HashMap<>();
+    private Map<SqlAttributeDefinition, Collection<Path<?>>> selectColumns(Path<?> table, OperationOptions options) {
+        Map<SqlAttributeDefinition, Collection<Path<?>>> columns = new HashMap<>();
         for (var attr : objectClass.attributes()) {
             if (attr.sql() != null && attr.connId().isReturnedByDefault()) {
-                columns.put(attr, attr.sql().dslPath(table));
+                columns.put(attr, attr.sql().selectPaths(table));
             }
         }
         return columns;
     }
 
-    private ConnectorObject buildConnectorObject(Tuple row, Map<SqlAttributeDefinition, Path<?>> attributes) {
+    private ConnectorObject buildConnectorObject(Tuple row, Map<SqlAttributeDefinition, Collection<Path<?>>> attributes) {
         var builder = new ConnectorObjectBuilder();
         builder.setObjectClass(objectClass.objectClass());
         for (var attrEntry : attributes.entrySet()) {
             var attr = attrEntry.getKey();
             var mapping = attr.sql();
                 if (mapping != null) {
-                    var value = mapping.valuesFromAttribute(row.get(attrEntry.getValue()));
+                    var value = mapping.valuesFromObject(new SqlTuple(getTablePath(), row));
                     builder.addAttribute(attr.attributeOf(value));
                 }
         }

@@ -135,7 +135,7 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
             }
 
             var overrideMapping = connId().overrideMappingIfNeeded(this.valueMapping.value());
-            return new SqlAttributeMapping(column, this.valueMapping.value(), overrideMapping);
+            return SqlAttributeMapping.singleColumn(column, this.valueMapping.value(), overrideMapping);
         }
     }
 }

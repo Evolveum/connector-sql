@@ -34,4 +34,10 @@ public interface SqlValueMapping extends ValueMapping<Object, Object> {
         Path<?> pathFor(Path<?> parent, String column);
 
     }
+
+    interface MultiColumn extends SqlValueMapping {
+
+
+    }
 }
+
