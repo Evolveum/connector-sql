@@ -173,6 +173,42 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
                             return attrPath.loe(value);
                         }
                     }
+                    if (rawPath instanceof DateTimePath<?> attrPath) {
+                        var sqlV = sqlValue;
+                        DateTimePath p = ((DateTimePath) attrPath);
+                        if (filter instanceof GreaterThanFilter gf) {
+                            if (sqlV instanceof java.sql.Date d) { return p.gt(d); }
+                            if (sqlV instanceof java.sql.Time t) { return p.gt(t); }
+                            if (sqlV instanceof java.sql.Timestamp ts) { return p.gt(ts); }
+                            if (sqlV instanceof java.time.ZonedDateTime zdt) { return p.gt(zdt.toInstant()); }
+                            if (sqlV instanceof java.time.Instant i) { return p.gt(i); }
+                            return p.gt((java.lang.Comparable) sqlV);
+                        }
+                        if (filter instanceof GreaterThanOrEqualFilter gf) {
+                            if (sqlV instanceof java.sql.Date d) { return p.goe(d); }
+                            if (sqlV instanceof java.sql.Time t) { return p.goe(t); }
+                            if (sqlV instanceof java.sql.Timestamp ts) { return p.goe(ts); }
+                            if (sqlV instanceof java.time.ZonedDateTime zdt) { return p.goe(zdt.toInstant()); }
+                            if (sqlV instanceof java.time.Instant i) { return p.goe(i); }
+                            return p.goe((java.lang.Comparable) sqlV);
+                        }
+                        if (filter instanceof LessThanFilter lf) {
+                            if (sqlV instanceof java.sql.Date d) { return p.lt(d); }
+                            if (sqlV instanceof java.sql.Time t) { return p.lt(t); }
+                            if (sqlV instanceof java.sql.Timestamp ts) { return p.lt(ts); }
+                            if (sqlV instanceof java.time.ZonedDateTime zdt) { return p.lt(zdt.toInstant()); }
+                            if (sqlV instanceof java.time.Instant i) { return p.lt(i); }
+                            return p.lt((java.lang.Comparable) sqlV);
+                        }
+                        if (filter instanceof LessThanOrEqualFilter lf) {
+                            if (sqlV instanceof java.sql.Date d) { return p.loe(d); }
+                            if (sqlV instanceof java.sql.Time t) { return p.loe(t); }
+                            if (sqlV instanceof java.sql.Timestamp ts) { return p.loe(ts); }
+                            if (sqlV instanceof java.time.ZonedDateTime zdt) { return p.loe(zdt.toInstant()); }
+                            if (sqlV instanceof java.time.Instant i) { return p.loe(i); }
+                            return p.loe((java.lang.Comparable) sqlV);
+                        }
+                    }
                     // FIXME: Maybe throw exception that filter is not supported?
                     throw SqlFilterTranslator.unsupportedFilterException(filter);
                 }
@@ -278,6 +314,7 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
                         if (j == JDBCType.INTEGER || j == JDBCType.BIGINT || j == JDBCType.SMALLINT || j == JDBCType.TINYINT) { return Long.parseLong(rawValue); }
                         if (j == JDBCType.DECIMAL || j == JDBCType.NUMERIC) { return new BigDecimal(rawValue); }
                         if (j == JDBCType.BIT || j == JDBCType.BOOLEAN) { return Boolean.parseBoolean(rawValue); }
+                        if (j == JDBCType.DATE || j == JDBCType.TIME || j == JDBCType.TIMESTAMP || j == JDBCType.TIMESTAMP_WITH_TIMEZONE) { return sm.toWireValue(rawValue); }
                     }
                     return rawValue;
                 }

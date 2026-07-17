@@ -494,4 +494,79 @@ public class SqlSearchFilterTest {
             assertThat(age).isIn(28, 30, 35);
         }
     }
+
+    // ─── Datetime filter tests ──────────────────────────────────────────────
+
+    @Test
+    public void testEqualsFilterOnTimestamp() throws Exception {
+        Filter filter = FilterBuilder.equalTo(AttributeBuilder.build("created_at", "2024-01-15 10:00:00"));
+        List<ConnectorObject> results = executeSearch(userOcl(), filter);
+
+        assertThat(results).hasSize(1);
+        assertThat(getAttribute(results.getFirst(), "username")).isEqualTo("john.doe");
+    }
+
+    @Test
+    public void testGreaterThanFilterOnTimestamp() throws Exception {
+        Filter filter = FilterBuilder.greaterThan(AttributeBuilder.build("created_at", "2024-03-01 00:00:00"));
+        List<ConnectorObject> results = executeSearch(userOcl(), filter);
+
+        assertThat(results).hasSize(3);
+        assertThat(results).extracting(o -> getAttribute(o, "username"))
+                .contains("bob.wilson", "alice.jones", "charlie.brown");
+    }
+
+    @Test
+    public void testGreaterThanOrEqualFilterOnTimestamp() throws Exception {
+        Filter filter = FilterBuilder.greaterThanOrEqualTo(AttributeBuilder.build("created_at", "2024-03-10 09:00:00"));
+        List<ConnectorObject> results = executeSearch(userOcl(), filter);
+
+        assertThat(results).hasSize(3);
+        assertThat(results).extracting(o -> getAttribute(o, "username"))
+                .contains("bob.wilson", "alice.jones", "charlie.brown");
+    }
+
+    @Test
+    public void testLessThanFilterOnTimestamp() throws Exception {
+        Filter filter = FilterBuilder.lessThan(AttributeBuilder.build("created_at", "2024-03-01 00:00:00"));
+        List<ConnectorObject> results = executeSearch(userOcl(), filter);
+
+        assertThat(results).hasSize(2);
+        assertThat(results).extracting(o -> getAttribute(o, "username"))
+                .contains("john.doe", "jane.smith");
+    }
+
+    @Test
+    public void testLessThanOrEqualFilterOnTimestamp() throws Exception {
+        Filter filter = FilterBuilder.lessThanOrEqualTo(AttributeBuilder.build("created_at", "2024-04-05 14:00:00"));
+        List<ConnectorObject> results = executeSearch(userOcl(), filter);
+
+        assertThat(results).hasSize(4);
+    }
+
+    @Test
+    public void testBetweenFilterOnTimestamp() throws Exception {
+        Filter betweenFilter = FilterBuilder.and(
+                FilterBuilder.greaterThanOrEqualTo(AttributeBuilder.build("created_at", "2024-02-20 11:00:00")),
+                FilterBuilder.lessThanOrEqualTo(AttributeBuilder.build("created_at", "2024-04-05 14:00:00"))
+        );
+        List<ConnectorObject> results = executeSearch(userOcl(), betweenFilter);
+
+        assertThat(results).hasSize(3);
+        assertThat(results).extracting(o -> getAttribute(o, "username"))
+                .contains("jane.smith", "bob.wilson", "alice.jones");
+    }
+
+    @Test
+    public void testComplexFilterWithTimestampAndBoolean() throws Exception {
+        Filter complexFilter = FilterBuilder.and(
+                FilterBuilder.greaterThan(AttributeBuilder.build("created_at", "2024-03-01 00:00:00")),
+                FilterBuilder.equalTo(AttributeBuilder.build("is_active", true))
+        );
+        List<ConnectorObject> results = executeSearch(userOcl(), complexFilter);
+
+        assertThat(results).hasSize(2);
+        assertThat(results).extracting(o -> getAttribute(o, "username"))
+                .contains("alice.jones", "charlie.brown");
+    }
 }

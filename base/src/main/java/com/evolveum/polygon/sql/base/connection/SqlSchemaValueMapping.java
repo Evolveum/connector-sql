@@ -72,6 +72,35 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
             }
             return super.toConnIdValue(value);
         }
+
+        @Override
+        public Object toWireValue(Object value) {
+            if (value == null) {
+                return null;
+            }
+            if (value instanceof Date) {
+                return value;
+            }
+            if (value instanceof String s) {
+                try {
+                    return java.sql.Date.valueOf(s);
+                } catch (IllegalArgumentException e) {
+                    try {
+                        return java.sql.Date.valueOf(s.substring(0, 10));
+                    } catch (IllegalArgumentException ex) {
+                        throw new IllegalArgumentException("Cannot parse string '" + s + "' to java.sql.Date", ex);
+                    }
+                }
+            }
+            if (value instanceof LocalDate ld) {
+                return java.sql.Date.valueOf(ld);
+            }
+            if (value instanceof java.time.temporal.TemporalAccessor t) {
+                String iso = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE.format(java.time.LocalDate.from(t));
+                return java.sql.Date.valueOf(iso);
+            }
+            throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to java.sql.Date");
+        }
     },
     TIME(JDBCType.TIME, LocalTime.class, Time.class, QueryDslUtils.timePath(Time.class)) {
         @Override
@@ -81,8 +110,37 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
             }
             return super.toConnIdValue(value);
         }
+
+        @Override
+        public Object toWireValue(Object value) {
+            if (value == null) {
+                return null;
+            }
+            if (value instanceof Time) {
+                return value;
+            }
+            if (value instanceof String s) {
+                try {
+                    return java.sql.Time.valueOf(s);
+                } catch (IllegalArgumentException e) {
+                    try {
+                        return java.sql.Time.valueOf(s.substring(s.indexOf(' ') + 1));
+                    } catch (IllegalArgumentException ex) {
+                        throw new IllegalArgumentException("Cannot parse string '" + s + "' to java.sql.Time", ex);
+                    }
+                }
+            }
+            if (value instanceof LocalTime lt) {
+                return java.sql.Time.valueOf(lt);
+            }
+            if (value instanceof java.time.temporal.TemporalAccessor t) {
+                String iso = java.time.format.DateTimeFormatter.ISO_LOCAL_TIME.format(java.time.LocalTime.from(t));
+                return java.sql.Time.valueOf(iso);
+            }
+            throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to java.sql.Time");
+        }
     },
-    TIMESTAMP(JDBCType.TIMESTAMP, ZonedDateTime.class, Timestamp.class, QueryDslUtils.dateTimePath(ZonedDateTime.class)) {
+    TIMESTAMP(JDBCType.TIMESTAMP, ZonedDateTime.class, Timestamp.class, QueryDslUtils.dateTimePath(Timestamp.class)) {
         @Override
         public Object toConnIdValue(Object value) {
             if (value instanceof Timestamp ts) {
@@ -90,10 +148,100 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
             }
             return super.toConnIdValue(value);
         }
+
+        @Override
+        public Object toWireValue(Object value) {
+            if (value == null) {
+                return null;
+            }
+            if (value instanceof Timestamp) {
+                return value;
+            }
+            if (value instanceof java.sql.Timestamp) {
+                return (java.sql.Timestamp) value;
+            }
+            if (value instanceof String s) {
+                try {
+                    return java.sql.Timestamp.valueOf(s);
+                } catch (IllegalArgumentException e) {
+                    try {
+                        return java.sql.Timestamp.valueOf(s.replace('T', ' '));
+                    } catch (IllegalArgumentException ex) {
+                        try {
+                            return java.sql.Timestamp.valueOf(s.substring(0, 10) + " 00:00:00");
+                        } catch (IllegalArgumentException ex2) {
+                            throw new IllegalArgumentException("Cannot parse string '" + s + "' to java.sql.Timestamp", ex2);
+                        }
+                    }
+                }
+            }
+            if (value instanceof java.sql.Date d) {
+                return new java.sql.Timestamp(d.getTime());
+            }
+            if (value instanceof java.sql.Time t) {
+                return new java.sql.Timestamp(t.getTime());
+            }
+            if (value instanceof ZonedDateTime zdt) {
+                return java.sql.Timestamp.from(zdt.toInstant());
+            }
+            if (value instanceof java.time.Instant i) {
+                return java.sql.Timestamp.from(i);
+            }
+            if (value instanceof LocalDate ld) {
+                return java.sql.Timestamp.valueOf(ld.atStartOfDay());
+            }
+            if (value instanceof java.time.temporal.TemporalAccessor t) {
+                String iso = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(java.time.LocalDateTime.from(t));
+                return java.sql.Timestamp.valueOf(iso);
+            }
+            throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to java.sql.Timestamp");
+        }
     },
     BLOB(JDBCType.BLOB, byte[].class, byte[].class, QueryDslUtils::byteArrayPath),
     CLOB(JDBCType.CLOB, String.class, String.class, Expressions::stringPath),
-    TIMESTAMP_WITH_TIMEZONE(JDBCType.TIMESTAMP_WITH_TIMEZONE, ZonedDateTime.class, ZonedDateTime.class, QueryDslUtils.dateTimePath(ZonedDateTime.class));
+    TIMESTAMP_WITH_TIMEZONE(JDBCType.TIMESTAMP_WITH_TIMEZONE, ZonedDateTime.class, ZonedDateTime.class, QueryDslUtils.dateTimePath(ZonedDateTime.class)) {
+        @Override
+        public Object toWireValue(Object value) {
+            if (value == null) {
+                return null;
+            }
+            if (value instanceof java.sql.Timestamp) {
+                return value;
+            }
+            if (value instanceof String s) {
+                try {
+                    return java.sql.Timestamp.valueOf(s);
+                } catch (IllegalArgumentException e) {
+                    try {
+                        return java.sql.Timestamp.valueOf(s.replace('T', ' '));
+                    } catch (IllegalArgumentException ex) {
+                        try {
+                            return java.sql.Timestamp.valueOf(s.substring(0, 10) + " 00:00:00");
+                        } catch (IllegalArgumentException ex2) {
+                            throw new IllegalArgumentException("Cannot parse string '" + s + "' to java.sql.Timestamp", ex2);
+                        }
+                    }
+                }
+            }
+            if (value instanceof ZonedDateTime zdt) {
+                return java.sql.Timestamp.from(zdt.toInstant());
+            }
+            if (value instanceof java.time.Instant i) {
+                return java.sql.Timestamp.from(i);
+            }
+            if (value instanceof java.sql.Date d) {
+                return new java.sql.Timestamp(d.getTime());
+            }
+            if (value instanceof java.sql.Time t) {
+                return new java.sql.Timestamp(t.getTime());
+            }
+            if (value instanceof java.time.temporal.TemporalAccessor t) {
+                String iso = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(java.time.LocalDateTime.from(t));
+                return java.sql.Timestamp.valueOf(iso);
+            }
+            throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to JDBC timestamp value");
+        }
+    };
 
     private final JDBCType jdbcType;
     private final Class<?> connIdClass;
