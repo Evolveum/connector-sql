@@ -24,6 +24,7 @@ import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
 
@@ -172,6 +173,8 @@ public class SqlSchemaTranslator {
             @SuppressWarnings("unchecked")
             var uidAttr = (SqlAttributeBuilder.Reference) objectClass.attribute(uidColumn.get().getName());
             uidAttr.connId().name(Uid.NAME);
+            // Handle composite primary keys: add additional PK columns to the UID mapping
+            handleCompositePk(table, uidColumn.get(), objectClass);
         }
     }
 
@@ -355,5 +358,26 @@ public class SqlSchemaTranslator {
         var upper = typeName.toUpperCase();
         return upper.contains("BLOB") || upper.contains("CLOB")
                 || upper.contains("BINARY") || upper.contains("VARBINARY");
+    }
+
+    /**
+     * For tables with composite primary keys, add the additional PK columns to the UID mapping
+     * so that the SQL connector treats them as part of a multi-column composite UID.
+     */
+    @SuppressWarnings("unchecked")
+    private void handleCompositePk(SqlTableInfo table, SqlColumnMeta mainUid, SqlObjectClassSchemaBuilder objectClass) {
+        var mainName = mainUid.getName();
+        var extraPks = table.getColumns().stream()
+                .filter(c -> c.isPrimaryKey() && !mainName.equals(c.getName()))
+                .collect(Collectors.toList());
+        if (extraPks.isEmpty()) { return; }
+        var uidAttr = objectClass.attribute(mainUid.getName());
+        if (uidAttr instanceof SqlAttributeBuilder.Reference refAttr) {
+            var sql = refAttr.sql();
+            for (var pk : extraPks) {
+                var mapping = SqlValueMapping.from(pk.getTypeCode());
+                sql.additionalColumns().column(pk.getName(), (SqlValueMapping) mapping);
+            }
+        }
     }
 }

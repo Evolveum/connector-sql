@@ -9,8 +9,7 @@ import com.evolveum.polygon.sql.base.connection.SqlValueMapping;
 
 public interface SpiSqlAttributeBuilder<B extends SqlAttributeBuilder<B>> extends SpiAttributeBuilder<B, SqlAttributeDefinition> {
 
-
-    interface  SqlMapping {
+    interface SqlMapping {
 
         SqlAttributeBuilder.SqlMapping column(DefinitionValue<String> name);
         SqlAttributeBuilder.SqlMapping type(DefinitionValue<SqlTypeSpecification> typeSpecification);
@@ -20,7 +19,12 @@ public interface SpiSqlAttributeBuilder<B extends SqlAttributeBuilder<B>> extend
         SqlAttributeBuilder.SqlMapping primaryKey(DefinitionValue<Boolean> primaryKey);
 
         SqlAttributeBuilder.SqlMapping valueMapping(DefinitionValue<SqlValueMapping> detected);
+
+        SqlUIDMappingBuilder additionalColumns();
     }
 
+    interface SqlUIDMappingBuilder {
+        SqlAttributeBuilder.SqlMapping column(String name);
+        SqlAttributeBuilder.SqlMapping column(String name, SqlValueMapping mapping);
+    }
 }
-

@@ -8,19 +8,14 @@ package com.evolveum.polygon.sql.base.search;
 
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
-import com.querydsl.core.types.ConstantImpl;
-import com.querydsl.core.types.Path;
 import com.querydsl.core.types.Predicate;
-import com.querydsl.core.types.dsl.*;
+import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.sql.RelationalPathBase;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.filter.*;
 
-import java.text.NumberFormat;
-import java.text.ParseException;
-import java.util.function.BiFunction;
 import java.util.function.BinaryOperator;
-import java.util.function.Function;
 
 /**
  * Translates ConnId {@link Filter filters} into QueryDSL predicates for SQL-based search.

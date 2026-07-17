@@ -11,7 +11,11 @@ import com.evolveum.polygon.conndev.concepts.SourceLocation;
 import com.evolveum.polygon.conndev.schema.AttributeProtocolMappingBuilder;
 import com.evolveum.polygon.conndev.schema.BaseAttributeBuilder;
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinitionBuilder;
+import com.evolveum.polygon.sql.base.build.spi.SpiSqlAttributeBuilder;
 import com.evolveum.polygon.sql.base.connection.SqlValueMapping;
+
+import java.util.ArrayList;
+import java.util.List;
 
 public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBuilderImpl, SqlAttributeBuilder<SqlAttributeBuilder.Reference>, SqlAttributeBuilder.Reference, SqlAttributeDefinition> implements SqlAttributeBuilder.Reference {
 
@@ -21,19 +25,12 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
 
     private SqlMappingBuilder sqlMapping;
 
-    @Override
-    public SqlMappingBuilder sql() {
-        if (sqlMapping == null) {
-            sqlMapping = new SqlMappingBuilder(name.value());
-        }
+    @Override public SqlMappingBuilder sql() {
+        if (sqlMapping == null) { sqlMapping = new SqlMappingBuilder(name.value()); }
         return sqlMapping;
     }
 
-    @Override
-    public SqlAttributeDefinition build() {
-        // Create SqlAttributeDefinition directly instead of calling super (which creates BaseAttributeDefinition)
-        return new SqlAttributeDefinition(this);
-    }
+    @Override public SqlAttributeDefinition build() { return new SqlAttributeDefinition(this); }
 
     public class SqlMappingBuilder implements SqlMapping, AttributeProtocolMappingBuilder {
 
@@ -42,100 +39,76 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
         private DefinitionValue<Boolean> notNull = DefinitionValue.DEFAULT_FALSE;
         private DefinitionValue<Boolean> unique = DefinitionValue.DEFAULT_FALSE;
         private DefinitionValue<Boolean> primaryKey = DefinitionValue.DEFAULT_FALSE;
-        private DefinitionValue<Boolean> autoIncrement =  DefinitionValue.DEFAULT_FALSE;
+        private DefinitionValue<Boolean> autoIncrement = DefinitionValue.DEFAULT_FALSE;
         private DefinitionValue<SqlValueMapping> valueMapping = DefinitionValue.emptyDefault();
+        private final List<SqlAdditionalColumnDef> additionalColumns = new ArrayList<>();
 
-        public SqlMappingBuilder(String name) {
-            this.column = DefinitionValue.defaultFrom(name);
-        }
+        public SqlMappingBuilder(String name) { this.column = DefinitionValue.defaultFrom(name); }
 
-        @Override
-        public SqlMapping name(String name) {
-            var nameDef  = DefinitionValue.from(name, SourceLocation.capture());
-            this.column = this.column.moreSpecific(nameDef);
+        @Override public SqlMapping name(String name) {
+            var d = DefinitionValue.from(name, SourceLocation.capture());
+            this.column = this.column.moreSpecific(d);
             return this;
         }
 
-        @Override
-        public SqlMapping column(DefinitionValue<String> name) {
+        @Override public SqlMapping column(DefinitionValue<String> name) {
             this.column = this.column.moreSpecific(name);
             return this;
         }
 
-        @Override
-        public SqlMapping type(DefinitionValue<SqlTypeSpecification> typeSpecification) {
-            this.type = this.type.moreSpecific(typeSpecification);
+        @Override public SqlMapping type(DefinitionValue<SqlTypeSpecification> typeSpec) {
+            this.type = this.type.moreSpecific(typeSpec);
             return this;
         }
 
-        @Override
-        public SqlTypeSpecification VARCHAR(int size) {
-            return DefaultSqlTypeSpecification.varcharType(size);
-        }
+        public SqlTypeSpecification VARCHAR(int size) { return DefaultSqlTypeSpecification.varcharType(size); }
 
+        @Override public SqlMapping notNull(DefinitionValue<Boolean> notNull) { this.notNull = notNull; return this; }
+        @Override public SqlMapping unique(DefinitionValue<Boolean> unique) { this.unique = unique; return this; }
+        @Override public SqlMapping valueMapping(DefinitionValue<SqlValueMapping> d) { this.valueMapping = d; return this; }
 
-        @Override
-        public SqlMapping notNull(DefinitionValue<Boolean> notNull) {
-            this.notNull = this.notNull.moreSpecific(notNull);
-            return this;
-        }
+        public SqlMapping primaryKey() { return primaryKey(true); }
+        @Override public SqlMapping primaryKey(boolean value) { return primaryKey(DefinitionValue.from(value, SourceLocation.capture())); }
+        public SqlMapping autoIncrement(boolean value) { return autoIncrement(DefinitionValue.from(value, SourceLocation.capture())); }
+        @Override public SqlMapping autoIncrement(DefinitionValue<Boolean> value) { this.autoIncrement = value; return this; }
+        @Override public SqlMapping primaryKey(DefinitionValue<Boolean> primaryKey) { this.primaryKey = primaryKey; return this; }
 
-        @Override
-        public SqlMapping unique(DefinitionValue<Boolean> unique) {
-            this.unique = this.unique.moreSpecific(unique);
-            return this;
-        }
+        @Override public DefinitionValue<String> column() { return column; }
+        @Override public Class<?> suggestedConnIdType() { return valueMapping.value() != null ? valueMapping.value().connIdType() : Object.class; }
 
-        // Groovy convenience methods - not in interface but usable in Groovy DSL
-        public SqlMapping primaryKey() {
-            return primaryKey(true);
-        }
+        public SpiSqlAttributeBuilder.SqlUIDMappingBuilder additionalColumns() { return new SqlUIDMappingBuilder(); }
 
         @Override
-        public SqlMapping primaryKey(boolean value) {
-            return primaryKey(DefinitionValue.from(value, SourceLocation.capture()));
-        }
-
-        @Override
-        public SqlMapping autoIncrement(boolean value) {
-            return autoIncrement(DefinitionValue.from(value, SourceLocation.capture()));
-        }
-
-        @Override
-        public SqlMapping autoIncrement(DefinitionValue<Boolean> value) {
-            this.autoIncrement = this.autoIncrement.moreSpecific(value);
-            return this;
-        }
-
-        @Override
-        public SqlMapping valueMapping(DefinitionValue<SqlValueMapping> detected) {
-            this.valueMapping = this.valueMapping.moreSpecific(detected);
-            return this;
-        }
-
-        @Override
-        public SqlMapping primaryKey(DefinitionValue<Boolean> primaryKey) {
-            this.primaryKey = this.primaryKey.moreSpecific(primaryKey);
-            return this;
-        }
-
-        @Override
-        public DefinitionValue<String> column() {
-            return column;
-        }
-
-        @Override
-        public Class<?> suggestedConnIdType() {
-            return valueMapping.value().connIdType();
-        }
-
         public SqlAttributeMapping build() {
-            if (column.isEmpty() || (valueMapping.isEmpty() && type.isEmpty())) {
-                return null;
-            }
-
+            if (column.isEmpty() || (valueMapping.isEmpty() && type.isEmpty())) { return null; }
             var overrideMapping = connId().overrideMappingIfNeeded(this.valueMapping.value());
-            return SqlAttributeMapping.singleColumn(column, this.valueMapping.value(), overrideMapping);
+            var main = SqlAttributeMapping.singleColumn(column, this.valueMapping.value(), overrideMapping);
+            if (additionalColumns.isEmpty()) { return main; }
+            var extra = new ArrayList<SqlAttributeMapping.SingleColumn>();
+            for (var a : additionalColumns) {
+                var mapped = a.mapping() != null ? a.mapping() : SqlValueMapping.from(a.jdbcType());
+                extra.add(SqlAttributeMapping.singleColumn(
+                        DefinitionValue.from(a.column(), SourceLocation.capture()),
+                        mapped, overrideMapping));
+            }
+            return SqlAttributeMapping.multiColumn(main, extra, SqlAttributeMapping.DEFAULT_DELIMITER);
+        }
+
+        private SqlMappingBuilder addExtra(String name, SqlValueMapping mapping, int jdbcType) {
+            additionalColumns.add(new SqlAdditionalColumnDef(name, mapping, jdbcType));
+            return this;
+        }
+
+        private record SqlAdditionalColumnDef(String column, SqlValueMapping mapping, int jdbcType) { }
+
+        public class SqlUIDMappingBuilder implements SpiSqlAttributeBuilder.SqlUIDMappingBuilder {
+            @Override
+            public SqlMapping column(String name) { return addExtra(name, null, 0); }
+
+            @Override
+            public SqlMapping column(String name, SqlValueMapping mapping) {
+                return addExtra(name, mapping, mapping.jdbcType() != null ? mapping.jdbcType().getVendorTypeNumber() : 0);
+            }
         }
     }
 }

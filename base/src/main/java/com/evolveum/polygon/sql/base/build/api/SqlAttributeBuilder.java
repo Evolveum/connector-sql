@@ -66,6 +66,8 @@ public interface SqlAttributeBuilder<F extends SqlAttributeBuilder<F>> extends A
             return autoIncrement(DefinitionValue.from(value, SourceLocation.capture()));
         }
 
+        SpiSqlAttributeBuilder.SqlUIDMappingBuilder additionalColumns();
+
         DefinitionValue<String> column();
     }
 
