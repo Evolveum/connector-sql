@@ -55,25 +55,25 @@ public class HikariConnectionPoolTest {
         pool = new HikariConnectionPool(configuration);
         pool.initialize();
 
-        var conn = pool.getConnection();
+        var conn = pool.getConnection(null);
         assertThat(conn).isNotNull();
         assertThat(conn.getConnection()).isNotNull();
         conn.close();
     }
 
-@Test
+    @Test
     public void testConnectionPoolSize() throws SQLException {
         configuration.setPoolSize(2);
         pool = new HikariConnectionPool(configuration);
         pool.initialize();
 
-    assertThat(pool.getDataSource().getMaximumPoolSize()).isEqualTo(2);
+        assertThat(pool.getDataSource().getMaximumPoolSize()).isEqualTo(2);
 
         // Acquire 2 connections (pool size)
-        var conn1 = pool.getConnection();
-        var conn2 = pool.getConnection();
-    assertThat(conn1).isNotNull();
-    assertThat(conn2).isNotNull();
+        var conn1 = pool.getConnection(null);
+        var conn2 = pool.getConnection(null);
+        assertThat(conn1).isNotNull();
+        assertThat(conn2).isNotNull();
 
         conn1.close();
         conn2.close();
@@ -84,8 +84,8 @@ public class HikariConnectionPoolTest {
         pool = new HikariConnectionPool(configuration);
         pool.initialize();
 
-        var conn1 = pool.getConnection();
-        var conn2 = pool.getConnection();
+        var conn1 = pool.getConnection(null);
+        var conn2 = pool.getConnection(null);
 
         assertThat(conn1 != conn2).withFailMessage("Should return different connection instances").isTrue();
 
@@ -144,7 +144,7 @@ public class HikariConnectionPoolTest {
     public void testConfigDefaults() {
         configuration.setPoolSize(null);
         configuration.setValidateConnectionOnBorrow(null);
-        
+
         pool = new HikariConnectionPool(configuration);
         pool.initialize();
 

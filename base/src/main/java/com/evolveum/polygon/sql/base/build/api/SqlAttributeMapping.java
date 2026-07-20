@@ -19,7 +19,12 @@ import com.querydsl.sql.RelationalPathBase;
 import org.identityconnectors.framework.common.objects.filter.*;
 
 import java.math.BigDecimal;
+import java.sql.Date;
 import java.sql.JDBCType;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -175,37 +180,37 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
                     }
                     if (rawPath instanceof DateTimePath<?> attrPath) {
                         var sqlV = sqlValue;
-                        DateTimePath p = ((DateTimePath) attrPath);
+                        var p = ((DateTimePath) attrPath);
                         if (filter instanceof GreaterThanFilter gf) {
-                            if (sqlV instanceof java.sql.Date d) { return p.gt(d); }
-                            if (sqlV instanceof java.sql.Time t) { return p.gt(t); }
-                            if (sqlV instanceof java.sql.Timestamp ts) { return p.gt(ts); }
-                            if (sqlV instanceof java.time.ZonedDateTime zdt) { return p.gt(zdt.toInstant()); }
-                            if (sqlV instanceof java.time.Instant i) { return p.gt(i); }
+                            if (sqlV instanceof Date d) { return p.gt(d); }
+                            if (sqlV instanceof Time t) { return p.gt(t); }
+                            if (sqlV instanceof Timestamp ts) { return p.gt(ts); }
+                            if (sqlV instanceof ZonedDateTime zdt) { return p.gt(zdt.toInstant()); }
+                            if (sqlV instanceof Instant i) { return p.gt(i); }
                             return p.gt((java.lang.Comparable) sqlV);
                         }
                         if (filter instanceof GreaterThanOrEqualFilter gf) {
-                            if (sqlV instanceof java.sql.Date d) { return p.goe(d); }
-                            if (sqlV instanceof java.sql.Time t) { return p.goe(t); }
-                            if (sqlV instanceof java.sql.Timestamp ts) { return p.goe(ts); }
-                            if (sqlV instanceof java.time.ZonedDateTime zdt) { return p.goe(zdt.toInstant()); }
-                            if (sqlV instanceof java.time.Instant i) { return p.goe(i); }
+                            if (sqlV instanceof Date d) { return p.goe(d); }
+                            if (sqlV instanceof Time t) { return p.goe(t); }
+                            if (sqlV instanceof Timestamp ts) { return p.goe(ts); }
+                            if (sqlV instanceof ZonedDateTime zdt) { return p.goe(zdt.toInstant()); }
+                            if (sqlV instanceof Instant i) { return p.goe(i); }
                             return p.goe((java.lang.Comparable) sqlV);
                         }
                         if (filter instanceof LessThanFilter lf) {
-                            if (sqlV instanceof java.sql.Date d) { return p.lt(d); }
-                            if (sqlV instanceof java.sql.Time t) { return p.lt(t); }
-                            if (sqlV instanceof java.sql.Timestamp ts) { return p.lt(ts); }
-                            if (sqlV instanceof java.time.ZonedDateTime zdt) { return p.lt(zdt.toInstant()); }
-                            if (sqlV instanceof java.time.Instant i) { return p.lt(i); }
+                            if (sqlV instanceof Date d) { return p.lt(d); }
+                            if (sqlV instanceof Time t) { return p.lt(t); }
+                            if (sqlV instanceof Timestamp ts) { return p.lt(ts); }
+                            if (sqlV instanceof ZonedDateTime zdt) { return p.lt(zdt.toInstant()); }
+                            if (sqlV instanceof Instant i) { return p.lt(i); }
                             return p.lt((java.lang.Comparable) sqlV);
                         }
                         if (filter instanceof LessThanOrEqualFilter lf) {
-                            if (sqlV instanceof java.sql.Date d) { return p.loe(d); }
-                            if (sqlV instanceof java.sql.Time t) { return p.loe(t); }
-                            if (sqlV instanceof java.sql.Timestamp ts) { return p.loe(ts); }
-                            if (sqlV instanceof java.time.ZonedDateTime zdt) { return p.loe(zdt.toInstant()); }
-                            if (sqlV instanceof java.time.Instant i) { return p.loe(i); }
+                            if (sqlV instanceof Date d) { return p.loe(d); }
+                            if (sqlV instanceof Time t) { return p.loe(t); }
+                            if (sqlV instanceof Timestamp ts) { return p.loe(ts); }
+                            if (sqlV instanceof ZonedDateTime zdt) { return p.loe(zdt.toInstant()); }
+                            if (sqlV instanceof Instant i) { return p.loe(i); }
                             return p.loe((java.lang.Comparable) sqlV);
                         }
                     }

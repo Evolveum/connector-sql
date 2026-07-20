@@ -7,6 +7,7 @@
 package com.evolveum.polygon.sql.base.connection;
 
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
+import com.querydsl.sql.SQLTemplates;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -65,7 +66,7 @@ public class HikariConnectionPool {
      * @return a SqlConnection wrapper
      * @throws SQLException if the pool is closed or cannot provide a connection
      */
-    public SqlConnection getConnection() throws SQLException {
+    public SqlConnection getConnection(SQLTemplates templates) throws SQLException {
         if (dataSource == null || dataSource.isClosed()) {
             throw new SQLException("Connection pool is closed", (Throwable) null);
         }
@@ -74,7 +75,7 @@ public class HikariConnectionPool {
             if (connection == null) {
                 throw new SQLException("Pool returned a null connection", (Throwable) null);
             }
-            return new SqlConnection(connection);
+            return new SqlConnection(connection, templates);
         } catch (SQLException e) {
             throw e;
         } catch (Exception e) {

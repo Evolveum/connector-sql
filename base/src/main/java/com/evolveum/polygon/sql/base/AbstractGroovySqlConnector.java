@@ -11,6 +11,7 @@ import com.evolveum.polygon.conndev.dev.ConnDevSchema;
 import com.evolveum.polygon.conndev.spi.ClassHandlerConnectorBase;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
+import com.evolveum.polygon.conndev.spi.ObjectSyncOperation;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
 import com.evolveum.polygon.sql.base.connection.SqlQueryEngine;
@@ -20,6 +21,8 @@ import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
 import com.evolveum.polygon.sql.base.search.SqlSearchOperation;
+import com.evolveum.polygon.sql.base.sync.SqlSyncOperation;
+import com.evolveum.polygon.sql.base.sync.SyncConfig;
 import com.querydsl.sql.H2Templates;
 import com.querydsl.sql.SQLTemplates;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
@@ -136,7 +139,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                 if (templates == null) {
                     templates = SQLTemplates.DEFAULT;
                 }
-                context.setSqlQueryEngine(new SqlQueryEngine(templates));
+                context.setSqlTemplates(templates);
 
                 // In development mode the shared conndev_ObjectClass / conndev_Attribute classes are
                 // part of the schema, so midPoint can search the discovered schema.
@@ -160,13 +163,15 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                     ObjectSearchOperation.class, new SqlObjectClassDevHandler(context));
         }
 
-        // Register QueryDSL-based search operation for all application object classes (tables)
+        // Register QueryDSL-based search and sync operations for all application object classes (tables)
         if (context.schema() != null) {
             for (SqlObjectClassDefinition def : context.schema().objectClasses()) {
                 var oc = def.objectClass();
                 var mapping = def.sql();
                 if (mapping != null) {
                     handlerBuilder.register(oc, ObjectSearchOperation.class, new SqlSearchOperation(context, def));
+                    handlerBuilder.register(oc, ObjectSyncOperation.class,
+                        new SqlSyncOperation(context, def, SyncConfig.defaultFor(def)));
                 }
             }
         }

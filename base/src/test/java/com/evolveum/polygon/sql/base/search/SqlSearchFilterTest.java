@@ -25,8 +25,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.identityconnectors.framework.common.objects.Uid.NAME;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests for filter-based search operations.

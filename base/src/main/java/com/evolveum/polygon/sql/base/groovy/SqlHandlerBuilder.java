@@ -9,6 +9,9 @@ package com.evolveum.polygon.sql.base.groovy;
 import com.evolveum.polygon.conndev.concepts.GroovyClosures;
 import com.evolveum.polygon.conndev.spi.*;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.sql.base.sync.SqlSyncOperation;
+import com.evolveum.polygon.sql.base.sync.SyncConfig;
+import com.evolveum.polygon.sql.base.sync.strategy.SoftDeleteFilterStrategy;
 import groovy.lang.Closure;
 import groovy.lang.GroovyShell;
 import org.identityconnectors.framework.common.objects.ObjectClass;
@@ -43,14 +46,10 @@ public class SqlHandlerBuilder {
     /**
      * Evaluates a Groovy script from a classpath resource as handler definitions.
      * Scripts can call objectClass("name") { search(...) } to register handlers.
-     *
-     * @param resourceName classpath resource path
      */
     public void loadFromResource(String resourceName) {
         try (var is = this.getClass().getClassLoader().getResourceAsStream(resourceName)) {
-            if (is == null) {
-                return;
-            }
+            if (is == null) return;
             shell.evaluate(new InputStreamReader(is), resourceName);
         } catch (Exception e) {
             throw new RuntimeException("Failed to load Groovy handler script from resource: " + resourceName + ": " + e.getMessage(), e);
@@ -88,8 +87,15 @@ public class SqlHandlerBuilder {
     }
 
     /**
+     * Checks if a handler for the given operation type has already been registered.
+     */
+    public boolean hasRegistered(ObjectClass objectClass, Class<?> operationType) {
+        var map = handlers.get(objectClass);
+        return map != null && map.containsKey(operationType);
+    }
+
+    /**
      * Wrapper that provides the {@code objectClass} function for Groovy handler scripts.
-     * Scripts use it to register handlers per object class.
      */
     private static class HandlerMethod {
         private final SqlHandlerBuilder builder;
@@ -104,27 +110,31 @@ public class SqlHandlerBuilder {
                 throw new IllegalArgumentException("objectClass() requires a name argument");
             }
             String name = args[0] instanceof String s ? s : args[0].toString();
+            var oc = new ObjectClass(name);
 
-            Map<Class<?>, Object> map = builder.handlers
-                    .computeIfAbsent(new ObjectClass(name), k -> new HashMap<>());
+            Map<Class<?>, Object> map = builder.handlers.computeIfAbsent(oc, k -> new HashMap<>());
 
             if (args.length > 1 && args[1] instanceof Closure<?> closure) {
-                var facade = new GroovyHandlerFacade(map);
+                var facade = new GroovyHandlerFacade(map, oc, builder.context);
                 return GroovyClosures.callAndReturnDelegate(closure, facade);
             }
-            return new GroovyHandlerFacade(map);
+            return new GroovyHandlerFacade(map, oc, builder.context);
         }
     }
 
     /**
      * Facade for Groovy operation scripts.
-     * Provides operation registration methods: search, create, update, delete.
+     * Provides operation registration methods: search, create, update, delete, sync.
      */
     public static class GroovyHandlerFacade {
         private final Map<Class<?>, Object> handlers;
+        private final ObjectClass objectClass;
+        private final SqlBaseContext context;
 
-        GroovyHandlerFacade(Map<Class<?>, Object> handlers) {
+        GroovyHandlerFacade(Map<Class<?>, Object> handlers, ObjectClass objectClass, SqlBaseContext context) {
             this.handlers = handlers;
+            this.objectClass = objectClass;
+            this.context = context;
         }
 
         public GroovyHandlerFacade search(Object handler) {
@@ -144,6 +154,69 @@ public class SqlHandlerBuilder {
 
         public GroovyHandlerFacade delete(Object handler) {
             handlers.put(ObjectDeleteOperation.class, handler);
+            return this;
+        }
+
+        /**
+         * Configures sync operation for this object class with default settings.
+         *
+         * <pre>
+         * objectClass("User") {
+         *     sync {}   // use default SyncConfig
+         * }
+         * </pre>
+         */
+        public GroovyHandlerFacade sync() {
+            var def = context.findSqlObjectClass(objectClass);
+            if (def != null) {
+                handlers.put(ObjectSyncOperation.class,
+                    new SqlSyncOperation(context, def, SyncConfig.defaultFor(def)));
+            }
+            return this;
+        }
+
+        /**
+         * Configures sync operation with custom settings.
+         *
+         * <pre>
+         * objectClass("User") {
+         *     sync {
+         *         syncColumn "updated_at"
+         *         softDeleteColumn "deleted_at"
+         *         pageSize 500
+         *     }
+         * }
+         * </pre>
+         */
+        @SuppressWarnings("unchecked")
+        public GroovyHandlerFacade sync(Map<String, Object> config) {
+            SyncConfig baseConfig = SyncConfig.defaultFor(context.findSqlObjectClass(objectClass));
+
+            if (config.containsKey("syncColumn")) {
+                var val = config.get("syncColumn");
+                String colName = val instanceof String s ? s : val.toString();
+                baseConfig = baseConfig.withExplicitColumn(colName);
+            }
+
+            if (config.containsKey("softDeleteColumn")) {
+                var val = config.get("softDeleteColumn");
+                String colName = val instanceof String s ? s : val.toString();
+                baseConfig = baseConfig.withFilterStrategy(new SoftDeleteFilterStrategy(colName));
+            }
+
+            if (config.containsKey("pageSize") && config.get("pageSize") instanceof Number n) {
+                baseConfig = baseConfig.withPageSize(n.intValue());
+            }
+
+            var def = context.findSqlObjectClass(objectClass);
+            if (def != null && config.containsKey("syncColumn")) {
+                handlers.put(ObjectSyncOperation.class,
+                    new SqlSyncOperation(context, def, baseConfig));
+            } else if (def != null && !config.isEmpty()) {
+                // Only register if we have meaningful config or default was not already registered
+                handlers.put(ObjectSyncOperation.class,
+                    new SqlSyncOperation(context, def, baseConfig));
+            }
             return this;
         }
     }

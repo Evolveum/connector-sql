@@ -9,10 +9,13 @@ package com.evolveum.polygon.sql.base;
 import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.concepts.RetrievableContext;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlSchema;
 import com.evolveum.polygon.sql.base.connection.HikariConnectionPool;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
 import com.evolveum.polygon.sql.base.connection.SqlQueryEngine;
+import com.querydsl.sql.SQLQuery;
+import com.querydsl.sql.SQLTemplates;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.util.Collections;
@@ -33,6 +36,7 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
     private Map<ObjectClass, ObjectClassHandler> handlers;
     private volatile HikariConnectionPool connectionPool;
     private SqlQueryEngine sqlQueryEngine;
+    private SQLTemplates templates;
 
     public SqlBaseContext(SqlConnectorConfiguration configuration) {
         this.configuration = configuration;
@@ -60,6 +64,14 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
 
     public void schema(SqlSchema schema) {
         this.schema = schema;
+    }
+
+    /**
+     * Finds the SQL object class definition corresponding to the given ConnId object class.
+     * Returns null if no matching definition exists.
+     */
+    public SqlObjectClassDefinition findSqlObjectClass(ObjectClass oc) {
+        return schema.objectClass(oc);
     }
 
     public Map<ObjectClass, ObjectClassHandler> handlers() {
@@ -144,9 +156,17 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
             throw new IllegalStateException("Connection pool not initialized");
         }
         try {
-            return pool.getConnection();
+            return pool.getConnection(templates);
         } catch (Exception e) {
             throw new IllegalStateException("Failed to get connection from pool", e);
         }
+    }
+
+    public void setSqlTemplates(SQLTemplates sqlTemplates) {
+        this.templates = sqlTemplates;
+    }
+
+    public SQLTemplates getSqlTemplates() {
+        return templates;
     }
 }

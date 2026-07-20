@@ -16,10 +16,9 @@ import java.sql.JDBCType;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
-import java.time.LocalDate;
-import java.time.LocalTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAccessor;
 import java.util.Set;
 import java.util.function.BiFunction;
 
@@ -83,21 +82,21 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
             }
             if (value instanceof String s) {
                 try {
-                    return java.sql.Date.valueOf(s);
+                    return Date.valueOf(s);
                 } catch (IllegalArgumentException e) {
                     try {
-                        return java.sql.Date.valueOf(s.substring(0, 10));
+                        return Date.valueOf(s.substring(0, 10));
                     } catch (IllegalArgumentException ex) {
                         throw new IllegalArgumentException("Cannot parse string '" + s + "' to java.sql.Date", ex);
                     }
                 }
             }
             if (value instanceof LocalDate ld) {
-                return java.sql.Date.valueOf(ld);
+                return Date.valueOf(ld);
             }
-            if (value instanceof java.time.temporal.TemporalAccessor t) {
-                String iso = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE.format(java.time.LocalDate.from(t));
-                return java.sql.Date.valueOf(iso);
+            if (value instanceof TemporalAccessor t) {
+                var iso = DateTimeFormatter.ISO_LOCAL_DATE.format(LocalDate.from(t));
+                return Date.valueOf(iso);
             }
             throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to java.sql.Date");
         }
@@ -121,21 +120,21 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
             }
             if (value instanceof String s) {
                 try {
-                    return java.sql.Time.valueOf(s);
+                    return Time.valueOf(s);
                 } catch (IllegalArgumentException e) {
                     try {
-                        return java.sql.Time.valueOf(s.substring(s.indexOf(' ') + 1));
+                        return Time.valueOf(s.substring(s.indexOf(' ') + 1));
                     } catch (IllegalArgumentException ex) {
                         throw new IllegalArgumentException("Cannot parse string '" + s + "' to java.sql.Time", ex);
                     }
                 }
             }
             if (value instanceof LocalTime lt) {
-                return java.sql.Time.valueOf(lt);
+                return Time.valueOf(lt);
             }
-            if (value instanceof java.time.temporal.TemporalAccessor t) {
-                String iso = java.time.format.DateTimeFormatter.ISO_LOCAL_TIME.format(java.time.LocalTime.from(t));
-                return java.sql.Time.valueOf(iso);
+            if (value instanceof TemporalAccessor t) {
+                var iso = DateTimeFormatter.ISO_LOCAL_TIME.format(LocalTime.from(t));
+                return Time.valueOf(iso);
             }
             throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to java.sql.Time");
         }
@@ -157,42 +156,42 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
             if (value instanceof Timestamp) {
                 return value;
             }
-            if (value instanceof java.sql.Timestamp) {
-                return (java.sql.Timestamp) value;
+            if (value instanceof Timestamp timestamp) {
+                return timestamp;
             }
             if (value instanceof String s) {
                 try {
-                    return java.sql.Timestamp.valueOf(s);
+                    return Timestamp.valueOf(s);
                 } catch (IllegalArgumentException e) {
                     try {
-                        return java.sql.Timestamp.valueOf(s.replace('T', ' '));
+                        return Timestamp.valueOf(s.replace('T', ' '));
                     } catch (IllegalArgumentException ex) {
                         try {
-                            return java.sql.Timestamp.valueOf(s.substring(0, 10) + " 00:00:00");
+                            return Timestamp.valueOf(s.substring(0, 10) + " 00:00:00");
                         } catch (IllegalArgumentException ex2) {
                             throw new IllegalArgumentException("Cannot parse string '" + s + "' to java.sql.Timestamp", ex2);
                         }
                     }
                 }
             }
-            if (value instanceof java.sql.Date d) {
-                return new java.sql.Timestamp(d.getTime());
+            if (value instanceof Date d) {
+                return new Timestamp(d.getTime());
             }
-            if (value instanceof java.sql.Time t) {
-                return new java.sql.Timestamp(t.getTime());
+            if (value instanceof Time t) {
+                return new Timestamp(t.getTime());
             }
             if (value instanceof ZonedDateTime zdt) {
-                return java.sql.Timestamp.from(zdt.toInstant());
+                return Timestamp.from(zdt.toInstant());
             }
-            if (value instanceof java.time.Instant i) {
-                return java.sql.Timestamp.from(i);
+            if (value instanceof Instant i) {
+                return Timestamp.from(i);
             }
             if (value instanceof LocalDate ld) {
-                return java.sql.Timestamp.valueOf(ld.atStartOfDay());
+                return Timestamp.valueOf(ld.atStartOfDay());
             }
-            if (value instanceof java.time.temporal.TemporalAccessor t) {
-                String iso = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(java.time.LocalDateTime.from(t));
-                return java.sql.Timestamp.valueOf(iso);
+            if (value instanceof TemporalAccessor t) {
+                var iso = DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(LocalDateTime.from(t));
+                return Timestamp.valueOf(iso);
             }
             throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to java.sql.Timestamp");
         }
@@ -205,18 +204,18 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
             if (value == null) {
                 return null;
             }
-            if (value instanceof java.sql.Timestamp) {
+            if (value instanceof Timestamp) {
                 return value;
             }
             if (value instanceof String s) {
                 try {
-                    return java.sql.Timestamp.valueOf(s);
+                    return Timestamp.valueOf(s);
                 } catch (IllegalArgumentException e) {
                     try {
-                        return java.sql.Timestamp.valueOf(s.replace('T', ' '));
+                        return Timestamp.valueOf(s.replace('T', ' '));
                     } catch (IllegalArgumentException ex) {
                         try {
-                            return java.sql.Timestamp.valueOf(s.substring(0, 10) + " 00:00:00");
+                            return Timestamp.valueOf(s.substring(0, 10) + " 00:00:00");
                         } catch (IllegalArgumentException ex2) {
                             throw new IllegalArgumentException("Cannot parse string '" + s + "' to java.sql.Timestamp", ex2);
                         }
@@ -224,20 +223,20 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
                 }
             }
             if (value instanceof ZonedDateTime zdt) {
-                return java.sql.Timestamp.from(zdt.toInstant());
+                return Timestamp.from(zdt.toInstant());
             }
-            if (value instanceof java.time.Instant i) {
-                return java.sql.Timestamp.from(i);
+            if (value instanceof Instant i) {
+                return Timestamp.from(i);
             }
-            if (value instanceof java.sql.Date d) {
-                return new java.sql.Timestamp(d.getTime());
+            if (value instanceof Date d) {
+                return new Timestamp(d.getTime());
             }
-            if (value instanceof java.sql.Time t) {
-                return new java.sql.Timestamp(t.getTime());
+            if (value instanceof Time t) {
+                return new Timestamp(t.getTime());
             }
-            if (value instanceof java.time.temporal.TemporalAccessor t) {
-                String iso = java.time.format.DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(java.time.LocalDateTime.from(t));
-                return java.sql.Timestamp.valueOf(iso);
+            if (value instanceof TemporalAccessor t) {
+                var iso = DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(LocalDateTime.from(t));
+                return Timestamp.valueOf(iso);
             }
             throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to JDBC timestamp value");
         }

@@ -6,6 +6,10 @@
  */
 package com.evolveum.polygon.sql.base.connection;
 
+import com.querydsl.core.Tuple;
+import com.querydsl.sql.SQLQuery;
+import com.querydsl.sql.SQLTemplates;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 
@@ -16,11 +20,13 @@ import java.sql.SQLException;
 public class SqlConnection implements AutoCloseable {
 
     private final Connection connection;
+    private final SQLTemplates templates;
     private boolean autoClose = true;
     private boolean inTransaction = false;
 
-    public SqlConnection(Connection connection) {
+    public SqlConnection(Connection connection, SQLTemplates templates) {
         this.connection = connection;
+        this.templates = templates;
         try {
             inTransaction = !connection.getAutoCommit();
         } catch (SQLException e) {
@@ -80,6 +86,10 @@ public class SqlConnection implements AutoCloseable {
     public void setAutoCommit(boolean autoCommit) throws SQLException {
         connection.setAutoCommit(autoCommit);
         inTransaction = !autoCommit;
+    }
+
+    public SQLQuery<Tuple> newQuery() {
+        return new SQLQuery<>(connection, templates);
     }
 
     @Override
