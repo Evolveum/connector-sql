@@ -248,6 +248,15 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
         @Override public Object singleValueFromAttribute(Object value) { return value; }
 
         @Override
+        public List<Object> valuesFromObject(SqlTuple object) {
+            var builder = new StringBuilder().append(mainColumn.singleValueFromObject(object));
+            for (var additionalColumn : additionalColumns) {
+                builder.append(delimiter).append(additionalColumn.singleValueFromObject(object));
+            }
+            return List.of(builder.toString());
+        }
+
+        @Override
         public List<Object> valuesFromAttribute(Object value) {
             if (value == null) return Collections.emptyList();
             if (value instanceof String s) {

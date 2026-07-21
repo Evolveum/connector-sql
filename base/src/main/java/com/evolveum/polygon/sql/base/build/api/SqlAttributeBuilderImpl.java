@@ -11,6 +11,7 @@ import com.evolveum.polygon.conndev.concepts.SourceLocation;
 import com.evolveum.polygon.conndev.schema.AttributeProtocolMappingBuilder;
 import com.evolveum.polygon.conndev.schema.BaseAttributeBuilder;
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinitionBuilder;
+import com.evolveum.polygon.conndev.schema.ValueTypeOverrideMapping;
 import com.evolveum.polygon.sql.base.build.spi.SpiSqlAttributeBuilder;
 import com.evolveum.polygon.sql.base.connection.SqlValueMapping;
 
@@ -42,6 +43,7 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
         private DefinitionValue<Boolean> autoIncrement = DefinitionValue.DEFAULT_FALSE;
         private DefinitionValue<SqlValueMapping> valueMapping = DefinitionValue.emptyDefault();
         private final List<SqlAdditionalColumnDef> additionalColumns = new ArrayList<>();
+        private SqlAttributeMapping override;
 
         public SqlMappingBuilder(String name) { this.column = DefinitionValue.defaultFrom(name); }
 
@@ -80,16 +82,23 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
 
         @Override
         public SqlAttributeMapping build() {
+            if (this.override != null) {
+                return this.override;
+            }
+
             if (column.isEmpty() || (valueMapping.isEmpty() && type.isEmpty())) { return null; }
             var overrideMapping = connId().overrideMappingIfNeeded(this.valueMapping.value());
             var main = SqlAttributeMapping.singleColumn(column, this.valueMapping.value(), overrideMapping);
-            if (additionalColumns.isEmpty()) { return main; }
+            if (additionalColumns.isEmpty()) {
+                return main;
+            }
             var extra = new ArrayList<SqlAttributeMapping.SingleColumn>();
             for (var a : additionalColumns) {
                 var mapped = a.mapping() != null ? a.mapping() : SqlValueMapping.from(a.jdbcType());
+                var override = ValueTypeOverrideMapping.of(String.class, mapped);
                 extra.add(SqlAttributeMapping.singleColumn(
                         DefinitionValue.from(a.column(), SourceLocation.capture()),
-                        mapped, overrideMapping));
+                        mapped, override));
             }
             return SqlAttributeMapping.multiColumn(main, extra, SqlAttributeMapping.DEFAULT_DELIMITER);
         }
@@ -97,6 +106,10 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
         private SqlMappingBuilder addExtra(String name, SqlValueMapping mapping, int jdbcType) {
             additionalColumns.add(new SqlAdditionalColumnDef(name, mapping, jdbcType));
             return this;
+        }
+
+        public void override(SqlAttributeMapping mapping) {
+            this.override = mapping;
         }
 
         private record SqlAdditionalColumnDef(String column, SqlValueMapping mapping, int jdbcType) { }

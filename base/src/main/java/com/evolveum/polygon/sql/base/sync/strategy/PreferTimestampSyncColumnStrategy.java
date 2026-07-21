@@ -7,7 +7,6 @@
 package com.evolveum.polygon.sql.base.sync.strategy;
 
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
-import com.evolveum.polygon.sql.base.build.api.SqlAttributeMapping;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 
 import java.util.List;

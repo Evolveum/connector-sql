@@ -160,6 +160,12 @@
                             <include>**/*Tests.java</include>
                             <include>**/*TestCase.java</include>
                         </includes>
+                        <excludes>
+                            <!-- Use property-based exclusion: only exclude if oracle.tests is NOT set -->
+                        </excludes>
+                        <excludes>
+                            <exclude>**/*Oracle*Test.java</exclude>
+                        </excludes>
                     </configuration>
                     <dependencies>
                         <dependency>
@@ -217,6 +223,41 @@
     </build>
 
     <profiles>
+        <profile>
+            <id>oracle</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+                <property>
+                    <name>oracle.tests</name>
+                </property>
+            </activation>
+            <build>
+                <pluginManagement>
+                    <plugins>
+                     <plugin>
+                         <groupId>org.apache.maven.plugins</groupId>
+                         <artifactId>maven-surefire-plugin</artifactId>
+                         <configuration>
+                             <!-- When Oracle profile is active: include all tests, no exclusions -->
+                             <includes>
+                                 <include>**/Test*.java</include>
+                                 <include>**/*Test.java</include>
+                                 <include>**/*Tests.java</include>
+                                 <include>**/*TestCase.java</include>
+                             </includes>
+                             <!-- Explicit empty excludes to override default's Oracle exclusion -->
+                             <excludes>
+                             </excludes>
+                         </configuration>
+                     </plugin>
+                    </plugins>
+                </pluginManagement>
+            </build>
+            <modules>
+                <module>base</module>
+                <module>connector</module>
+            </modules>
+        </profile>
         <profile>
             <id>sbom</id>
             <build>

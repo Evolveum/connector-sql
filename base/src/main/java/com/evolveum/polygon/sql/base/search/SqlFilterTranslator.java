@@ -8,7 +8,6 @@ package com.evolveum.polygon.sql.base.search;
 
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
-import com.querydsl.core.types.Predicate;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.sql.RelationalPathBase;
@@ -48,7 +47,7 @@ public final class SqlFilterTranslator {
      * Returns a QueryDSL predicate for the given filter, or {@code null} if the filter is
      * {@code null}.
      */
-    public static Predicate translate(SqlObjectClassDefinition objectClass,
+    public static BooleanExpression translate(SqlObjectClassDefinition objectClass,
                                       RelationalPathBase<?> tablePath,
                                       Filter filter) {
         if (filter == null) {

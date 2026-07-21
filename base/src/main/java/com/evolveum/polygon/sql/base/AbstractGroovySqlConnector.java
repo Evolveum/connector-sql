@@ -13,8 +13,8 @@ import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
 import com.evolveum.polygon.conndev.spi.ObjectSyncOperation;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
+import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilder;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
-import com.evolveum.polygon.sql.base.connection.SqlQueryEngine;
 import com.evolveum.polygon.sql.base.dev.SqlObjectClassDevHandler;
 import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
@@ -115,6 +115,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
 
         // Load Groovy scripts into the builder via subclass-provided init method
         var loader = new SqlGroovySchemaLoader(context, builder, groovyContext);
+        initializeSchema(builder);
         initializeSchema(loader);
 
 
@@ -177,6 +178,10 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         }
 
         context.handlers(handlerBuilder.build());
+    }
+
+    protected void initializeSchema(SqlSchemaBuilder builder) {
+        // NOOP for overriding
     }
 
     /**

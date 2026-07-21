@@ -15,21 +15,15 @@ import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Path;
 import com.querydsl.core.types.Predicate;
-import com.querydsl.core.types.dsl.ComparablePath;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.sql.RelationalPathBase;
 import com.querydsl.sql.SQLQuery;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
-import org.identityconnectors.framework.common.objects.ConnectorObject;
-import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
-import org.identityconnectors.framework.common.objects.OperationOptions;
-import org.identityconnectors.framework.common.objects.ResultsHandler;
+import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 
-import java.sql.SQLException;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -59,10 +53,9 @@ public class SqlSearchOperation implements FilterAwareExecuteQueryProcessor {
 
         try (var conn = context.getConnection()) {
 
-            var jdbcConn = conn.getConnection();
             int pageSize = 200;
             int offset = 0;
-            Predicate predicate = Expressions.TRUE;
+            var predicate = Expressions.TRUE;
             if (filter != null) {
                 predicate = SqlFilterTranslator.translate(objectClass, tablePath, filter);
             }
@@ -102,11 +95,21 @@ public class SqlSearchOperation implements FilterAwareExecuteQueryProcessor {
 
     private Map<SqlAttributeDefinition, Collection<Path<?>>> selectColumns(Path<?> table, OperationOptions options) {
         Map<SqlAttributeDefinition, Collection<Path<?>>> columns = new HashMap<>();
+        // UID and Name must be always selected
+        var uidAttribute = objectClass.attributeFromConnIdName(Uid.NAME);
+        columns.put(uidAttribute, uidAttribute.sql().selectPaths(table));
+
+        var nameAttribute = objectClass.attributeFromConnIdName(Name.NAME);
+        if (nameAttribute.sql() != null) {
+            columns.put(nameAttribute, nameAttribute.sql().selectPaths(table));
+        }
+
         for (var attr : objectClass.attributes()) {
             if (attr.sql() != null && attr.connId().isReturnedByDefault()) {
                 columns.put(attr, attr.sql().selectPaths(table));
             }
         }
+
         return columns;
     }
 
@@ -121,6 +124,7 @@ public class SqlSearchOperation implements FilterAwareExecuteQueryProcessor {
                     builder.addAttribute(attr.attributeOf(value));
                 }
         }
+        // FIXME: Maybe there is need to compute UID, NAME attributes
         return builder.build();
     }
 

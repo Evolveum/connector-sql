@@ -13,16 +13,10 @@ import com.evolveum.polygon.sql.base.build.api.*;
 import com.evolveum.polygon.sql.base.connection.SqlValueMapping;
 import com.evolveum.polygon.sql.base.schema.strategy.DefaultDetectionStrategy;
 import com.evolveum.polygon.sql.base.schema.strategy.OnlyExplicitAttributesDetectionStrategy;
-import org.identityconnectors.framework.common.objects.AttributeInfo;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Connector;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.sql.Date;
-import java.sql.Time;
-import java.sql.Timestamp;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -246,6 +240,15 @@ public class SqlSchemaTranslator {
                 break;
             }
         }
+        // Fallback: if no UID detected (e.g., composite PK tables), use first PK column
+        if (uid.isEmpty()) {
+            List<SqlColumnMeta> pks = table.getColumns().stream()
+                    .filter(SqlColumnMeta::isPrimaryKey)
+                    .toList();
+            if (!pks.isEmpty()) {
+                uid = Optional.of(pks.getFirst());
+            }
+        }
         return uid;
     }
 
@@ -259,16 +262,19 @@ public class SqlSchemaTranslator {
         SqlValueMapping mapping = SqlValueMapping.from(column.getTypeCode());
 
         if (column.getReferencedTable() != null) {
-            attribute.objectClass(column.getReferencedTable());
-            attribute.role(AttributeInfo.RoleInReference.SUBJECT);
+            // FK columns: set subtype if needed, but skip objectClass/role
+            // The attribute will appear as a regular column, not a reference
             if (column.getForeignKeyName() != null) {
                 attribute.subtype(column.getForeignKeyName());
             }
-            // FIXME: Maybe additional metadata are needed to properly determine SUBJECT / OBJECT / OWNER relationship
-
-        } else {
+        }
+        if (mapping != null) {
             connId.type(detected(mapping.connIdType()));
             sql.valueMapping(DefinitionValue.detected(mapping));
+        } else {
+            // Unknown column type (e.g., Oracle returns VARCHAR as typeCode=2 (NUMERIC))
+            // Fallback: use VARCHAR mapping since typeName usually contains 'CHAR' or similar
+            connId.type(String.class);
         }
 
         if (isLargeType(column.getTypeName())) {
@@ -284,72 +290,6 @@ public class SqlSchemaTranslator {
 
     }
 
-    private Class<?> connIdType(java.lang.reflect.Type javaType, String typeName) {
-        if (javaType != null && javaType instanceof Class<?> clazz) {
-            Class<?> resolved = mapJavaTypeToConnId(clazz);
-            if (resolved != null) {
-                return resolved;
-            }
-        }
-        return connIdType(typeName);
-    }
-
-    private Class<?> mapJavaTypeToConnId(Class<?> javaType) {
-        if (javaType == String.class) {
-            return String.class;
-        }
-        if (BigInteger.class.isAssignableFrom(javaType)) {
-            return Long.class;
-        }
-        if (BigDecimal.class.isAssignableFrom(javaType)) {
-            return Double.class;
-        }
-        if (Date.class.isAssignableFrom(javaType)) {
-            return String.class;
-        }
-        if (Time.class.isAssignableFrom(javaType)) {
-            return String.class;
-        }
-        if (Timestamp.class.isAssignableFrom(javaType)) {
-            return String.class;
-        }
-        if (Number.class.isAssignableFrom(javaType)) {
-            return Long.class;
-        }
-        if (boolean.class.equals(javaType) || Boolean.class.equals(javaType)) {
-            return Boolean.class;
-        }
-        if (double.class.equals(javaType) || Double.class.equals(javaType) ||
-            Float.class.equals(javaType) || float.class.equals(javaType)) {
-            return Double.class;
-        }
-        if (byte[].class.isAssignableFrom(javaType)) {
-            return byte[].class;
-        }
-        return null;
-    }
-
-    private Class<?> connIdType(String typeName) {
-        if (typeName == null) {
-            return String.class;
-        }
-        var upper = typeName.toUpperCase();
-        switch (upper) {
-            case "VARCHAR": case "CHAR": case "TEXT": case "VARCHAR2":
-            case "DATE": case "TIME": case "TIMESTAMP": case "DATETIME":
-                return String.class;
-            case "INTEGER": case "INT": case "SMALLINT": case "TINYINT": case "BIGINT":
-                return Long.class;
-            case "DECIMAL": case "NUMERIC": case "FLOAT": case "REAL": case "DOUBLE":
-                return Double.class;
-            case "BOOLEAN": case "BOOL":
-                return Boolean.class;
-            case "BLOB": case "BYTEA": case "VARBINARY":
-                return byte[].class;
-            default:
-                return String.class;
-        }
-    }
 
     private boolean isLargeType(String typeName) {
         if (typeName == null) {

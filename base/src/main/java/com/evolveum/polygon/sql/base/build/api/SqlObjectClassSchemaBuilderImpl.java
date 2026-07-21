@@ -99,14 +99,13 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
 
         if (!connIdAttrs.containsKey(Name.NAME)) {
             var uidAttribute = connIdAttrs.get(Uid.NAME);
-            if (uidAttribute != null && uidAttribute.sql() instanceof SqlAttributeMapping.SingleColumn uidMapping) {
+            if (uidAttribute != null && uidAttribute.sql() instanceof SqlAttributeMapping mapping) {
                 var attributeBuilder = newAttribute(DefinitionValue.defaultFrom(Name.NAME));
                 attributeBuilder.emulated(DefinitionValue.detected(true));
-                attributeBuilder.sql().column(uidMapping.column());
-                attributeBuilder.sql().valueMapping(DefinitionValue.detected(uidMapping.sqlMapping()));
+                attributeBuilder.sql().override(mapping);
                 var attribute = attributeBuilder.build();
                 nativeAttrs.put(Name.NAME, attribute);
-                connIdAttrs.put(Uid.NAME, attribute);
+                connIdAttrs.put(Name.NAME, attribute);
             }
         }
 

@@ -9,10 +9,8 @@ package com.evolveum.polygon.sql.base;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeMapping;
 import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
-import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.sql.RelationalPathBase;
 import org.identityconnectors.framework.common.objects.filter.AttributeFilter;
-import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.common.objects.filter.FilterBuilder;
 import org.testng.annotations.Test;
 
@@ -22,9 +20,9 @@ import java.sql.Timestamp;
 import java.time.*;
 import java.util.List;
 
-import static org.identityconnectors.framework.common.objects.AttributeBuilder.build;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.identityconnectors.framework.common.objects.AttributeBuilder.build;
 
 /**
  * Unit tests for datetime filter support in {@link SqlAttributeMapping} and {@link SqlSchemaValueMapping}.

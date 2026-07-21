@@ -42,6 +42,7 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
             return super.toConnIdValue(value);
         }
     },
+    NUMERIC(JDBCType.NUMERIC, BigDecimal.class, BigDecimal.class, QueryDslUtils.numberPath(BigDecimal.class)),
     TINYINT(JDBCType.TINYINT, Integer.class, Integer.class, QueryDslUtils.numberPath(Integer.class)),
     BIGINT(JDBCType.BIGINT, BigInteger.class, BigInteger.class, QueryDslUtils.numberPath(BigInteger.class)) ,
     DECIMAL(JDBCType.DECIMAL, BigDecimal.class, BigDecimal.class, QueryDslUtils.numberPath(BigDecimal.class)),

@@ -17,15 +17,24 @@ import java.util.*;
 
 public class SqlSchemaDetector {
 
+    // FIXME: Probably should be keyed by product
+    private static Set<String> SCHEMAS_TO_SKIP = Set.of(
+            "information_schema",
+            "sys", // ORACLE system schema
+            "system", // ORACLE system schema
+            "xdb"
+    );
+
+
     private final SqlBaseContext context;
-    
-    // Cached table name mapping to avoid repeated JDBC metadata queries
-    private Map<String, String> tableNameToExact;
-    
+
     // QueryDSL Configuration for type mapping
     private Configuration querydslConfig;
     
     // QueryDSL SQL templates, captured once during discovery (initialized during discover())
+    // Schema name to scope metadata queries (e.g., "ORACLE" for Oracle Free)
+    private String userSchema;
+
     private SQLTemplates templates;
 
     public SqlSchemaDetector(SqlBaseContext context) {
@@ -37,63 +46,51 @@ public class SqlSchemaDetector {
      * This method is idempotent and safe to call multiple times.
      */
     public List<SqlTableInfo> discover() throws SQLException {
-        try (var wrapper = context.getConnection()) {
+        try (var wrapper =  context.getConnection()) {
             var conn = wrapper.getConnection();
             var meta = conn.getMetaData();
-            
-// Initialize QueryDSL configuration for driver-aware type mapping
             var templatesFromRegistry = new SQLTemplatesRegistry().getTemplates(meta);
             if (templatesFromRegistry == null) {
                 templatesFromRegistry = SQLTemplates.DEFAULT;
             }
-// For H2, use H2Templates with no quoting - unqualified column paths avoid table.column issues
+
+            // For H2, use H2Templates with no quoting - unqualified column paths avoid table.column issues
             var productName = meta.getDatabaseProductName();
             if (productName != null && productName.toUpperCase().contains("H2")) {
                 templatesFromRegistry = new H2Templates(false);
             }
             templates = templatesFromRegistry;
             querydslConfig = new Configuration(templates);
-            
-            tableNameToExact = new LinkedHashMap<>();
-            
-            // Single metadata query to get all tables and their exact names
-            List<String> tableNames = getTableNames(conn);
 
-            Map<String, List<SqlColumnMeta>> colMap = new LinkedHashMap<>();
+            List<Table> tableNames = getTableList(conn, null);
+
+            Map<Table, List<SqlColumnMeta>> colMap = new LinkedHashMap<>();
 
             // For each table, collect column metadata (no repeated getTables() calls)
-            for (String tableName : tableNames) {
-                if (colMap.containsKey(tableName)) {
+            for (Table table : tableNames) {
+                if (colMap.containsKey(table)) {
                     continue;
                 }
-                var exactName = getExactTableName(conn, tableName);
-                if (exactName == null) {
-                    continue;
-                }
-                List<SqlColumnMeta> cols = getColumnMetas(conn, exactName);
+                List<SqlColumnMeta> cols = getColumnMetas(conn, table);
                 if (!cols.isEmpty()) {
-                    colMap.put(tableName, cols);
+                    colMap.put(table, cols);
                 }
             }
 
             List<SqlTableInfo> tables = new ArrayList<>();
-            for (Map.Entry<String, List<SqlColumnMeta>> entry : colMap.entrySet()) {
+            for (Map.Entry<Table, List<SqlColumnMeta>> entry : colMap.entrySet()) {
                 // Use the exact-cased name from metadata to ensure correct QueryDSL SQL generation.
-                // For H2 (even MySQL mode), quoted table names like "User" must be referenced 
+                // For H2 (even MySQL mode), quoted table names like "User" must be referenced
                 // with matching case in SQL queries.
-                String actualName = tableNameToExact != null 
-                        && tableNameToExact.containsKey(entry.getKey())
-                        ? tableNameToExact.get(entry.getKey()) : entry.getKey();
                 tables.add(SqlTableInfo.builder()
-                        .name(actualName)
+                                .schema(entry.getKey().schema())
+                        .name(entry.getKey().table())
                         .tableType("TABLE")
                         .columns(entry.getValue())
                         .build());
             }
-
-            tableNameToExact = null;
-            querydslConfig = null;  // allow GC after discovery
             return tables;
+
         }
     }
 
@@ -101,22 +98,19 @@ public class SqlSchemaDetector {
      * Retrieves all user table names (lowercase) from the database,
      * filtering out system/INFORMATION_SCHEMA tables.
      */
-    private List<String> getTableNames(Connection conn) throws SQLException {
-        List<String> names = new ArrayList<>();
-        try (var rs = conn.getMetaData().getTables(null, null, "%", new String[]{"TABLE"})) {
+    private List<Table> getTableList(Connection conn, String schemaName) throws SQLException {
+        List<Table> names = new ArrayList<>();
+        try (var rs = conn.getMetaData().getTables(null, schemaName, "%", new String[]{"TABLE"})) {
             var meta = rs.getMetaData();
             while (rs.next()) {
+                // TABLE_SCHEM is not typo, but actual column name
                 var schema = resolveColumn(rs, meta, "TABLE_SCHEM");
-                if (schema != null && schema.equalsIgnoreCase("information_schema")) {
+                if (schema != null && SCHEMAS_TO_SKIP.contains(schema.toLowerCase())) {
                     continue;
                 }
                 var name = resolveColumn(rs, meta, "TABLE_NAME");
                 if (name != null) {
-                    var lowerName = name.toLowerCase();
-                    names.add(lowerName);
-                    if (tableNameToExact != null) {
-                        tableNameToExact.put(lowerName, name);
-                    }
+                    names.add(new Table(schema,name));
                 }
             }
         }
@@ -145,43 +139,13 @@ public class SqlSchemaDetector {
     }
 
     /**
-     * Resolves the exact-cased table name from the cache populated during getTableNames().
-     * Falls back to querying if not cached (defensive).
-     */
-    private String getExactTableName(Connection conn, String lowerName) throws SQLException {
-        // First try the cache
-        if (tableNameToExact != null) {
-            var cached = tableNameToExact.get(lowerName);
-            if (cached != null) {
-                return cached;
-            }
-        }
-        // Fallback: re-query (should not happen in normal flow)
-        try (var rs = conn.getMetaData().getTables(null, null, "%", new String[]{"TABLE"})) {
-            while (rs.next()) {
-                var schema = resolveColumn(rs, rs.getMetaData(), "TABLE_SCHEM");
-                if (schema != null && schema.equalsIgnoreCase("information_schema")) {
-                    continue;
-                }
-                var name = resolveColumn(rs, rs.getMetaData(), "TABLE_NAME");
-                if (name != null && name.toLowerCase().equals(lowerName)) {
-                    return name;
-                }
-            }
-        }
-        return null;
-    }
-
-    /**
      * Collects column metadata (name, type, nullable, PK, auto-increment, unique)
      * for a specific table.
      */
-    private List<SqlColumnMeta> getColumnMetas(Connection conn, String exactName) throws SQLException {
+    private List<SqlColumnMeta> getColumnMetas(Connection conn, Table table) throws SQLException {
         List<SqlColumnMeta> cols = new ArrayList<>();
         // Use try-with-resources: multiple ResultSets on the same Connection is supported in JDBC 4.0+
-        try (var pkRs = conn.getMetaData().getPrimaryKeys(null, null, exactName);
-             var idxRs = conn.getMetaData().getIndexInfo(null, null, exactName, false, false)) {
-
+        try (var pkRs = conn.getMetaData().getPrimaryKeys(null, table.schema(), table.table())) {
             List<String> pkList = new ArrayList<>();
             while (pkRs.next()) {
                 var colName = resolveColumn(pkRs, pkRs.getMetaData(), "COLUMN_NAME");
@@ -190,9 +154,9 @@ public class SqlSchemaDetector {
                 }
             }
 
-            Set<String> uniqueCols = collectUniqueConstraintColumns(conn, exactName);
+            Set<String> uniqueCols = collectUniqueConstraintColumns(conn, table);
 
-            try (var colsRs = conn.getMetaData().getColumns(null, null, exactName, null)) {
+            try (var colsRs = conn.getMetaData().getColumns(null, table.schema(), table.table(), null)) {
                 var meta = colsRs.getMetaData();
                 while (colsRs.next()) {
                     var colName = resolveColumn(colsRs, meta, "COLUMN_NAME");
@@ -211,7 +175,7 @@ public class SqlSchemaDetector {
                     boolean isPk = pkList.contains(colLower);
 
                     // Use QueryDSL for Java type resolution (dialect-aware)
-                    var javaType = resolveJavaType(dataType, typeName, columnSize, decimalDigits, exactName, colLower);
+                    var javaType = resolveJavaType(dataType, typeName, columnSize, decimalDigits, table.table(), colLower);
                     
                     // Normalize type name using driver-typical TYPE_NAME (with fallback normalization)
                     var normalizedTypeName = normalizeTypeName(typeName);
@@ -233,7 +197,7 @@ public class SqlSchemaDetector {
 
             // Foreign keys: attach the referenced table/column (grouped by FK name) to the FK columns,
             // so a reference can be expressed on the attribute (supports composite keys).
-            try (var fkRs = conn.getMetaData().getImportedKeys(null, null, exactName)) {
+            try (var fkRs = conn.getMetaData().getImportedKeys(null, table.schema, table.table)) {
                 while (fkRs.next()) {
                     var fkColumn = resolveColumn(fkRs, fkRs.getMetaData(), "FKCOLUMN_NAME");
                     var pkTable = resolveColumn(fkRs, fkRs.getMetaData(), "PKTABLE_NAME");
@@ -257,9 +221,9 @@ public class SqlSchemaDetector {
     /**
      * Collects column names that have unique constraints by scanning index metadata.
      */
-    private Set<String> collectUniqueConstraintColumns(Connection conn, String exactName) throws SQLException {
+    private Set<String> collectUniqueConstraintColumns(Connection conn, Table table) throws SQLException {
         Set<String> uniqueCols = new HashSet<>();
-        try (var rs = conn.getMetaData().getIndexInfo(null, null, exactName, false, false)) {
+        try (var rs = conn.getMetaData().getIndexInfo(null, table.schema(), table.table(), false, false)) {
             var meta = rs.getMetaData();
             while (rs.next()) {
                 var isUniqueStr = resolveColumn(rs, meta, "NON_UNIQUE");
@@ -320,26 +284,15 @@ public class SqlSchemaDetector {
         }
         var u = dt.toUpperCase().trim();
 
-        switch (u) {
-            case "INTEGER":
-            case "INT": return "INT";
-            case "BIGINT": return "BIGINT";
-            case "SMALLINT": return "SMALLINT";
-            case "TINYINT": return "TINYINT";
-            case "TIMESTAMP": return "TIMESTAMP";
-            case "DATE": return "DATE";
-            case "TIME": return "TIME";
-            case "BOOLEAN": return "BOOLEAN";
-            case "BLOB": return "BLOB";
-            case "CLOB": return "CLOB";
-            case "DOUBLE PRECISION": return "DOUBLE";
-            case "DECIMAL": return "DECIMAL";
-            case "NUMERIC": return "NUMERIC";
-            case "CHARACTER VARYING": return "VARCHAR";
-            case "CHARACTER": return "VARCHAR";
-            case "VARBINARY": return "VARBINARY";
-            default: return "VARCHAR";
-        }
+        return switch (u) {
+            case "INTEGER" -> "INT";
+            case "BIGINT" -> "BIGINT";
+            case "DOUBLE PRECISION" -> "DOUBLE";
+            case "NUMBER" -> "NUMERIC";
+            case "CHARCHAR2", "CHARACTER VARYING", "CHARACTER" -> "VARCHAR";
+            case "VARBINARY" -> "VARBINARY";
+            default -> u;
+        };
     }
 
     /**
@@ -353,9 +306,7 @@ public class SqlSchemaDetector {
             return Types.class;  // fallback when metadata is missing
         }
         try {
-            int size = (columnSize > 0) ? columnSize : 0;
-            int digits = (decimalDigits > 0) ? decimalDigits : 0;
-            Class<?> clazz = querydslConfig.getJavaType(dataType, typeName, size, digits, tableName, columnName);
+            Class<?> clazz = querydslConfig.getJavaType(dataType, typeName, columnSize, decimalDigits, tableName, columnName);
             return clazz != null ? clazz : java.lang.Object.class;
         } catch (Exception e) {
             return java.lang.Object.class;
@@ -407,4 +358,5 @@ public class SqlSchemaDetector {
         return templates;
     }
 
+    record Table(String schema, String table) {}
 }

@@ -14,7 +14,6 @@ import com.evolveum.polygon.sql.base.build.api.SqlSchema;
 import com.evolveum.polygon.sql.base.connection.HikariConnectionPool;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
 import com.evolveum.polygon.sql.base.connection.SqlQueryEngine;
-import com.querydsl.sql.SQLQuery;
 import com.querydsl.sql.SQLTemplates;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
