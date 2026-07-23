@@ -1,0 +1,610 @@
+= Connecting SQL Databases with ConnId: A Customization Tutorial
+:author: Polygon SQL Connector Team
+:version: 0.1-SNAPSHOT
+:doctype: book
+:toc: left
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+:icons: font
+
+This tutorial guides you through building a customized SQL connector using Groovy scripts and a manifest file. You will learn how to map SQL tables to ConnId object classes, define attributes, configure synchronization, and package everything for deployment.
+
+[[prerequisites]]
+== Prerequisites
+
+* Java 21 (build target), Java 17+ (runtime)
+* Maven 3.8+
+* A SQL database (PostgreSQL, MySQL, Oracle, SQLite, or H2)
+* An identity management system that uses ConnId connectors (e.g., midPoint)
+
+== What You Will Build
+
+A working SQL connector that connects to a relational database via JDBC, maps SQL tables to identity object classes, customizes attribute names, configures incremental synchronization, and packages a deployable JAR.
+
+[[quickstart]]
+== Quickstart
+
+. Create a project referencing `connector-sql-base`.
+. Create a `connector.manifest.json` in `src/main/resources/`.
+. Write a Groovy schema script mapping your tables.
+. Build the connector JAR with Maven.
+
+=== The Manifest
+
+[source,json]
+----
+{
+  "connector": {
+    "schema": [
+      { "script": "/schema/users.groovy" }
+    ],
+    "operation": []
+  }
+}
+----
+
+=== The Schema Script
+
+[source,groovy]
+// src/main/resources/schema/users.groovy
+objectClass("User") {
+    sql { table "app_user" }
+
+    attribute("id") {
+        connId { name "__UID__" }
+        sql { type BIGINT; primaryKey(); autoIncrement() }
+    }
+
+    attribute("username") {
+        connId { name "__NAME__" }
+        sql { type VARCHAR(255) }
+    }
+
+    attribute("email") {
+        connId { name "emailAddress" }
+        sql { type VARCHAR(255) }
+    }
+}
+----
+
+=== Build
+
+[source,bash]
+----
+mvn package
+----
+
+Output: `connector/generic/target/connector-sql-generic-*.jar`
+
+== Understanding the Architecture
+
+The SQL connector is a multi-module Maven project:
+
+* `base/` -- core library: HikariCP connection pooling, QueryDSL-based SQL engine, JDBC metadata schema detection, SQL-to-ConnId type mapping, Groovy script loaders (schema + handlers).
+* `connector/generic/` -- assembly: bundles the base JAR, JDBC drivers, Groovy runtime, and scripts into a deployable connector JAR. The manifest MFA entry points to `ManifestBasedConnector` as the connector class.
+
+[[manifest]]
+== The Manifest File
+
+The manifest (`connector.manifest.json`) is a small JSON file placed on the classpath (typically under `src/main/resources/`). The `ManifestBasedConnector` reads it at construction time to discover schema scripts and operation handler scripts.
+
+=== Structure
+
+[source,json]
+----
+{
+  "connector": {
+    "schema": [
+      { "script": "/schema/users.groovy" },
+      { "script": "/schema/groups.groovy" }
+    ],
+    "operation": [
+      { "script": "/handlers/user_ops.groovy" }
+    ]
+  }
+}
+----
+
+* `schema` -- array of schema script resources. Loaded by `SqlGroovySchemaLoader` during initialization, these define which SQL tables map to ConnId object classes and attribute definitions.
+* `operation` -- array of handler script resources. Loaded by `SqlHandlerBuilder`, these register custom search/create/update/delete/sync handlers for object classes.
+
+=== Script Paths
+
+Paths starting with `/` are resolved as classpath resources from the root of the classpath.
+
+[source,groovy]
+----
+/schema/users.groovy       -> src/main/resources/schema/users.groovy
+/schema/groups.groovy       -> src/main/resources/schema/groups.groovy
+/handlers/user_ops.groovy  -> src/main/resources/handlers/user_ops.groovy
+----
+
+=== Configuration Properties (`SqlConnectorConfiguration`)
+
+Set via ConnId admin UI or framework config, not in the manifest.
+
+[cols="1,1,2,3"]
+|===
+|Property |Type |Default |Description
+
+|`jdbcUrl` |String |*required* |JDBC connection URL (e.g., `jdbc:postgresql://localhost:5432/mydb`)
+
+|`username` |String |*required* |Database username
+
+|`password` |String |*required* |Database password
+
+|`dialect` |String |`null` (auto) |SQL dialect: `postgresql`, `mysql`, `oracle`, `sqlite`, or `auto`. Detected automatically from JDBC metadata when not set.
+
+|`poolSize` |Integer |`10` |Maximum HikariCP connections in the pool
+
+|`connectionTimeout` |Integer |`30000` ms |How long to wait acquiring a connection
+
+|`idleTimeout` |Integer |`600000` ms |Idle connection eviction timeout
+
+|`validateConnectionOnBorrow` |Boolean |`true` |Run validation query on each borrow
+
+|`autoDiscoverSchema` |Boolean |`true` |Auto-discover all tables/columns via JDBC metadata, then correlate them with Groovy-defined object classes
+
+|`logSqlStatements` |Boolean |`false` |Log all generated SQL
+
+|`onlyExplicitlyListed` |Boolean |`false` |Only include columns that have an explicit Groovy-defined attribute. When false (default), all SQL columns become ConnId attributes automatically.
+|===
+
+=== Example ConnId Framework Configuration
+
+[source,xml]
+----
+<connector>
+  <connectorClass>com.evolveum.polygon.sql.base.groovy.impl.ManifestBasedConnector</connectorClass>
+  <configurationClass>com.evolveum.polygon.sql.base.SqlConnectorConfiguration</configurationClass>
+  <configuration>
+    <jdbcUrl>jdbc:postgresql://localhost:5432/mydb</jdbcUrl>
+    <username>admin</username>
+    <password>secret</password>
+    <dialect>postgresql</dialect>
+    <poolSize>10</poolSize>
+  </configuration>
+</connector>
+----
+
+== Writing Schema Scripts
+
+Schema scripts use a DSL built on Groovy closures. The entry point is the top-level `objectClass` function, provided by the `SqlGroovySchemaLoader` as a bound variable on the Groovy shell.
+
+Evaluation order during connector initialization:
+
+1. `SqlGroovySchemaLoader` is created with an `SqlSchemaBuilderImpl`.
+2. `initializeSchema(loader)` is called (implemented by the connector subclass or driven by manifest).
+3. Groovy scripts call `objectClass("Name") { ... }`, populating the builder.
+4. If `autoDiscoverSchema` is true, JDBC metadata is read and correlated with the builder's object classes.
+5. `loader.buildAndSet()` builds the final `SqlSchema` and stores it in the context.
+
+=== Mapping a Table
+
+Map a ConnId object class to an SQL table:
+
+[source,groovy]
+----
+objectClass("User") {
+    sql {
+        table "app_user"
+    }
+}
+----
+
+If `table` is omitted, the object class name is used as the table name.
+
+=== Attribute Definitions
+
+Each `attribute(name)` call creates an attribute definition. Inside the closure, you can set the `connId` block and the `sql` block.
+
+==== Explicit mapping with connId and sql blocks
+
+[source,groovy]
+----
+objectClass("User") {
+    sql { table "app_user" }
+
+    attribute("id") {
+        connId { name "__UID__" }
+        sql {
+            type BIGINT
+            primaryKey()
+            autoIncrement()
+        }
+    }
+
+    attribute("username") {
+        connId { name "__NAME__" }
+        sql {
+            type VARCHAR(255)
+            notNull()
+        }
+    }
+
+    attribute("email") {
+        connId { name "emailAddress" }
+        sql {
+            type VARCHAR(255)
+            unique()
+        }
+    }
+}
+----
+
+==== ConnId system attributes
+
+* `__UID__` -- the unique identifier of the object
+* `__NAME__` -- the human-readable name
+
+These are ConnId system attributes that every object class may define.
+
+==== Custom attributes (no SQL column)
+
+Attributes with no `sql` block have no backing column -- they are custom or computed values.
+
+[source,groovy]
+----
+objectClass("User") {
+    sql { table "app_user" }
+
+    attribute("id") {
+        connId { name "__UID__" }
+        sql { type BIGINT; primaryKey() }
+    }
+
+    // Custom attribute, not in the SQL table
+    attribute("loginCount") {
+        connId { name "loginCount" }
+        // No sql {} block -- this attribute exists only in the ConnId schema
+    }
+}
+----
+
+==== SQL column metadata
+
+Inside `sql {}` of an attribute, use method calls to specify column properties:
+
+[cols="1,2"]
+|===
+|Method |Description
+
+|`type TypeName` |SQL type: `BIGINT`, `INT`, `INTEGER`, `SMALLINT`, `TINYINT`, `VARCHAR(n)`, `TEXT`, `BOOLEAN`, `TIMESTAMP`, `DATE`, `DOUBLE`, `DECIMAL`, `BLOB`, `CLOB`. Convenience static constants: `INT`, `BIGINT`, `BOOLEAN`, `SMALLINT`, `TINYINT`, `VARCHAR(int)`.
+
+|`primaryKey()` |Mark as primary key
+
+|`autoIncrement()` |Mark as auto-generated (for ConnId `returnedByDefault` and `appendedByDefault`)
+
+|`notNull()` / `nullable()` |Column nullability
+
+|`unique()` |Unique constraint on the column
+|===
+
+==== SQL schema qualifier
+
+For databases that use schemas (PostgreSQL, Oracle):
+
+[source,groovy]
+----
+objectClass("User") {
+    sql {
+        schema "hr"
+        table "app_user"
+    }
+    // ... attributes
+}
+----
+
+==== Only Explicitly Listed
+
+When configured with `onlyExplicitlyListed = true`, the connector disables auto-detection of extra columns. Only columns with explicit Groovy-defined attributes appear in the ConnId schema.
+
+[source,groovy]
+----
+objectClass("User") {
+    onlyExplicitlyListed true
+
+    sql { table "app_user" }
+
+    attribute("id") {
+        connId { name "__UID__" }
+        sql { type BIGINT; primaryKey() }
+    }
+    // 'email' column exists in the DB but will NOT appear in ConnId schema
+}
+----
+
+==== Complete Example
+
+[source,groovy]
+// src/main/resources/schema/customize.groovy (from the project's test resources)
+// Maps table "app_user" -> ConnId object class "Person"
+objectClass("Person") {
+    sql { table "app_user" }
+
+    attribute("user_id") {
+        connId { name "__UID__" }
+    }
+    attribute("user_name") {
+        connId { name "__NAME__" }
+    }
+    attribute("user_email") {
+        connId { name "emailAddress" }
+    }
+    // Custom attribute (not on the SQL table)
+    attribute("loginCount") { }
+}
+
+// Maps table "app_group" -> ConnId object class "Team"
+objectClass("Team") {
+    sql { table "app_group" }
+
+    attribute("group_id") {
+        connId { name "__UID__" }
+    }
+    attribute("group_name") {
+        connId { name "__NAME__" }
+    }
+}
+----
+
+== Writing Operation Handler Scripts
+
+Operation handler scripts define custom search/create/update/delete/sync behavior per object class. They are loaded by `SqlHandlerBuilder` after schema initialization.
+
+=== The Handler DSL
+
+[source,groovy]
+----
+objectClass("User") {
+    // Override default search
+    search customSearchHandler
+
+    // Override default create, update, delete
+    create customCreateHandler
+    update customUpdateHandler
+    delete customDeleteHandler
+
+    // Configure sync
+    sync {
+        syncColumn "updated_at"
+        softDeleteColumn "deleted_at"
+        pageSize 500
+    }
+    // Or use defaults:
+    sync {}
+}
+----
+
+=== Default Handlers
+
+By default, the connector binds QueryDSL-based handlers:
+
+* `ObjectSearchOperation` -> `SqlSearchOperation` -- paginated SELECT with WHERE, ORDER BY
+* `ObjectSyncOperation` -> `SqlSyncOperation` -- incremental sync using a sync column
+
+Create, update, and delete operations have stub handlers (`SqlHandlerBuilder.create()`). Override them in operation scripts for custom SQL.
+
+=== Sync Configuration
+
+==== Default
+
+[source,groovy]
+----
+objectClass("User") {
+    sync {}
+}
+----
+
+==== Custom
+
+[source,groovy]
+----
+objectClass("User") {
+    sync {
+        syncColumn "updated_at"
+        softDeleteColumn "deleted_at"
+        pageSize 500
+    }
+}
+----
+
+[cols="1,2"]
+|===
+|Property |Description
+
+|`syncColumn` |Column name used to track changes for incremental sync. Required for sync to work. The connector auto-detects: first looks for the explicit name, then heuristic patterns (`updated_at`, `modified`, `last_modified`, etc.), then the first PK column.
+
+|`softDeleteColumn` |Column name for soft-delete rows. The connector adds `WHERE <col> IS NULL` to sync queries and detects tombstones separately.
+
+|`pageSize` |Number of rows fetched per page (default: 200). Controls the FETCH/LIMIT size for QueryDSL queries.
+|===
+
+=== Custom Search
+
+The handler closure's top-level function must be defined at the script's outer scope, and the script's delegate receives it. Here's a simplified pattern you can follow -- the delegate is a `GroovyHandlerFacade` that only accepts handlers (not closure-based overrides in the current codebase `create()` method is a stub):
+
+[source,groovy]
+// In your handler script, define a Groovy function at top level:
+def myCustomSearch(ObjectClass oc, OperationOptions opts) {
+    // Build and execute SQL; return a List<SqlTuple>
+    return results;
+}
+----
+
+For full custom operations, register them programmatically or via the manifest's handler scripts.
+
+=== Sync Column Detection Chain
+
+The connector resolves the sync column using this priority chain:
+
+1. **Explicit**: `syncColumn` set in the Groovy script's `sync` block.
+2. **Heuristic**: Look for a column matching known timestamp patterns (`updated_at`, `modified`, `last_modified`, `ts`, `date_modified`, etc.).
+3. **Fallback**: Use the first primary key column.
+
+If no sync column is found, the connector throws an error during initialization.
+
+=== Soft Delete
+
+When `softDeleteColumn` is set, the connector injects `WHERE <column> IS NULL` into sync queries and detects deleted rows by their tombstone values.
+
+[source,groovy]
+----
+objectClass("User") {
+    sync {
+        softDeleteColumn "deleted_at"
+    }
+}
+----
+
+=== Handler Script Loading
+
+Scripts under the `operation` array in the manifest are loaded via `SqlHandlerBuilder.loadFromResource()`. They share the same Groovy shell across all scripts, so you can define helper functions at the top level:
+
+[source,groovy]
+----
+// /handlers/shared.groovy -- defined here, available to all subsequent operation scripts
+def filterByStatus(int status) {
+    return { table -> table.status.eq(status) }
+}
+
+// /handlers/user_ops.groovy
+objectClass("User") {
+    sync {
+        // Uses function defined above
+        syncColumn "updated_at"
+    }
+}
+----
+
+=== Creating a Custom Connector Class
+
+For full control, subclass `AbstractGroovySqlConnector<SqlConnectorConfiguration>`:
+
+[source,java]
+----
+package com.example;
+
+import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
+import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
+import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
+import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
+
+public class MyCustomConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+
+    public MyCustomConnector() {
+        super(false);  // don't reinitialize on each call (production behavior)
+    }
+
+    @Override
+    protected void initializeSchema(SqlGroovySchemaLoader loader) {
+        loader.loadFromResource("/schema/employees.groovy");
+        loader.loadFromResource("/schema/departments.groovy");
+    }
+
+    @Override
+    protected void initializeObjectClassHandler(SqlHandlerBuilder builder) {
+        // Optionally load operation handler scripts
+    }
+}
+----
+
+Use `super(true)` for development (reinitializes on each call). Use `super(false)` for production (pool stays open across calls).
+
+== Building the Connector
+
+=== Module Structure Required
+
+Your project should have two modules:
+
+[source,text]
+----
+my-sql-connector/
+├── pom.xml                        (manparent POM)
+└── connector/
+    └── generic/
+        ├── pom.xml
+        └── src/
+            └── main/
+                ├── assembly/
+                │   └── connector.xml
+                └── resources/
+                    ├── connector.manifest.json
+                    ├── Messages.properties
+                    └── schema/
+                        └── my_schema.groovy
+----
+
+=== Assembly Descriptor
+
+[cols="1,3"]
+|===
+|File |Description
+
+|`connector/generic/src/main/assembly/connector.xml` |Maven Assembly Plugin descriptor that packages the JAR with all dependencies in a `lib/` subdirectory. |`connector/generic/pom.xml` |Maven POM specifying:
++
+* Parent: `connector-sql-parent`
+* Packaging: `jar`
+* Dependency: `connector-sql-base`
+* Assembly plugin with `ConnectorBundle-ConnectorClass` manifest entry pointing to `com.evolveum.polygon.sql.base.groovy.impl.ManifestBasedConnector`
+|===
+
+=== Build Command
+
+[source,bash]
+----
+mvn clean package
+----
+
+Producing an output similar to:
+
+[source,text]
+----
+connector/generic/target/connector-sql-generic-0.1-SNAPSHOT.jar
+├── com/evolveum/polygon/sql/base/groovy/impl/ManifestBasedConnector.class
+├── connector.manifest.json
+├── schema/my_schema.groovy
+├── Messages.properties
+└── lib/
+    ├── connector-sql-base-0.1-SNAPSHOT.jar
+    ├── hikaricp-5.1.0.jar
+    ├── groovy-4.0.25.jar
+    ├── querydsl-sql-*.jar
+    ├── postgresql-42.7.11.jar   (or your JDBC driver)
+    └── ...
+----
+
+== Deploying
+
+Copy the JAR to your identity management system's connector directory. Configure the connector properties (JDBC URL, username, password, and schema scripts) as appropriate. For midPoint:
+
+[source,xml]
+----
+<connector>
+  <connectorHost>localhost</connectorHost>
+  <configurationClass>com.evolveum.polygon.sql.base.SqlConnectorConfiguration</configurationClass>
+  <connectorClass>com.evolveum.polygon.sql.base.groovy.impl.ManifestBasedConnector</connectorClass>
+</connector>
+----
+
+Then configure the `jdbcUrl`, `username`, and `password` via the ConnId admin UI or framework configuration.
+
+== Production Checklist
+
+- [ ] Use `super(false)` in constructor (no reinitialize-on-each-call)
+- [ ] Set `poolSize` to match expected concurrent operations
+- [ ] Keep `validateConnectionOnBorrow` = true
+- [ ] Define `__UID__` for every object class
+- [ ] Define a sync column for object classes that will be sync'd incrementally
+- [ ] Test with a copy of production data before production deployment
+
+== Next Steps
+
+Read the xref:sql-connector-reference.adoc[SQL Connector Reference] for:
+
+* Complete Groovy DSL API reference
+* Sync strategy detail
+* Filter support matrices
+* JDBC driver compatibility
+* Troubleshooting guide

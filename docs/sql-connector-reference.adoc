@@ -1,0 +1,687 @@
+= SQL Connector Reference Guide
+:author: Polygon SQL Connector Team
+:version: 0.1-SNAPSHOT
+:doctype: book
+:toc: left
+:toclevels: 4
+:sectnums:
+:sectnumlevels: 4
+:icons: font
+:source-highlighter: coderay
+
+Complete reference documentation for the Polygon SQL Connector. Covers the Groovy DSL, configuration, sync strategies, filter support, and JDBC compatibility.
+
+[[groovy-schema-dsl]]
+== Groovy Schema DSL
+
+Schema scripts define the mapping between SQL tables and ConnId object classes. Loaded by `SqlGroovySchemaLoader` during connector initialization.
+
+The `objectClass` function is the top-level entry point. Inside its closure body, `this` delegates to `SqlObjectClassSchemaBuilder`.
+
+=== objectClass(name, closure)
+
+[source,groovy]
+----
+objectClass("User") {
+    sql { table "app_user" }
+    // ... attributes
+}
+----
+
+[cols="1,1,2"]
+|===
+|Parameter |Type |Description
+
+|`name` |String |ConnId object class name. Also used as the default SQL table name if `sql {}` does not override it.
+
+|`closure` |Closure |Builder closure. Delegates to `SqlObjectClassSchemaBuilder`.
+|===
+
+Returns: the `SqlObjectClassSchemaBuilder` for chaining.
+
+=== SqlObjectClassSchemaBuilder Methods
+
+==== sql(closure)
+
+[source,groovy]
+----
+objectClass("User") {
+    sql {
+        table "app_user"
+        schema "hr"
+    }
+}
+----
+
+Delegates to `SqlObjectClassSchemaBuilder.SqlMapping`:
+
+[cols="1,2"]
+|===
+|Method |Description
+
+|`table(String)` |Set the SQL table name. Default: the object class name. |`schema(String)` |Set SQL schema name. Default: empty (uses the database default schema).
+|===
+
+==== onlyExplicitlyListed(boolean)
+
+[source,groovy]
+----
+objectClass("User") {
+    onlyExplicitlyListed true
+    attribute("id") {
+      // ...
+    }
+}
+----
+
+When true, JDBC metadata columns that are not declared as attributes in the Groovy script are excluded from the ConnId schema. When false (default), all discovered columns become attributes automatically, and Groovy definitions only add metadata like connId name remapping.
+
+==== attribute(name, closure)
+
+Inside an `objectClass {}` block, `attribute(name) { ... }` creates an attribute definition.
+
+[cols="1,2"]
+|===
+|Parameter |Description
+
+|`name` |ConnId attribute name. Used as both the ConnId name and SQL column name by default. Override connId name via the `connId {}` block.
+
+|`closure` |Builder closure. Delegates to `SqlAttributeBuilder`.
+|===
+
+=== SqlAttributeBuilder Methods
+
+Inside `attribute {}`, `this` is a `SqlAttributeBuilder`.
+
+==== connId(closure)
+
+[source,groovy]
+----
+attribute("user_email") {
+    connId { name "emailAddress" }
+}
+----
+
+Delegates to `AttributeBuilder.ConnIdMapping`:
+
+[cols="1,2"]
+|===
+|Method |Description
+
+|`name(String)` |Set the ConnId attribute name. Can be a custom name or a system attribute: `__UID__`, `__NAME__`, `__PASSWORD__`, `__NAME_PASSWORD__`.
+
+|`returnedByDefault(Boolean)` |Whether the attribute is included by default in results. Default: true.
+
+|`type(Class<?>)` |Force a ConnId Java type. Auto-detected from JDBC metadata when not set.
+|===
+
+==== sql(closure)
+
+[source,groovy]
+----
+attribute("id") {
+    sql {
+        type BIGINT
+        primaryKey()
+        autoIncrement()
+        notNull()
+        unique()
+    }
+}
+----
+
+Delegates to `SqlAttributeBuilder.SqlMapping` (which extends `SqlTypeSpecification.Mixin` and `SpiSqlAttributeBuilder.SqlMapping`):
+
+[cols="1,2"]
+|===
+|Method |Description
+
+|`type(SqlTypeSpecification)` |SQL type: `BIGINT`, `INT`, `VARCHAR(n)`, `BOOLEAN`, `TIMESTAMP`, etc. Use convenience constants: `INT`, `BIGINT`, `BOOLEAN`, `SMALLINT`, `TINYINT`, `VARCHAR(n)`.
+
+|`name(String)` / `column(Def)` |Set SQL column name. Default: the attribute name. Override to map a different column. |`primaryKey(Def)` |Mark as primary key. |`autoIncrement(Def)` |Mark as auto-increment.
+
+|`notNull(Def)` / `nullable(Def)` |Column nullability. |`unique(Def)` |Unique constraint.
+
+|`additionalColumns()` |SPI method for multi-valued attributes from multiple columns.
+|===
+
+==== complexType(name) / multiValued(boolean)
+
+[source,groovy]
+----
+attribute("address") {
+    complexType("Address")
+    multiValued true
+    sql {
+        joinOn attribute("id").eq(other.attribute("user_id"))
+    }
+}
+----
+
+For composite or joined attributes.
+
+=== SqlTypeSpecification
+
+Convenience type constants exposed as `@Groovy.Convenience` static references:
+
+[%autowidth]
+|===
+|Constant |SQL type |Java value type
+
+|`BIGINT` |BIGINT |Long
+
+|`INT` / `INTEGER` |INT / INTEGER |Long
+
+|`SMALLINT` |SMALLINT |Integer
+
+|`TINYINT` |TINYINT |Integer
+
+|`BOOLEAN` |BOOLEAN / BIT |Boolean
+
+|`DECIMAL(n,s)` |DECIMAL |BigDecimal
+
+|`FLOAT` |FLOAT |Double
+
+|`DOUBLE` |DOUBLE |Double
+
+|`VARCHAR(n)` |VARCHAR |String
+
+|`TEXT` |TEXT |String
+
+|`TIMESTAMP` |TIMESTAMP |java.time types
+
+|`DATE` |DATE |java.time types
+
+|`BLOB` |BLOB |byte[]
+
+|`CLOB` |CLOB |String
+|===
+
+=== Groovy Shell Variables
+
+`SqlGroovySchemaLoader` binds these variables before evaluating scripts:
+
+[cols="1,2"]
+|===
+|Variable |Description
+
+|`objectClass` |Function: `objectClass(name)` or `objectClass(name) { closure }`. Entry point for defining object classes.
+
+|`context` |The `SqlBaseContext`. Accessible for advanced usage (e.g., reading configuration).
+|===
+
+=== Reference Example
+
+file::customize.groovy[]
+[source,groovy]
+----
+// Maps table "app_user" -> ConnId object class "Person"
+objectClass("Person") {
+    sql { table "app_user" }
+
+    attribute("user_id") {
+        connId { name "__UID__" }
+    }
+    attribute("user_name") {
+        connId { name "__NAME__" }
+    }
+    attribute("user_email") {
+        connId { name "emailAddress" }
+    }
+    // Custom attribute (not on the SQL table)
+    attribute("loginCount") { }
+}
+
+// Maps table "app_group" -> ConnId object class "Team"
+objectClass("Team") {
+    sql { table "app_group" }
+
+    attribute("group_id") {
+        connId { name "__UID__" }
+    }
+    attribute("group_name") {
+        connId { name "__NAME__" }
+    }
+}
+----
+
+=== Embedded Object Classes
+
+file::User.schema.sql.groovy[]
+[source,groovy]
+----
+// Embedded address attributes
+objectClass("User") {
+    sql { table "app_user" }
+
+    attribute("id") {
+        connId { name "__UID__" }
+        sql { type BIGINT; primaryKey(); autoIncrement() }
+    }
+
+    attribute("address") {
+        complexType("Address")
+        multiValued true
+        sql {
+            joinOn attribute("id").eq(other.attribute("user_id"))
+        }
+    }
+}
+
+// Embedded table - deleted when parent is deleted
+objectClass("Address") {
+    embedded true
+    sql { table "app_address" }
+
+    attribute("id") {
+        sql { type BIGINT; primaryKey(); autoIncrement() }
+    }
+    attribute("user_id") {
+        sql { type BIGINT; notNull(); foreignKey("User") { references "id" } }
+    }
+    attribute("street") { sql { type VARCHAR(255) } }
+    attribute("city") { sql { type VARCHAR(255) } }
+    attribute("country") { sql { type VARCHAR(255) } }
+    attribute("primary_flag") { sql { type BOOLEAN } }
+}
+----
+
+The `embedded true` flag tells the connector that this table is deleted via CASCADE when the parent is deleted, so it does not manage the embedded object class independently.
+
+[[handler-dsl]]
+== Groovy Handler DSL
+
+Operation handler scripts are loaded by `SqlHandlerBuilder`. The DSL provides the same `objectClass(name) {}` pattern but with a different delegate.
+
+=== SqlObjectClassSchemaBuilder vs Handler DSL
+
+[cols="1,2,2"]
+|===
+|Block |Schema DSL |Handler DSL
+
+|`objectClass("Name") {}` |`SqlObjectClassSchemaBuilder` (set table, attributes, connId name, etc.) |`GroovyHandlerFacade` (register search, create, update, delete, sync handlers)
+
+|`attribute("name") {}` |`SqlAttributeBuilder` (set connId name, sql metadata, etc.) |N/A (not available in handlers)
+
+|`sql {}` inside objectClass |`SqlObjectClassSchemaBuilder.SqlMapping` (set table, schema) |N/A (not available in handlers)
+
+|`connId {}` inside attribute |`AttributeBuilder.ConnIdMapping` (set ConnId name, type) |N/A (not available in handlers)
+
+|`sql {}` inside attribute |`SqlAttributeBuilder.SqlMapping` (set column name, type, constraints) |N/A (not available in handlers)
+|===
+
+=== GroovyHandlerFacade (Operation DSL)
+
+Inside `objectClass("User") {}` in a handler script, `this` is a `GroovyHandlerFacade`.
+
+[cols="1,2,2"]
+|===
+|Method |Syntax |Description
+
+|`search(handler)` |`search handlerRef` |Override the default `SqlSearchOperation` handler.
+
+|`create(handler)` |`create handlerRef` |Override the default create handler (creates a new row).
+
+|`update(handler)` |`update handlerRef` |Override the default update handler (modifies an existing row).
+
+|`delete(handler)` |`delete handlerRef` |Override the default delete handler (removes a row).
+
+|`sync()` |`sync {}` |Register the default sync operation (auto-detect sync column).
+
+|`sync(Map config)` |`sync { syncColumn "updated_at"; ... }` |Register sync with custom configuration.
+|===
+
+=== Default Handlers
+
+By default, the connector binds QueryDSL-based handlers:
+
+* `ObjectSearchOperation` -> `SqlSearchOperation` -- paginated SELECT with WHERE, ORDER BY
+* `ObjectSyncOperation` -> `SqlSyncOperation` -- incremental sync using a sync column
+
+Create, update, and delete operations have stub handlers (`SqlHandlerBuilder.create()` returns `this` without actual implementation). Override them in operation scripts for custom SQL.
+
+=== Sync Configuration
+
+[cols="1,2,2"]
+|===
+|Property |Type |Description
+
+|`syncColumn` |String |Explicit sync column name. Overrides all detection strategies. Required for sync to work.
+
+|`softDeleteColumn` |String |Name of soft-delete column. Injects `WHERE <col> IS NULL` filter.
+
+|`pageSize` |Integer |Query pagination size (default: 200).
+|===
+
+Usage:
+
+[source,groovy]
+// Default sync
+objectClass("User") { sync {} }
+
+// Custom sync with soft delete and pagination
+objectClass("User") {
+    sync {
+        syncColumn "updated_at"
+        softDeleteColumn "deleted_at"
+        pageSize 500
+    }
+}
+----
+
+=== Shared Shell
+
+Operation scripts share a single Groovy shell, so functions and variables defined in earlier scripts are available in later ones:
+
+[source,groovy]
+// /handlers/shared.groovy -- loaded first
+def filterByStatus(int status) {
+    return { table -> table.status.eq(status) }
+}
+
+// /handlers/user_ops.groovy -- loaded second, can use filterByStatus()
+objectClass("User") {
+    // sync { syncColumn "updated_at" }
+}
+----
+
+=== Connector Manifest JSON Format
+
+[cols="1,2"]
+|===
+|Key |Description
+
+|`connector.schema` |List of scripts loaded by `SqlGroovySchemaLoader.loadFromResource(script)`. Each entry has a `script` key.
+
+|`connector.operation` |List of scripts loaded by `SqlHandlerBuilder.loadFromResource(script)`. Each entry has a `script` key.
+|===
+
+Example manifest (see `ManifestBasedConnector.java` for details):
+
+[source,json]
+----
+{
+  "connector": {
+    "schema": [
+      { "script": "/schema/app_user.groovy" },
+      { "script": "/schema/app_group.groovy" }
+    ],
+    "operation": [
+      { "script": "/handlers/app_user.groovy" }
+    ]
+  }
+}
+----
+
+=== Sync Strategies
+
+==== Sync column detection strategies (priority order)
+
+1. `CustomSyncColumnStrategy` -- explicit `syncColumn` set in the `sync` closure.
+2. `PreferTimestampSyncColumnStrategy` -- heuristic: searches for columns matching: `updated_at`, `modified`, `last_modified`, `ts`, `date_modified`, `create_at`, `created_at`.
+3. `PrimaryKeySyncColumnStrategy` -- falls back to the first column in the primary key.
+
+If none match, an `IllegalStateException` is thrown when the connector attempts to compute the effective sync column.
+
+==== Soft-delete filter strategy
+
+`SoftDeleteFilterStrategy` -- adds `WHERE <column> IS NULL` to sync queries. Tombstone detection returns rows where the soft-delete column is NOT NULL, so the identity system can mark them as deleted in the target store.
+
+==== SyncConfig record
+
+[source,java]
+----
+record SyncConfig(
+    List<SyncColumnStrategy> columnStrategies,
+    SyncFilterStrategy filterStrategy,
+    String explicitSyncColumn,
+    int pageSize,
+    Boolean preferUpsertOverDelete
+) {
+    //...
+
+}
+----
+
+Defaults from `SyncConfig.defaultFor(def)`:
+
+[cols="1,2"]
+|===
+|Field |Default
+
+|`columnStrategies` |`[PreferTimestampSyncColumnStrategy, PrimaryKeySyncColumnStrategy]`
+
+|`filterStrategy` |`NoOpFilterStrategy.INSTANCE`
+
+|`explicitSyncColumn` |`null`
+
+|`pageSize` |`200`
+
+|`preferUpsertOverDelete` |`true`
+|===
+
+=== Filter Support
+
+The connector translates ConnId `AttributeFilter` types into QueryDSL boolean expressions:
+
+[cols="1,3"]
+|===
+|Filter |SQL expression
+
+|`EqualsFilter` |`column = ?` (or `IS NULL` if the attribute value is empty)
+
+|`NotEqualsFilter` |`column != ?` (or `IS NOT NULL`)
+
+|`ContainsFilter` |`column LIKE '%?%'` |`StartsWithFilter` |`column LIKE '?%'` |`EndsWithFilter` |`column LIKE '%?'`
+
+|`GreaterThanFilter` |`column > ?`
+
+|`GreaterThanOrEqualFilter` |`column >= ?`
+
+|`LessThanFilter` |`column < ?`
+
+|`LessThanOrEqualFilter` |`column <= ?`
+
+|`PresentFilter` |`IS NOT NULL`
+
+|`NotPresentFilter` |`IS NULL`
+
+|`AndFilter` |`AND` of sub-predicates
+
+|`OrFilter` |`OR` of sub-predicates
+
+|`NotFilter` |Negated sub-predicate
+|===
+
+Supported SQL value types for comparisons:
+
+[cols="1,2"]
+|===
+|SQL column type |Comparable values
+
+|`VARCHAR`, `TEXT` |`String`
+
+|`BIGINT`, `INT`, `INTEGER` |`Long`, `Integer`
+
+|`DECIMAL`, `DOUBLE` |`Double`, `BigDecimal`
+
+|`BOOLEAN` |`Boolean`
+
+|`TIMESTAMP`, `DATE` |`java.time.ZonedDateTime`, `java.time.Instant`, `java.sql.Timestamp`, `java.sql.Date`, `java.sql.Time`
+|===
+
+Unsupported filter types for certain column types throw `SqlFilterTranslator.unsupportedFilterException(filter)`.
+
+[appendix]
+=== SQL Dialects
+
+Supported dialects (QueryDSL SQL templates):
+
+[cols="1,2,3"]
+|===
+|Dialect |QueryDSL Templates |Supports RETURNING
+
+|`postgresql` |`PostgresTemplates` |Yes (`RETURNING *`)
+
+|`mysql` |`MySqlTemplates` |Via last-insert-id
+
+|`oracle` |`Oracle12cTemplates` |`FETCH FIRST n ROWS ONLY` via pagination
+
+|`sqlite` |`SQLiteTemplates` |`RETURNING *` (native)
+
+|`h2` |`H2Templates` |`RETURNING *`
+
+|`standard` / `auto` |`SQLTemplates.DEFAULT` |Fallback: no RETURNING
+|===
+
+Auto-detect is handled by `SQLTemplatesRegistry.getTemplates(meta)` during schema detection. Override via `dialect` config property.
+
+[appendix]
+=== JDBC Driver Compatibility
+
+[cols="1,2,2"]
+|===
+|Database |Tested Driver |Connection URL example
+
+|PostgreSQL 16 |`org.postgresql.Driver` 42.7.11 |`jdbc:postgresql://host:5432/dbname`
+
+|MySQL 8+ |`com.mysql.cj.jdbc.Driver` 9.1.0 |`jdbc:mysql://host:3306/dbname`
+
+|Oracle 23c |`oracle.jdbc.OracleDriver` 23.4.0.24.05 |`jdbc:oracle:thin:@host:1521:service`
+
+|SQLite 3 |`org.sqlite.JDBC` 3.45.1.0 |`jdbc:sqlite:path/to/file.db`
+
+|H2 (in-memory) |`org.h2.Driver` 2.2.224 |`jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1`
+|===
+
+[appendix]
+=== Connection Pooling (HikariCP)
+
+The connector uses HikariCP 5.1.0. Pool is created lazily on first initialization.
+
+[source,java]
+----
+HikariConnectionPool pool = new HikariConnectionPool(configuration);
+SqlConnection conn = pool.getConnection();
+conn.commit();
+conn.setAutoCommit(true);
+// Auto-closes when closed
+----
+
+[cols="1,2,2"]
+|===
+|Feature |Detail
+
+|Auto-close |`SqlConnection` wraps the JDBC connection and closes it when the wrapper is closed. |Transaction support
+
+|`commit()`, `rollback()`, `setAutoCommit(boolean)` |Explicit transaction management.
+
+|Pool config |HikariCP `maximumPoolSize` (default: 10), `connectionTimeout` (default: 30s), `idleTimeout` (default: 10 min), `validationQuery` (default: enabled on borrow).
+|===
+
+=== SqlQueryEngine (QueryDSL-based SQL)
+
+Built on QueryDSL SQL with `SQLTemplates` for each dialect.
+
+[cols="1,3"]
+|===
+|Method |Operation
+
+|`select(SelectPath, from, where, orderBy, offset, limit)` |Paginated SELECT with WHERE and ORDER BY
+
+|`selectRange(SelectPath, from, where, orderBy, syncPointOffset)` |Incremental sync: rows with syncColumn > syncPoint
+
+|`selectMax(SelectPath, from, where)` |Compute MAX(syncColumn) for `getLatestSyncToken`
+
+|`selectTombstones` |SELECT deleted rows for soft-delete detection
+|===
+
+=== SQL Type to ConnId Type Mapping
+
+[cols="1,2"]
+|===
+|SQL type |ConnId Java type
+
+|`BIGINT`, `INT`, `INTEGER` |`Long`
+
+|`DECIMAL`, `FLOAT` |`Double`
+
+|`VARCHAR`, `TEXT` |`String`
+
+|`BOOLEAN`, `BIT` |`Boolean`
+
+|`TIMESTAMP` |`java.time.ZonedDateTime`
+
+|`DATE` |`java.time.LocalDate`
+
+|`BLOB` |`byte[]`
+|===
+
+Mapping is provided by `SqlSchemaValueMapping`.
+
+=== Connector Lifecycle
+
+`AbstractGroovySqlConnector` lifecycle (simplified):
+
+1. `init(cfg)` -- store configuration, create `SqlBaseContext`.
+2. On first method call: `initialize()`
+   a. Initialize HikariCP pool.
+   b. Create `SqlSchemaBuilderImpl`.
+   c. Create `SqlGroovySchemaLoader`, call `initializeSchema(loader)` -- load Groovy scripts.
+   d. If `autoDiscoverSchema` true: discover JDBC metadata, translate to ConnId schema (see note below).
+   e. Create `SqlHandlerBuilder`, call `initializeObjectClassHandler(builder)`.
+   f. Register default handlers for all discovered object classes.
+   g. `context.handlers(builder.build())`.
+3. Subsequent calls reuse the initialized pool and context.
+4. `dispose()` -- close pool, close context.
+
+==== Auto-Discovery Gotcha
+
+`SqlSchemaDetector.getTables()` first argument must be **`null`** (not `getJdbcUrl()`). Passing the JDBC URL breaks metadata lookup on H2 and most JDBC drivers.
+
+==== Reinitialization
+
+If `reinitializeOnEachCall = true` (default for development), `initialize0()` runs on every call. Production connectors should use `super(false)`.
+
+[appendix]
+=== SQL Statement Logging
+
+If `logSqlStatements` is true, all generated SQL is logged at DEBUG level. Useful for debugging generated queries.
+
+=== Custom Connector Subclassing
+
+`AbstractGroovySqlConnector<T extends SqlConnectorConfiguration>` has two abstract methods:
+
+[cols="1,2"]
+|===
+|Method |Purpose
+
+|`initializeSchema(loader)` |Load schema scripts via `loader.load()`, `loader.loadResource(path)`, or `loader.load(String text)`.
+
+|`initializeObjectClassHandler(builder)` |Load operation scripts via `builder.loadFromResource(path)`, `builder.loadFromString(text)`, or register handlers directly.
+|===
+
+Both methods are called during initialization (or re-initialization if `reinitializeOnEachCall` is true).
+
+=== Development Mode
+
+When `developmentMode` is true, the connector registers additional ConnId object classes (`conndev_ObjectClass`, `conndev_Attribute`) for schema introspection. This makes the discovered schema visible to the management system during development.
+
+=== Troubleshooting
+
+[cols="1,3"]
+|===
+|Issue |Solution
+
+|`No sync column found` |Set `syncColumn "actual_column_name"` in the `sync {}` block. |`JDBC driver class not found` |Add JDBC driver dependency to your assembly POM and include it in the JAR's `lib/` directory.
+
+|Schema is empty |Check `autoDiscoverSchema` is true. For H2, use `jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1`. Also check that `onlyExplicitlyListed` is not hiding columns.
+
+|`Connection test failed` |Verify jdbcUrl, username, password, and dialect. Check `validateConnectionOnBorrow` is enabled.
+
+|Scripts not loading |Check the script path matches the manifest exactly. Paths starting with `/` are classpath resources from the root.
+
+|Groovy script compiles but has a runtime error |Review connector logs. Groovy errors are logged at ERROR level with full stack traces.
+
+|Schema detection breaks on H2 |Ensure `SqlSchemaDetector.getTables()` is called with `null` as the first argument (not the JDBC URL).
+|===
