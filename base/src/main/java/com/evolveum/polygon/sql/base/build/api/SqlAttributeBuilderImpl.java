@@ -94,17 +94,19 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
             }
             var extra = new ArrayList<SqlAttributeMapping.SingleColumn>();
             for (var a : additionalColumns) {
-                var mapped = a.mapping() != null ? a.mapping() : SqlValueMapping.from(a.jdbcType());
-                var override = ValueTypeOverrideMapping.of(String.class, mapped);
+                if (a.mapping == null) {
+                    throw new IllegalStateException("Column mapping is null");
+                }
+                var override = ValueTypeOverrideMapping.of(String.class, a.mapping);
                 extra.add(SqlAttributeMapping.singleColumn(
                         DefinitionValue.from(a.column(), SourceLocation.capture()),
-                        mapped, override));
+                        a.mapping, override));
             }
             return SqlAttributeMapping.multiColumn(main, extra, SqlAttributeMapping.DEFAULT_DELIMITER);
         }
 
-        private SqlMappingBuilder addExtra(String name, SqlValueMapping mapping, int jdbcType) {
-            additionalColumns.add(new SqlAdditionalColumnDef(name, mapping, jdbcType));
+        private SqlMappingBuilder addExtra(String name, SqlValueMapping mapping) {
+            additionalColumns.add(new SqlAdditionalColumnDef(name, mapping));
             return this;
         }
 
@@ -112,15 +114,15 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
             this.override = mapping;
         }
 
-        private record SqlAdditionalColumnDef(String column, SqlValueMapping mapping, int jdbcType) { }
+        private record SqlAdditionalColumnDef(String column, SqlValueMapping mapping) { }
 
         public class SqlUIDMappingBuilder implements SpiSqlAttributeBuilder.SqlUIDMappingBuilder {
             @Override
-            public SqlMapping column(String name) { return addExtra(name, null, 0); }
+            public SqlMapping column(String name) { return addExtra(name, null); }
 
             @Override
             public SqlMapping column(String name, SqlValueMapping mapping) {
-                return addExtra(name, mapping, mapping.jdbcType() != null ? mapping.jdbcType().getVendorTypeNumber() : 0);
+                return addExtra(name, mapping);
             }
         }
     }

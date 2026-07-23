@@ -1,5 +1,7 @@
 package com.evolveum.polygon.sql.base.schema;
 
+import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
+
 /**
  * Represents a column in a JDBC-detected table.
  *
@@ -23,11 +25,12 @@ public class SqlColumnMeta {
     private String referencedTable;
     private String referencedColumn;
     private String foreignKeyName;
+    private SqlSchemaValueMapping valueMapping;
 
     public SqlColumnMeta(String name, String typeName, int typeCode, int size,
-                         java.lang.reflect.Type javaType,
-                         boolean nullable, boolean primaryKey, boolean unique,
-                         Object defaultValue, boolean autoIncrement) {
+                          java.lang.reflect.Type javaType,
+                          boolean nullable, boolean primaryKey, boolean unique,
+                          Object defaultValue, boolean autoIncrement) {
         this.name = name;
         this.typeName = typeName;
         this.typeCode = typeCode;
@@ -99,6 +102,16 @@ public class SqlColumnMeta {
         this.foreignKeyName = foreignKeyName;
     }
 
+    /** Resolved value mapping from QueryDSL Java type + JDBC type code. Set by {@link com.evolveum.polygon.sql.base.schema.SqlSchemaDetector}. */
+    public SqlSchemaValueMapping getValueMapping() {
+        return valueMapping;
+    }
+
+    /** Sets the resolved value mapping for this column. */
+    public void setValueMapping(SqlSchemaValueMapping valueMapping) {
+        this.valueMapping = valueMapping;
+    }
+
     public static Builder builder() {
         return new Builder();
     }
@@ -127,6 +140,7 @@ public class SqlColumnMeta {
         private String referencedTable;
         private String referencedColumn;
         private String foreignKeyName;
+        private SqlSchemaValueMapping valueMapping;
 
         public Builder name(String name) { this.name = name; return this; }
         public Builder typeName(String typeName) { this.typeName = typeName; return this; }
@@ -148,10 +162,18 @@ public class SqlColumnMeta {
         public Builder referencedTable(String referencedTable) { this.referencedTable = referencedTable; return this; }
         public Builder referencedColumn(String referencedColumn) { this.referencedColumn = referencedColumn; return this; }
         public Builder foreignKeyName(String foreignKeyName) { this.foreignKeyName = foreignKeyName; return this; }
+        public Builder valueMapping(SqlSchemaValueMapping valueMapping) { this.valueMapping = valueMapping; return this; }
 
         public SqlColumnMeta build() {
-            return new SqlColumnMeta(name, typeName, typeCode, size, javaType,
+            var col = new SqlColumnMeta(name, typeName, typeCode, size, javaType,
                     nullable, primaryKey, unique, defaultValue, autoIncrement);
+            if (referencedTable != null) {
+                col.setForeignKey(referencedTable, referencedColumn, foreignKeyName);
+            }
+            if (valueMapping != null) {
+                col.setValueMapping(valueMapping);
+            }
+            return col;
         }
     }
 }

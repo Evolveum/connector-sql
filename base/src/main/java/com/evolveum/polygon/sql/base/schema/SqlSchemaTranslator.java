@@ -259,7 +259,7 @@ public class SqlSchemaTranslator {
 
         var sql = attribute.sql();
         sql.column(detected(column.getName()));
-        SqlValueMapping mapping = SqlValueMapping.from(column.getTypeCode());
+        var mapping = column.getValueMapping();
 
         if (column.getReferencedTable() != null) {
             // FK columns: set subtype if needed, but skip objectClass/role
@@ -315,7 +315,7 @@ public class SqlSchemaTranslator {
         if (uidAttr instanceof SqlAttributeBuilder.Reference refAttr) {
             var sql = refAttr.sql();
             for (var pk : extraPks) {
-                var mapping = SqlValueMapping.from(pk.getTypeCode());
+                var mapping = pk.getValueMapping();
                 sql.additionalColumns().column(pk.getName(), (SqlValueMapping) mapping);
             }
         }

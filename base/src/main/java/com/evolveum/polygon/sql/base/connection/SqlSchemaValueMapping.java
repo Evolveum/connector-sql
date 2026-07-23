@@ -27,272 +27,92 @@ import java.util.function.BiFunction;
  * Each constant defines a ConnId Java class (the wire type for attribute values)
  * and provides bidirectional conversion between raw JDBC values and ConnId values.
  *
+ * <p>Delegates QueryDSL-Java-type ↔ ConnId-type conversions to
+ * {@link QueryDslTypeMapping}, and adds SQL-specific concerns:
+ * JDBC type codes, type name fuzzy matching, QueryDSL path creation,
+ * and extended string-parsing in {@code toWireValue()} for API input.</p>
+ *
  * <p>Analogous to {@code JsonSchemaValueMapping} in the conndev-base framework,
  * but tailored for SQL column types (VARCHAR, INT, TIMESTAMP, etc.).</p>
  */
 public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
-    VARCHAR(JDBCType.VARCHAR, String.class, String.class, Expressions::stringPath),
-    INTEGER(JDBCType.INTEGER, Integer.class, Integer.class, QueryDslUtils.numberPath(Integer.class)),
-    SMALLINT(JDBCType.SMALLINT, Integer.class, Short.class, QueryDslUtils.numberPath(Short.class)) {
-        @Override
-        public Object toConnIdValue(Object value) {
-            if (value instanceof Number n) {
-                return n.intValue();
-            }
-            return super.toConnIdValue(value);
-        }
-    },
-    NUMERIC(JDBCType.NUMERIC, BigDecimal.class, BigDecimal.class, QueryDslUtils.numberPath(BigDecimal.class)),
-    TINYINT(JDBCType.TINYINT, Integer.class, Integer.class, QueryDslUtils.numberPath(Integer.class)),
-    BIGINT(JDBCType.BIGINT, BigInteger.class, BigInteger.class, QueryDslUtils.numberPath(BigInteger.class)) ,
-    DECIMAL(JDBCType.DECIMAL, BigDecimal.class, BigDecimal.class, QueryDslUtils.numberPath(BigDecimal.class)),
-    FLOAT(JDBCType.FLOAT, Double.class, Float.class, QueryDslUtils.numberPath(Float.class)),
-    DOUBLE(JDBCType.DOUBLE, Double.class, Double.class, QueryDslUtils.numberPath(Double.class)),
-    BOOLEAN(JDBCType.BOOLEAN, Boolean.class, Boolean.class, Expressions::booleanPath),
-    BIT(JDBCType.BIT, Boolean.class, Integer.class, QueryDslUtils.numberPath(Integer.class)) {
-        @Override
-        public Object toConnIdValue(Object value) {
-            if (value == null) {
-                return null;
-            }
-            if (value instanceof Integer i) {
-                return i != 0;
-            }
-            if (value instanceof Boolean b) {
-                return b;
-            }
-            return super.toConnIdValue(value);
-        }
-    },
-    DATE(JDBCType.DATE, LocalDate.class, Date.class, QueryDslUtils.dateTimePath(Date.class)) {
-        @Override
-        public Object toConnIdValue(Object value) {
-            if (value instanceof Date d) {
-                return d.toLocalDate();
-            }
-            return super.toConnIdValue(value);
-        }
-
-        @Override
-        public Object toWireValue(Object value) {
-            if (value == null) {
-                return null;
-            }
-            if (value instanceof Date) {
-                return value;
-            }
-            if (value instanceof String s) {
-                try {
-                    return Date.valueOf(s);
-                } catch (IllegalArgumentException e) {
-                    try {
-                        return Date.valueOf(s.substring(0, 10));
-                    } catch (IllegalArgumentException ex) {
-                        throw new IllegalArgumentException("Cannot parse string '" + s + "' to java.sql.Date", ex);
-                    }
-                }
-            }
-            if (value instanceof LocalDate ld) {
-                return Date.valueOf(ld);
-            }
-            if (value instanceof TemporalAccessor t) {
-                var iso = DateTimeFormatter.ISO_LOCAL_DATE.format(LocalDate.from(t));
-                return Date.valueOf(iso);
-            }
-            throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to java.sql.Date");
-        }
-    },
-    TIME(JDBCType.TIME, LocalTime.class, Time.class, QueryDslUtils.timePath(Time.class)) {
-        @Override
-        public Object toConnIdValue(Object value) {
-            if (value instanceof Time t) {
-                return t.toLocalTime();
-            }
-            return super.toConnIdValue(value);
-        }
-
-        @Override
-        public Object toWireValue(Object value) {
-            if (value == null) {
-                return null;
-            }
-            if (value instanceof Time) {
-                return value;
-            }
-            if (value instanceof String s) {
-                try {
-                    return Time.valueOf(s);
-                } catch (IllegalArgumentException e) {
-                    try {
-                        return Time.valueOf(s.substring(s.indexOf(' ') + 1));
-                    } catch (IllegalArgumentException ex) {
-                        throw new IllegalArgumentException("Cannot parse string '" + s + "' to java.sql.Time", ex);
-                    }
-                }
-            }
-            if (value instanceof LocalTime lt) {
-                return Time.valueOf(lt);
-            }
-            if (value instanceof TemporalAccessor t) {
-                var iso = DateTimeFormatter.ISO_LOCAL_TIME.format(LocalTime.from(t));
-                return Time.valueOf(iso);
-            }
-            throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to java.sql.Time");
-        }
-    },
-    TIMESTAMP(JDBCType.TIMESTAMP, ZonedDateTime.class, Timestamp.class, QueryDslUtils.dateTimePath(Timestamp.class)) {
-        @Override
-        public Object toConnIdValue(Object value) {
-            if (value instanceof Timestamp ts) {
-                return ts.toInstant().atZone(ZoneId.systemDefault());
-            }
-            return super.toConnIdValue(value);
-        }
-
-        @Override
-        public Object toWireValue(Object value) {
-            if (value == null) {
-                return null;
-            }
-            if (value instanceof Timestamp) {
-                return value;
-            }
-            if (value instanceof Timestamp timestamp) {
-                return timestamp;
-            }
-            if (value instanceof String s) {
-                try {
-                    return Timestamp.valueOf(s);
-                } catch (IllegalArgumentException e) {
-                    try {
-                        return Timestamp.valueOf(s.replace('T', ' '));
-                    } catch (IllegalArgumentException ex) {
-                        try {
-                            return Timestamp.valueOf(s.substring(0, 10) + " 00:00:00");
-                        } catch (IllegalArgumentException ex2) {
-                            throw new IllegalArgumentException("Cannot parse string '" + s + "' to java.sql.Timestamp", ex2);
-                        }
-                    }
-                }
-            }
-            if (value instanceof Date d) {
-                return new Timestamp(d.getTime());
-            }
-            if (value instanceof Time t) {
-                return new Timestamp(t.getTime());
-            }
-            if (value instanceof ZonedDateTime zdt) {
-                return Timestamp.from(zdt.toInstant());
-            }
-            if (value instanceof Instant i) {
-                return Timestamp.from(i);
-            }
-            if (value instanceof LocalDate ld) {
-                return Timestamp.valueOf(ld.atStartOfDay());
-            }
-            if (value instanceof TemporalAccessor t) {
-                var iso = DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(LocalDateTime.from(t));
-                return Timestamp.valueOf(iso);
-            }
-            throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to java.sql.Timestamp");
-        }
-    },
-    BLOB(JDBCType.BLOB, byte[].class, byte[].class, QueryDslUtils::byteArrayPath),
-    CLOB(JDBCType.CLOB, String.class, String.class, Expressions::stringPath),
-    TIMESTAMP_WITH_TIMEZONE(JDBCType.TIMESTAMP_WITH_TIMEZONE, ZonedDateTime.class, ZonedDateTime.class, QueryDslUtils.dateTimePath(ZonedDateTime.class)) {
-        @Override
-        public Object toWireValue(Object value) {
-            if (value == null) {
-                return null;
-            }
-            if (value instanceof Timestamp) {
-                return value;
-            }
-            if (value instanceof String s) {
-                try {
-                    return Timestamp.valueOf(s);
-                } catch (IllegalArgumentException e) {
-                    try {
-                        return Timestamp.valueOf(s.replace('T', ' '));
-                    } catch (IllegalArgumentException ex) {
-                        try {
-                            return Timestamp.valueOf(s.substring(0, 10) + " 00:00:00");
-                        } catch (IllegalArgumentException ex2) {
-                            throw new IllegalArgumentException("Cannot parse string '" + s + "' to java.sql.Timestamp", ex2);
-                        }
-                    }
-                }
-            }
-            if (value instanceof ZonedDateTime zdt) {
-                return Timestamp.from(zdt.toInstant());
-            }
-            if (value instanceof Instant i) {
-                return Timestamp.from(i);
-            }
-            if (value instanceof Date d) {
-                return new Timestamp(d.getTime());
-            }
-            if (value instanceof Time t) {
-                return new Timestamp(t.getTime());
-            }
-            if (value instanceof TemporalAccessor t) {
-                var iso = DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(LocalDateTime.from(t));
-                return Timestamp.valueOf(iso);
-            }
-            throw new IllegalArgumentException("Cannot convert " + value.getClass().getSimpleName() + " to JDBC timestamp value");
-        }
-    };
+    VARCHAR(JDBCType.VARCHAR, QueryDslTypeMapping.STRING),
+    INTEGER(JDBCType.INTEGER, QueryDslTypeMapping.INTEGER),
+    SMALLINT(JDBCType.SMALLINT, QueryDslTypeMapping.SMALL_INT),
+    NUMERIC(JDBCType.NUMERIC, QueryDslTypeMapping.DECIMAL),
+    TINYINT(JDBCType.TINYINT, QueryDslTypeMapping.INTEGER),
+    BIGINT(JDBCType.BIGINT, QueryDslTypeMapping.BIG_INT),
+    DECIMAL(JDBCType.DECIMAL, QueryDslTypeMapping.DECIMAL),
+    FLOAT(JDBCType.FLOAT,QueryDslTypeMapping.FLOAT_NUM),
+    DOUBLE(JDBCType.DOUBLE,QueryDslTypeMapping.DOUBLE),
+    BOOLEAN(JDBCType.BOOLEAN, QueryDslTypeMapping.BOOLEAN),
+    BIT(JDBCType.BIT, QueryDslTypeMapping.BOOLEAN),
+    DATE(JDBCType.DATE, QueryDslTypeMapping.SQL_DATE),
+    TIME(JDBCType.TIME, QueryDslTypeMapping.SQL_TIME),
+    TIMESTAMP(JDBCType.TIMESTAMP, QueryDslTypeMapping.SQL_TIMESTAMP),
+    BLOB(JDBCType.BLOB, QueryDslTypeMapping.BYTE_ARRAY),
+    CLOB(JDBCType.CLOB, QueryDslTypeMapping.STRING),
+    TIMESTAMP_WITH_TIMEZONE(JDBCType.TIMESTAMP_WITH_TIMEZONE,QueryDslTypeMapping.SQL_TIMESTAMP_TZ);
 
     private final JDBCType jdbcType;
-    private final Class<?> connIdClass;
-    private final Class<?> wireType;
-    private final BiFunction<Path<?>, String, ? extends Path<?>> pathSupplier;
+    private final QueryDslTypeMapping<?,?> mapping;
 
-    SqlSchemaValueMapping(JDBCType jdbcType, Class<?> connIdClass, Class<?> wireType, BiFunction<Path<?>, String, ? extends Path<?>> pathSupplier) {
+    SqlSchemaValueMapping(JDBCType jdbcType, QueryDslTypeMapping<?,?> mapping) {
         this.jdbcType = jdbcType;
-        this.connIdClass = connIdClass;
-        this.wireType = wireType;
-        this.pathSupplier = pathSupplier;
+        this.mapping = mapping;
     }
+
+    /**
+     * The {@link QueryDslTypeMapping} that handles QueryDSL Java type → ConnId type conversions.
+     * Each enum constant overrides this to return its corresponding mapping.
+     */
+    public final QueryDslTypeMapping<?,?> qdslTypeMapping() { return mapping; }
 
     @Override
     public Class<?> connIdType() {
-        return connIdClass;
+        return mapping.connIdType();
     }
 
     @Override
     public Class<?> primaryWireType() {
-        return wireType;
+        return mapping.primaryWireType();
     }
 
-    @Override
-    public Set<Class<?>> supportedWireTypes() {
-        return Set.of(wireType);
-    }
-
-    /**
-     * Converts a wire value (raw JDBC value) to a ConnId value.
-     */
     @Override
     public Object toConnIdValue(Object value) {
-        if (value == null) {
-            return null;
-        }
-        if (connIdClass.isAssignableFrom(value.getClass())) {
-            return value;
-        }
-        throw new IllegalArgumentException("Can not convert SQL value" +  value + " to ConnId " + connIdClass.getSimpleName());
+        return mapping.toConnIdValue(value);
+    }
+
+    @Override
+    public Object toWireValue(Object value) {
+        return mapping.toWireValue(value);
     }
 
     /**
-     * Converts a ConnId value to a wire value for writing back to the database.
+     * Looks up the SqlSchemaValueMapping by QueryDSL Java type (from {@link QueryDslTypeMapping}).
+     * This is the primary way to resolve a mapping when QueryDSL's {@code getJavaType()} already
+     * produced the Java class.
+     *
+     * <p>For ambiguous types (e.g., both TIMESTAMP and TIMESTAMP_WITH_TIMEZONE may map to
+     * the same wire type), returns the first match. Use {@link #fromJdbcType(int)} for
+     * unambiguous resolution when the JDBC type code is available.</p>
      */
-    @Override
-    public Object toWireValue(Object value) {
-        if (value == null) {
+    public static SqlSchemaValueMapping fromQdslJavaType(Class<?> javaType) {
+        if (javaType == null) {
             return null;
         }
-        return value;
+        for (SqlSchemaValueMapping m : values()) {
+            if (m.qdslTypeMapping() != null
+                    && m.primaryWireType().isAssignableFrom(javaType)) {
+                return m;
+            }
+        }
+        return null;
+    }
+
+    @Override
+    public Path<?> pathFor(Path<?> parent, String column) {
+        return mapping.pathFor(parent, column);
     }
 
     /**
@@ -316,6 +136,9 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
         if (upper.contains("VAR") && upper.contains("CHAR")) {
             return VARCHAR;
         }
+        if (upper.contains("NVARCHAR") || upper.contains("NCHAR")) {
+            return VARCHAR;
+        }
         if (upper.contains("CHAR") && !upper.contains("VAR")) {
             return VARCHAR;
         }
@@ -331,8 +154,11 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
             }
             return INTEGER;
         }
-        if (upper.contains("DECIMAL") || upper.contains("NUMBER") || upper.contains("NUMERIC")) {
+        if (upper.contains("DECIMAL")) {
             return DECIMAL;
+        }
+        if (upper.contains("NUMBER") || upper.contains("NUMERIC")) {
+            return NUMERIC;
         }
         if (upper.contains("FLOAT") || upper.contains("REAL")) {
             return FLOAT;
@@ -340,10 +166,16 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
         if (upper.contains("DOUBLE")) {
             return DOUBLE;
         }
-        if (upper.contains("BOOLEAN") || upper.contains("BOOL") || upper.contains("BIT")) {
+        if (upper.contains("BOOLEAN") || upper.contains("BOOL")) {
+            return BOOLEAN;
+        }
+        if (upper.contains("BIT")) {
             return BIT;
         }
-        if (upper.contains("TIMESTAMP")) {
+        if (upper.contains("TIMESTAMP") || upper.contains("DATETIME")) {
+            if (upper.contains("TIME ZONE") || upper.contains("TIMESTAMPTZ")) {
+                return TIMESTAMP_WITH_TIMEZONE;
+            }
             return TIMESTAMP;
         }
         if (upper.contains("DATE")) {
@@ -352,7 +184,10 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
         if (upper.contains("TIME")) {
             return TIME;
         }
-        if (upper.contains("BLOB")) {
+        if (upper.contains("CLOB") || upper.contains("NCLOB")) {
+            return CLOB;
+        }
+        if (upper.contains("BLOB") || upper.contains("BINARY")) {
             return BLOB;
         }
 
@@ -364,50 +199,26 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
      * Looks up the SqlSchemaValueMapping by JDBC SQL type constant.
      */
     public static SqlSchemaValueMapping fromJdbcType(int sqlType) {
-        switch (sqlType) {
-            case Types.VARCHAR:
-            case Types.CHAR:
-            case Types.LONGVARCHAR:
-                return VARCHAR;
-            case Types.INTEGER:
-                return INTEGER;
-            case Types.BIGINT:
-                return BIGINT;
-            case Types.SMALLINT:
-                return SMALLINT;
-            case Types.TINYINT:
-                return TINYINT;
-            case Types.DECIMAL:
-            case Types.NUMERIC:
-                return DECIMAL;
-            case Types.FLOAT:
-            case Types.REAL:
-                return FLOAT;
-            case Types.DOUBLE:
-                return DOUBLE;
-            case Types.BOOLEAN:
-            case Types.BIT:
-                return BIT;
-            case Types.DATE:
-                return DATE;
-            case Types.TIME:
-                return TIME;
-            case Types.TIMESTAMP:
-                return TIMESTAMP;
-            case Types.BLOB:
-                return BLOB;
-            default:
-                return null;
-        }
-    }
-
-    @Override
-    public JDBCType jdbcType() {
-        return jdbcType;
-    }
-
-    @Override
-    public Path<?> pathFor(Path<?> parent, String column) {
-        return pathSupplier.apply(parent, column);
+        return switch (sqlType) {
+            case Types.VARCHAR, Types.CHAR, Types.LONGVARCHAR, Types.NCHAR, Types.NVARCHAR, Types.LONGNVARCHAR -> VARCHAR;
+            case Types.INTEGER -> INTEGER;
+            case Types.BIGINT -> BIGINT;
+            case Types.SMALLINT -> SMALLINT;
+            case Types.TINYINT -> TINYINT;
+            case Types.DECIMAL -> DECIMAL;
+            case Types.NUMERIC -> NUMERIC;
+            case Types.FLOAT, Types.REAL -> FLOAT;
+            case Types.DOUBLE -> DOUBLE;
+            case Types.BOOLEAN -> BOOLEAN;
+            case Types.BIT -> BIT;
+            case Types.DATE -> DATE;
+            case Types.TIME -> TIME;
+            case Types.TIMESTAMP -> TIMESTAMP;
+            case Types.TIMESTAMP_WITH_TIMEZONE -> TIMESTAMP_WITH_TIMEZONE;
+            case Types.TIME_WITH_TIMEZONE -> TIMESTAMP;
+            case Types.BLOB, Types.BINARY, Types.VARBINARY, Types.LONGVARBINARY -> BLOB;
+            case Types.CLOB, Types.NCLOB -> CLOB;
+            default -> null;
+        };
     }
 }

@@ -20,6 +20,9 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.Timestamp;
+import java.time.ZonedDateTime;
+import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -497,9 +500,13 @@ public class SqlSearchFilterTest {
 
     // ─── Datetime filter tests ──────────────────────────────────────────────
 
+    static ZonedDateTime toZdt(String s) {
+        return Timestamp.valueOf(s).toInstant().atZone(ZoneId.systemDefault());
+    }
+
     @Test
     public void testEqualsFilterOnTimestamp() throws Exception {
-        Filter filter = FilterBuilder.equalTo(AttributeBuilder.build("created_at", "2024-01-15 10:00:00"));
+        Filter filter = FilterBuilder.equalTo(AttributeBuilder.build("created_at", toZdt("2024-01-15 10:00:00")));
         List<ConnectorObject> results = executeSearch(userOcl(), filter);
 
         assertThat(results).hasSize(1);
@@ -508,7 +515,7 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testGreaterThanFilterOnTimestamp() throws Exception {
-        Filter filter = FilterBuilder.greaterThan(AttributeBuilder.build("created_at", "2024-03-01 00:00:00"));
+        Filter filter = FilterBuilder.greaterThan(AttributeBuilder.build("created_at", toZdt("2024-03-01 00:00:00")));
         List<ConnectorObject> results = executeSearch(userOcl(), filter);
 
         assertThat(results).hasSize(3);
@@ -518,7 +525,7 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testGreaterThanOrEqualFilterOnTimestamp() throws Exception {
-        Filter filter = FilterBuilder.greaterThanOrEqualTo(AttributeBuilder.build("created_at", "2024-03-10 09:00:00"));
+        Filter filter = FilterBuilder.greaterThanOrEqualTo(AttributeBuilder.build("created_at", toZdt("2024-03-10 09:00:00")));
         List<ConnectorObject> results = executeSearch(userOcl(), filter);
 
         assertThat(results).hasSize(3);
@@ -528,7 +535,7 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testLessThanFilterOnTimestamp() throws Exception {
-        Filter filter = FilterBuilder.lessThan(AttributeBuilder.build("created_at", "2024-03-01 00:00:00"));
+        Filter filter = FilterBuilder.lessThan(AttributeBuilder.build("created_at", toZdt("2024-03-01 00:00:00")));
         List<ConnectorObject> results = executeSearch(userOcl(), filter);
 
         assertThat(results).hasSize(2);
@@ -538,7 +545,7 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testLessThanOrEqualFilterOnTimestamp() throws Exception {
-        Filter filter = FilterBuilder.lessThanOrEqualTo(AttributeBuilder.build("created_at", "2024-04-05 14:00:00"));
+        Filter filter = FilterBuilder.lessThanOrEqualTo(AttributeBuilder.build("created_at", toZdt("2024-04-05 14:00:00")));
         List<ConnectorObject> results = executeSearch(userOcl(), filter);
 
         assertThat(results).hasSize(4);
@@ -547,8 +554,8 @@ public class SqlSearchFilterTest {
     @Test
     public void testBetweenFilterOnTimestamp() throws Exception {
         Filter betweenFilter = FilterBuilder.and(
-                FilterBuilder.greaterThanOrEqualTo(AttributeBuilder.build("created_at", "2024-02-20 11:00:00")),
-                FilterBuilder.lessThanOrEqualTo(AttributeBuilder.build("created_at", "2024-04-05 14:00:00"))
+                FilterBuilder.greaterThanOrEqualTo(AttributeBuilder.build("created_at", toZdt("2024-02-20 11:00:00"))),
+                FilterBuilder.lessThanOrEqualTo(AttributeBuilder.build("created_at", toZdt("2024-04-05 14:00:00")))
         );
         List<ConnectorObject> results = executeSearch(userOcl(), betweenFilter);
 
@@ -560,7 +567,7 @@ public class SqlSearchFilterTest {
     @Test
     public void testComplexFilterWithTimestampAndBoolean() throws Exception {
         Filter complexFilter = FilterBuilder.and(
-                FilterBuilder.greaterThan(AttributeBuilder.build("created_at", "2024-03-01 00:00:00")),
+                FilterBuilder.greaterThan(AttributeBuilder.build("created_at", toZdt("2024-03-01 00:00:00"))),
                 FilterBuilder.equalTo(AttributeBuilder.build("is_active", true))
         );
         List<ConnectorObject> results = executeSearch(userOcl(), complexFilter);

@@ -71,6 +71,8 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
 
     interface FilterSupport {
 
+        BooleanExpression eq(RelationalPathBase<?> tablePath, Object connIdValue);
+
         BooleanExpression predicateFor(RelationalPathBase<?> tablePath, AttributeFilter filter);
 
         BooleanExpression predicateFor(RelationalPathBase<?> tablePath, SingleValueAttributeFilter filter);
@@ -131,15 +133,21 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
         public FilterSupport sqlFilter() {
             return new FilterSupport() {
 
+
+                @Override
+                public BooleanExpression eq(RelationalPathBase<?> tablePath, Object connIdValue) {
+                    var path = dslPath(tablePath);
+                    if (path instanceof SimpleExpression expression) {
+                        return connIdValue != null ? expression.eq(toSqlValue(connIdValue)) : expression.isNull();
+                    }
+                    throw new UnsupportedOperationException("Not supported yet for path type " +  path.toString());
+                }
+
                 @Override
                 public BooleanExpression predicateFor(RelationalPathBase<?> tablePath, AttributeFilter filter) {
-                    var rawPath = dslPath(tablePath);
-                    if (filter instanceof EqualsFilter && rawPath instanceof SimpleExpression expression) {
+                    if (filter instanceof EqualsFilter) {
                         var connIdValue = filter.getAttribute().getValue();
-                        if (connIdValue.isEmpty()) {
-                            return expression.isNull();
-                        }
-                        return expression.eq(toSqlValue(connIdValue.getFirst()));
+                        return eq(tablePath, connIdValue.isEmpty() ? null : connIdValue.getFirst());
                     }
                     if (filter instanceof SingleValueAttributeFilter singleValue) {
                         return predicateFor(tablePath, singleValue);
@@ -281,7 +289,10 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
             return new FilterSupport() {
                 @Override
                 public BooleanExpression predicateFor(RelationalPathBase<?> tp, AttributeFilter filter) {
-                    if (filter instanceof EqualsFilter) { return predicateForEquals(tp, filter); }
+                    if (filter instanceof EqualsFilter) {
+                        var attrValues = filter.getAttribute().getValue();
+                        return eq(tp, attrValues.isEmpty() ? null : attrValues.getFirst());
+                    }
                     throw SqlFilterTranslator.unsupportedFilterException(filter);
                 }
                 @Override
@@ -289,17 +300,15 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
 
                 // --- helper methods ---
 
-                @SuppressWarnings("unchecked")
-                private BooleanExpression predicateForEquals(RelationalPathBase<?> tp, AttributeFilter filter) {
-                    var connIdValue = filter.getAttribute().getValue();
-                    // null/empty → all columns must be NULL
-                    if (connIdValue.isEmpty()) {
+                @Override
+                public BooleanExpression eq(RelationalPathBase<?> tp, Object connIdValue) {
+                    if (connIdValue == null) {
                         var r = (BooleanExpression) self.mainColumn.dslPath(tp);
                         for (SingleColumn ac : self.additionalColumns) { r = r.and((BooleanExpression) ac.dslPath(tp)); }
                         return r.isNull();
                     }
                     // Split composite UID by delimiter.
-                    var uidValue = connIdValue.getFirst().toString();
+                    var uidValue = connIdValue.toString();
                     var parts = uidValue.split(delimiter, self.additionalColumns.size() + 1);
                     if (parts.length != self.additionalColumns.size() + 1) {
                         throw new IllegalArgumentException(
@@ -310,27 +319,10 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
                     for (int i = 0; i < parts.length; i++) {
                         SingleColumn col = (i == 0) ? self.mainColumn : self.additionalColumns.get(i - 1);
                         var part = parts[i];
-                        var sqlValue = toSqlValue(part, col.sqlMapping());
-                        var eq = createEqPredicate(col.dslPath(tp), sqlValue);
+                        var eq = col.sqlFilter().eq(tp, part);
                         result = (result == null) ? eq : result.and(eq);
                     }
                     return result;
-                }
-
-                private BooleanExpression createEqPredicate(Path<?> qPath, Object value) {
-                    if (qPath instanceof SimpleExpression expression) { return expression.eq(value); }
-                    throw new IllegalArgumentException("Unsupported type for EQ: " + qPath.getClass().getSimpleName());
-                }
-
-                private Object toSqlValue(String rawValue, SqlValueMapping sqlMapping) {
-                    if (sqlMapping instanceof SqlSchemaValueMapping sm) {
-                        var j = sm.jdbcType();
-                        if (j == JDBCType.INTEGER || j == JDBCType.BIGINT || j == JDBCType.SMALLINT || j == JDBCType.TINYINT) { return Long.parseLong(rawValue); }
-                        if (j == JDBCType.DECIMAL || j == JDBCType.NUMERIC) { return new BigDecimal(rawValue); }
-                        if (j == JDBCType.BIT || j == JDBCType.BOOLEAN) { return Boolean.parseBoolean(rawValue); }
-                        if (j == JDBCType.DATE || j == JDBCType.TIME || j == JDBCType.TIMESTAMP || j == JDBCType.TIMESTAMP_WITH_TIMEZONE) { return sm.toWireValue(rawValue); }
-                    }
-                    return rawValue;
                 }
             };
         }

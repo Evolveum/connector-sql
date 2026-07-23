@@ -1,9 +1,7 @@
 package com.evolveum.polygon.sql.base.connection;
 
 import com.querydsl.core.types.Path;
-import com.querydsl.core.types.dsl.ArrayPath;
-import com.querydsl.core.types.dsl.DateTimePath;
-import com.querydsl.core.types.dsl.Expressions;
+import com.querydsl.core.types.dsl.*;
 
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -15,19 +13,23 @@ public class QueryDslUtils {
         return Expressions.arrayPath(byte[].class, path, name);
     }
 
-    public static BiFunction<Path<?>, String, Path<?>> dateTimePath(Class<? extends Comparable<?>> dateClass) {
+    public static <T extends Comparable<?>> BiFunction<Path<?>, String, DateTimePath<T>> dateTimePath(Class<T> dateClass) {
         return (path, name) -> Expressions.dateTimePath(dateClass, path, name);
+    }
+
+    public static <T extends Comparable<?>> BiFunction<Path<?>, String, DatePath<T>> datePath(Class<T> dateClass) {
+        return (path, name) -> Expressions.datePath(dateClass, path, name);
     }
 
     public static DateTimePath<Timestamp>  timestampPath(Path<?> path, String name) {
         return Expressions.dateTimePath(Timestamp.class, path, name);
     }
 
-    public static BiFunction<Path<?>, String, Path<?>> timePath(Class<Time> timeClass) {
+    public static <T  extends Comparable<?>> BiFunction<Path<?>, String, TimePath<T>> timePath(Class<T> timeClass) {
         return  (path, name) -> Expressions.timePath(timeClass, path, name);
     }
 
-    public static <T extends Number & Comparable<?>> BiFunction<Path<?>, String, Path<?>>  numberPath(Class<T> number) {
+    public static <T extends Number & Comparable<?>> BiFunction<Path<?>, String, Path<T>>  numberPath(Class<T> number) {
         return (path, name) -> Expressions.numberPath(number, path, name);
     }
 }

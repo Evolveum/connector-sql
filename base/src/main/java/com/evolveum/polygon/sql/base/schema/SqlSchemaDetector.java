@@ -7,6 +7,7 @@
 package com.evolveum.polygon.sql.base.schema;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
 import com.querydsl.sql.Configuration;
 import com.querydsl.sql.H2Templates;
 import com.querydsl.sql.SQLTemplates;
@@ -176,9 +177,12 @@ public class SqlSchemaDetector {
 
                     // Use QueryDSL for Java type resolution (dialect-aware)
                     var javaType = resolveJavaType(dataType, typeName, columnSize, decimalDigits, table.table(), colLower);
-                    
+
                     // Normalize type name using driver-typical TYPE_NAME (with fallback normalization)
                     var normalizedTypeName = normalizeTypeName(typeName);
+
+                    // Resolve value mapping: prefer QueryDSL Java type, fall back to JDBC type code
+                    var valueMapping = resolveValueMapping(javaType, dataType);
 
                     cols.add(SqlColumnMeta.builder()
                             .name(colLower)
@@ -186,6 +190,7 @@ public class SqlSchemaDetector {
                             .typeCode(dataType)
                             .size(columnSize)
                             .javaType(javaType)
+                            .valueMapping(valueMapping)
                             .nullable(isNullable(rawNullable))
                             .primaryKey(isPk)
                             .autoIncrement(isAutoInc(rawAutoInc))
@@ -289,7 +294,7 @@ public class SqlSchemaDetector {
             case "BIGINT" -> "BIGINT";
             case "DOUBLE PRECISION" -> "DOUBLE";
             case "NUMBER" -> "NUMERIC";
-            case "CHARCHAR2", "CHARACTER VARYING", "CHARACTER" -> "VARCHAR";
+            case "CHAR", "CHAR2", "CHARACTER VARYING", "CHARACTER" -> "VARCHAR";
             case "VARBINARY" -> "VARBINARY";
             default -> u;
         };
@@ -347,6 +352,20 @@ public class SqlSchemaDetector {
             // Column not supported by this driver
         }
         return 0;
+    }
+
+    /**
+     * Resolves the {@link SqlSchemaValueMapping} for a column, using QueryDSL's
+     * dialect-aware Java type as the primary lookup key, with JDBC type code as fallback.
+     */
+    private SqlSchemaValueMapping resolveValueMapping(java.lang.reflect.Type javaType, int dataType) {
+        if (javaType instanceof Class<?> clazz) {
+            var mapped = SqlSchemaValueMapping.fromQdslJavaType(clazz);
+            if (mapped != null) {
+                return mapped;
+            }
+        }
+        return SqlSchemaValueMapping.fromJdbcType(dataType);
     }
 
     /**

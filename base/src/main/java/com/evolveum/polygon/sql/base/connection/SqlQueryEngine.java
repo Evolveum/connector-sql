@@ -52,20 +52,5 @@ public class SqlQueryEngine {
         return (List<Tuple>) (List) query.fetch();
     }
 
-    /**
-     * SELECT uid, syncCol FROM table WHERE deleteFilter ORDER BY syncCol.
-     */
-    public List<Tuple> selectTombstones(Connection conn, RelationalPathBase<?> path,
-                                         Path<?> uidColumn, ComparablePath<?> syncColumn,
-                                         BooleanExpression deleteFilter,
-                                         int pageSize) {
-        return new SQLQuery<>(conn, templates)
-                .select(uidColumn, syncColumn)
-                .from(path)
-                .where(deleteFilter)
-                .orderBy(syncColumn.asc())
-                .limit(pageSize)
-                .fetch();
-    }
 
 }

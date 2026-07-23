@@ -10,7 +10,6 @@ import com.evolveum.polygon.conndev.spi.ValueMapping;
 import com.querydsl.core.types.Path;
 
 import java.sql.JDBCType;
-import java.util.Arrays;
 
 /**
  * Represents a mapping between ConnId types and SQL wire types.
@@ -18,16 +17,18 @@ import java.util.Arrays;
  */
 public interface SqlValueMapping extends ValueMapping<Object, Object> {
 
-    public static SqlValueMapping from(int typeCode) {
-        var jdbcType = JDBCType.valueOf(typeCode);
-        return Arrays.stream(SqlSchemaValueMapping.values()).filter(s -> jdbcType.equals(s.jdbcType())).findFirst().orElse(null);
+    /**
+     * Looks up a value mapping by JDBC type code (from {@code DatabaseMetaData}).
+     * Uses {@link SqlSchemaValueMapping#fromJdbcType(int)} which gracefully returns null
+     * for unknown type codes, unlike {@code JDBCType.valueOf()} which throws.
+     */
+    static SqlValueMapping from(int typeCode) {
+        return SqlSchemaValueMapping.fromJdbcType(typeCode);
     }
 
     Class<?> connIdType();
-    
+
     Class<?> primaryWireType();
-    
-    JDBCType jdbcType();
 
     interface SingleColumn extends SqlValueMapping {
 
@@ -40,4 +41,3 @@ public interface SqlValueMapping extends ValueMapping<Object, Object> {
 
     }
 }
-
