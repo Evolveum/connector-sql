@@ -7,6 +7,7 @@ package com.evolveum.polygon.sql.base.test;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
+import org.identityconnectors.common.security.GuardedString;
 
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -163,7 +164,7 @@ public final class OracleDatabaseInitializer implements AutoCloseable {
         var config = new SqlConnectorConfiguration();
         config.setJdbcUrl("jdbc:oracle:thin:@//localhost:1521/FREEPDB1");
         config.setUsername("oracle");
-        config.setPassword("oracle123");
+        config.setPassword(new GuardedString("oracle123".toCharArray()));
         config.setPoolSize(5);
         config.setConnectionTimeout(10000);
         config.setValidateConnectionOnBorrow(true);

@@ -8,6 +8,7 @@ package com.evolveum.polygon.sql.base;
 
 import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
+import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.objects.*;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -62,7 +63,7 @@ public class SqlDevConnectorIntegrationTest {
         var config = new SqlConnectorConfiguration();
         config.setJdbcUrl(URL);
         config.setUsername("sa");
-        config.setPassword("");
+        config.setPassword(new GuardedString("".toCharArray()));
         config.setDevelopmentMode(true);
         var connector = new TestSqlConnector();
         connector.init(config);

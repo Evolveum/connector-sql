@@ -11,6 +11,7 @@ import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilder;
 import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
+import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.objects.*;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -59,7 +60,7 @@ public class OracleConnectorIntegrationTest {
         var config = new SqlConnectorConfiguration();
         config.setJdbcUrl("jdbc:oracle:thin:@//localhost:1521/FREEPDB1");
         config.setUsername("oracle");
-        config.setPassword("oracle123");
+        config.setPassword(new GuardedString("oracle123".toCharArray()));
         config.setPoolSize(5);
         config.setConnectionTimeout(10000);
         config.setValidateConnectionOnBorrow(true);

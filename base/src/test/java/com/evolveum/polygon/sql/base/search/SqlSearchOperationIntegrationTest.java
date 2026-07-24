@@ -10,6 +10,7 @@ import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
+import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.objects.*;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -58,7 +59,7 @@ public class SqlSearchOperationIntegrationTest {
         var config = new SqlConnectorConfiguration();
         config.setJdbcUrl(URL);
         config.setUsername("sa");
-        config.setPassword("");
+        config.setPassword(new GuardedString("".toCharArray()));
         config.setPoolSize(5);
         config.setConnectionTimeout(10000);
         config.setValidateConnectionOnBorrow(true);

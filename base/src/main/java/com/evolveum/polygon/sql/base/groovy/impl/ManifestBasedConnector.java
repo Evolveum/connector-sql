@@ -35,7 +35,7 @@ import org.identityconnectors.framework.spi.ConnectorClass;
  * }
  * }</pre>
  */
-@ConnectorClass(displayNameKey = "manifest.sql.connector.display", configurationClass = SqlConnectorConfiguration.class)
+@ConnectorClass(displayNameKey = "manifest.sql.connector.display", configurationClass = SqlConnectorConfiguration.class, messageCatalogPaths = "Messages")
 public class ManifestBasedConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
 
     private static final String CONNECTOR_MANIFEST = "/connector.manifest.json";

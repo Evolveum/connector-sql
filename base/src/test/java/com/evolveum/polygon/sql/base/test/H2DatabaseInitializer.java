@@ -2,6 +2,7 @@ package com.evolveum.polygon.sql.base.test;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
+import org.identityconnectors.common.security.GuardedString;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -90,7 +91,7 @@ public final class H2DatabaseInitializer {
         var config = new SqlConnectorConfiguration();
         config.setJdbcUrl(buildUrl(mode));
         config.setUsername("sa");
-        config.setPassword("");
+        config.setPassword(new GuardedString("".toCharArray()));
         config.setPoolSize(5);
         config.setConnectionTimeout(10000);
         config.setIdleTimeout(30);

@@ -121,7 +121,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
 
         // Auto-discover schema if enabled: detect raw JDBC metadata, then translate it into the one
         // framework schema model (conndev BaseSchema); everything else derives from that model.
-        if (context.configuration().isAutoDiscoverSchema()) {
+        if (context.configuration().getAutoDiscoverSchema()) {
             try {
                 var detector = new SqlSchemaDetector(context);
                 var tables = detector.discover();

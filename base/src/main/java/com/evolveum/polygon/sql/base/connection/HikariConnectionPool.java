@@ -6,6 +6,7 @@
  */
 package com.evolveum.polygon.sql.base.connection;
 
+import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.querydsl.sql.SQLTemplates;
 import com.zaxxer.hikari.HikariConfig;
@@ -29,8 +30,11 @@ public class HikariConnectionPool {
         var config = new HikariConfig();
 
         config.setJdbcUrl(configuration.getJdbcUrl());
+        config.setDriverClassName(getDriverClassName(configuration.getJdbcUrl()));
         config.setUsername(configuration.getUsername());
-        config.setPassword(configuration.getPassword());
+        var password = new GuardedStringAccessor();
+        configuration.getPassword().access(password);
+        config.setPassword(password.getClearString());
 
         var poolSize = configuration.getPoolSize();
         if (poolSize != null && poolSize > 0) {
@@ -52,7 +56,7 @@ public class HikariConnectionPool {
         config.setAutoCommit(true);
         config.setPoolName("PolygonSQLPool");
 
-        var validateOnBorrow = configuration.isValidateConnectionOnBorrow();
+        var validateOnBorrow = configuration.getValidateConnectionOnBorrow();
         if (validateOnBorrow != null && validateOnBorrow) {
             config.setConnectionTestQuery("SELECT 1");
             config.setValidationTimeout(3000);
@@ -121,5 +125,36 @@ public class HikariConnectionPool {
             ds = dataSource;
         }
         return ds;
+    }
+
+    /**
+     * Computes the JDBC driver class name based on the provided JDBC URL.
+     *
+     * @param jdbcUrl The JDBC connection string (e.g., "jdbc:postgresql://localhost:5432/db")
+     * @return The fully-qualified driver class name, or null if unsupported/invalid.
+     */
+    public static String getDriverClassName(String jdbcUrl) {
+        if (jdbcUrl == null || !jdbcUrl.startsWith("jdbc:")) {
+            return null;
+        }
+
+        // Split by ":" to isolate the subprotocol (e.g., "mysql", "postgresql")
+        String[] parts = jdbcUrl.split(":");
+        if (parts.length < 2) {
+            return null;
+        }
+
+        String subprotocol = parts[1].toLowerCase();
+
+        return switch (subprotocol) {
+            case "postgresql" -> "org.postgresql.Driver";
+            case "mysql"      -> "com.mysql.cj.jdbc.Driver";
+            case "mariadb"    -> "org.mariadb.jdbc.Driver";
+            case "sqlserver"  -> "com.microsoft.sqlserver.jdbc.SQLServerDriver";
+            case "sqlite"     -> "org.sqlite.JDBC";
+            case "h2"         -> "org.h2.Driver";
+            case "oracle"     -> "oracle.jdbc.OracleDriver";
+            default           -> null; // Or throw an IllegalArgumentException
+        };
     }
 }

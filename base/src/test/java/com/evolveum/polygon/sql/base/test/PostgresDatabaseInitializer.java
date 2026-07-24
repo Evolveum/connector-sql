@@ -3,6 +3,7 @@ package com.evolveum.polygon.sql.base.test;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import io.zonky.test.db.postgres.embedded.EmbeddedPostgres;
+import org.identityconnectors.common.security.GuardedString;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -116,7 +117,7 @@ public final class PostgresDatabaseInitializer implements AutoCloseable {
         var config = new SqlConnectorConfiguration();
         config.setJdbcUrl(url);
         config.setUsername("postgres");
-        config.setPassword("postgres");
+        config.setPassword(new GuardedString("postgres".toCharArray()));
         config.setPoolSize(5);
         config.setConnectionTimeout(10000);
         config.setIdleTimeout(30);
@@ -154,8 +155,8 @@ public final class PostgresDatabaseInitializer implements AutoCloseable {
     /**
      * Provides the password for connecting to this embedded instance.
      */
-    public String getPassword() {
-        return "postgres";
+    public GuardedString getPassword() {
+        return new GuardedString("postgres".toCharArray());
     }
 
     /**

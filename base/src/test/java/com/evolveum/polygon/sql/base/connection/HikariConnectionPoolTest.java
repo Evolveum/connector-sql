@@ -7,6 +7,7 @@
 package com.evolveum.polygon.sql.base.connection;
 
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
+import org.identityconnectors.common.security.GuardedString;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
@@ -26,7 +27,7 @@ public class HikariConnectionPoolTest {
         configuration = new SqlConnectorConfiguration();
         configuration.setJdbcUrl("jdbc:h2:mem:hikaritest;DB_CLOSE_DELAY=-1");
         configuration.setUsername("sa");
-        configuration.setPassword("");
+        configuration.setPassword(new GuardedString("".toCharArray()));
         configuration.setPoolSize(5);
         configuration.setConnectionTimeout(30000);
         configuration.setIdleTimeout(600000);

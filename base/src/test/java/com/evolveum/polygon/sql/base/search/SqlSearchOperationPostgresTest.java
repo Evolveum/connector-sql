@@ -6,6 +6,7 @@
  */
 package com.evolveum.polygon.sql.base.search;
 
+import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
@@ -50,8 +51,10 @@ public class SqlSearchOperationPostgresTest {
         postgres = PostgresDatabaseInitializer.create();
 
         // Load schema and data using direct JDBC before initializing the connector
+        var password = new GuardedStringAccessor();
+        postgres.getPassword().access(password);
         try (Connection conn = DriverManager.getConnection(
-                postgres.getJdbcUrl(), postgres.getUsername(), postgres.getPassword())) {
+                postgres.getJdbcUrl(), postgres.getUsername(), password.getClearString())) {
             executeSql(conn, "postgresql/basic/schema.sql");
             executeSql(conn, "postgresql/basic/data.sql");
         }

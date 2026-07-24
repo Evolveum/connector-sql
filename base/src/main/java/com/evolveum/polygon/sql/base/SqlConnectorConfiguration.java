@@ -7,6 +7,8 @@
 package com.evolveum.polygon.sql.base;
 
 import com.evolveum.polygon.conndev.groovy.BaseGroovyConnectorConfiguration;
+import org.identityconnectors.common.security.GuardedString;
+import org.identityconnectors.framework.spi.ConfigurationProperty;
 
 /**
  * Configuration class for SQL connector.
@@ -15,17 +17,15 @@ import com.evolveum.polygon.conndev.groovy.BaseGroovyConnectorConfiguration;
 public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration {
 
     private String jdbcUrl;
-    private String dialect; // postgresql, mysql, oracle, sqlite, auto
     private String username;
-    private String password;
+    private GuardedString password;
     private Integer poolSize = 10;
     private Integer connectionTimeout = 30000;
     private Integer idleTimeout = 600000;
     private Boolean validateConnectionOnBorrow = true;
     private Boolean autoDiscoverSchema = true;
-    private Boolean logSqlStatements = false;
-    private Boolean onlyExplicitlyListed = false;
 
+    @ConfigurationProperty(required = true, order = 0)
     public String getJdbcUrl() {
         return jdbcUrl;
     }
@@ -34,18 +34,12 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.jdbcUrl = jdbcUrl;
     }
 
-    public String getDialect() {
-        return dialect;
-    }
-
-    public void setDialect(String dialect) {
-        this.dialect = dialect;
-    }
-
+    @ConfigurationProperty(required = true, order = 20)
     public String getUsername() {
         return username;
     }
 
+    @ConfigurationProperty(required = true, order = 30)
     public void setUsername(String username) {
         this.username = username;
     }
@@ -55,11 +49,11 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
      * Note: This value is sensitive and should only be used for database connection setup.
      * It is intentionally omitted from toString() to prevent accidental exposure.
      */
-    public String getPassword() {
+    public GuardedString getPassword() {
         return password;
     }
 
-    public void setPassword(String password) {
+    public void setPassword(GuardedString password) {
         this.password = password;
     }
 
@@ -87,7 +81,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.idleTimeout = idleTimeout;
     }
 
-    public Boolean isValidateConnectionOnBorrow() {
+    public Boolean getValidateConnectionOnBorrow() {
         return validateConnectionOnBorrow;
     }
 
@@ -95,28 +89,12 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.validateConnectionOnBorrow = validateConnectionOnBorrow;
     }
 
-    public Boolean isAutoDiscoverSchema() {
+    public Boolean getAutoDiscoverSchema() {
         return autoDiscoverSchema;
     }
 
     public void setAutoDiscoverSchema(Boolean autoDiscoverSchema) {
         this.autoDiscoverSchema = autoDiscoverSchema;
-    }
-
-    public Boolean isLogSqlStatements() {
-        return logSqlStatements;
-    }
-
-    public void setLogSqlStatements(Boolean logSqlStatements) {
-        this.logSqlStatements = logSqlStatements;
-    }
-
-    public Boolean isOnlyExplicitlyListed() {
-        return onlyExplicitlyListed;
-    }
-
-    public void setOnlyExplicitlyListed(Boolean onlyExplicitlyListed) {
-        this.onlyExplicitlyListed = onlyExplicitlyListed;
     }
 
     @Override
@@ -128,30 +106,5 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         if (username == null || username.isEmpty()) {
             throw new IllegalArgumentException("Username is required");
         }
-    }
-
-    @Override
-    public String toString() {
-        return """
-            SqlConnectorConfiguration{
-                jdbcUrl='%s',
-                dialect='%s',
-                username='%s',
-                poolSize=%s,
-                connectionTimeout=%s,
-                idleTimeout=%s,
-                validateConnectionOnBorrow=%s,
-                autoDiscoverSchema=%s,
-                logSqlStatements=%s
-            }"""
-            .formatted("jdbcUrl=**hidden**", 
-                       dialect,
-                       username,
-                       poolSize,
-                       connectionTimeout,
-                       idleTimeout,
-                       validateConnectionOnBorrow,
-                       autoDiscoverSchema,
-                       logSqlStatements);
     }
 }
