@@ -30,7 +30,11 @@ public class HikariConnectionPool {
         var config = new HikariConfig();
 
         config.setJdbcUrl(configuration.getJdbcUrl());
-        config.setDriverClassName(getDriverClassName(configuration.getJdbcUrl()));
+
+        var driverClassName = getDriverClassName(configuration.getJdbcUrl());
+        if (driverClassName == null) {
+            config.setDriverClassName(driverClassName);
+        }
         config.setUsername(configuration.getUsername());
         var password = new GuardedStringAccessor();
         configuration.getPassword().access(password);
