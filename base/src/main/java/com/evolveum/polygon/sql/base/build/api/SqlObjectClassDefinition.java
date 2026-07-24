@@ -13,12 +13,26 @@ import java.util.Map;
 public class SqlObjectClassDefinition extends BaseObjectClassDefinition<SqlAttributeDefinition> {
 
     private final SqlSchemaBuilderImpl.SqlObjectClassMapping sql;
+    private final Boolean readOnly;
 
     public SqlObjectClassDefinition(ObjectClassInfo connId,
                                     Map<String, SqlAttributeDefinition> nativeAttrs,
-                                    Map<String, SqlAttributeDefinition> connIdAttrs, SqlSchemaBuilderImpl.SqlObjectClassMapping sql) {
+                                    Map<String, SqlAttributeDefinition> connIdAttrs,
+                                    SqlSchemaBuilderImpl.SqlObjectClassMapping sql,
+                                    Boolean readOnly) {
         super(connId, nativeAttrs, connIdAttrs);
         this.sql = sql;
+        this.readOnly = readOnly;
+    }
+
+    /**
+     * Returns whether this object class is marked as read-only.
+     * When true, Create/Update/Delete operations are not supported.
+     *
+     * @return true if read-only, false or null otherwise
+     */
+    public Boolean getReadOnly() {
+        return readOnly;
     }
 
     /**

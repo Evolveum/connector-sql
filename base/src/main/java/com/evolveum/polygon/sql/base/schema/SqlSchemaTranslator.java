@@ -144,6 +144,10 @@ public class SqlSchemaTranslator {
         if (table.getRemarks() != null && !table.getRemarks().isBlank()) {
             objectClass.description(detected(table.getRemarks()));
         }
+        // Auto-set readOnly for views (VIEW table type from JDBC metadata)
+        if ("VIEW".equalsIgnoreCase(table.getTableType())) {
+            objectClass.readOnly(true);
+        }
         // Apply detection strategies for embedded classification
         List<AttributeDetectionStrategy> effectiveStrategies = getEffectiveStrategies();
         if (effectiveStrategies.stream().anyMatch(strategy -> strategy.isEmbedded(table))) {
@@ -244,6 +248,15 @@ public class SqlSchemaTranslator {
                 uid = Optional.of(pks.getFirst());
             }
         }
+        // Fallback for views: use first unique-constrained column (view may have no PK)
+        if (uid.isEmpty()) {
+            List<SqlColumnMeta> uniqueCols = table.getColumns().stream()
+                    .filter(c -> c.isUnique() && !c.isPrimaryKey())
+                    .toList();
+            if (!uniqueCols.isEmpty()) {
+                uid = Optional.of(uniqueCols.getFirst());
+            }
+        }
         return uid;
     }
 
@@ -275,7 +288,11 @@ public class SqlSchemaTranslator {
         if (isLargeType(column.getTypeName())) {
             connId.returnedByDefault(detected(false));
         }
-        if (column.isAutoIncrement()) {
+        // For read-only object classes (e.g., views), mark all attributes as non-creatable/updatable
+        if (Boolean.TRUE.equals(objectClass.getReadOnly())) {
+            connId.creatable(detected(false));
+            connId.updatable(detected(false));
+        } else if (column.isAutoIncrement()) {
             connId.creatable(detected(false));
             connId.updatable(detected(false));
         } else if (column.isPrimaryKey()) {

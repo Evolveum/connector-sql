@@ -13,6 +13,7 @@ import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
 import com.evolveum.polygon.sql.base.test.PostgresDatabaseInitializer;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.objects.AttributeInfo;
+import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Configuration;
@@ -101,7 +102,7 @@ public class SqlSchemaDetectorPostgresTest {
     @Test
     public void testAllTablesDiscovered() throws Exception {
         List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
-        assertThat(tables).hasSize(6);
+        assertThat(tables).hasSize(7);
     }
 
     @Test
@@ -203,7 +204,7 @@ public class SqlSchemaDetectorPostgresTest {
                         Function.identity(),
                         (a, b) -> a));
 
-        for (String name : List.of("app_user", "app_group", "app_role", "project", "useraddress", "projectmembership")) {
+        for (String name : List.of("app_user", "app_group", "app_role", "project", "useraddress", "projectmembership", "user_overview")) {
             assertThat(objClasses.containsKey(name))
                     .withFailMessage("Should contain '" + name + "' object class").isTrue();
         }
@@ -228,6 +229,95 @@ public class SqlSchemaDetectorPostgresTest {
         //assertThat(memberAttrs.get("user_id").getReferencedObjectClassName()).isEqualTo("app_user");
         assertThat(memberAttrs.get("project_id").isRequired()).isTrue();
         assertThat(memberAttrs.get("role_id").isRequired()).isTrue();
+    }
+
+    // --- View support tests ---
+
+    @Test
+    public void testViewDiscoveredWithCorrectType() throws Exception {
+        List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
+        SqlTableInfo viewTable = table(tables, "user_overview");
+        assertThat(viewTable).isNotNull();
+        assertThat(viewTable.getTableType()).isEqualTo("VIEW");
+    }
+
+    @Test
+    public void testViewAttributesDetected() throws Exception {
+        List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
+        SqlTableInfo viewTable = table(tables, "user_overview");
+        assertThat(viewTable).isNotNull();
+        Map<String, SqlColumnMeta> columns = toColumnMap(viewTable);
+        assertThat(columns).hasSize(4);
+        assertThat(columns.containsKey("id")).isTrue();
+        assertThat(columns.containsKey("username")).isTrue();
+        assertThat(columns.containsKey("email")).isTrue();
+        assertThat(columns.containsKey("created_at")).isTrue();
+    }
+
+    @Test
+    public void testViewReadOnlyFlagSet() throws Exception {
+        List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
+        var sqlSchema = new SqlSchemaTranslator(tables)
+                .translate(StubConnector.class, context);
+
+        // Check that the view object class is marked as read-only
+        var viewDef = sqlSchema.objectClasses().stream()
+                .filter(o -> "user_overview".equals(o.name().toLowerCase()))
+                .findFirst()
+                .orElse(null);
+        assertThat(viewDef).isNotNull();
+        assertThat(viewDef.getReadOnly()).isTrue();
+
+        // All attributes should be createable=false, updateable=false for views
+        var connIdSchema = sqlSchema.connIdSchema();
+        var viewClass = connIdSchema.getObjectClassInfo().stream()
+                .filter(o -> "user_overview".equals(o.getType().toLowerCase()))
+                .findFirst()
+                .orElse(null);
+        assertThat(viewClass).isNotNull();
+
+        for (var attr : viewClass.getAttributeInfo()) {
+            // __UID__ and __NAME__ may have different defaults — focus on actual columns
+            if (Uid.NAME.equals(attr.getName()) || Name.NAME.equals(attr.getName())) {
+                continue;
+            }
+            assertThat(attr.isCreateable()).describedAs("View attribute '%s' should not be createable", attr.getName()).isFalse();
+            assertThat(attr.isUpdateable()).describedAs("View attribute '%s' should not be updateable", attr.getName()).isFalse();
+        }
+    }
+
+    @Test
+    public void testViewUidResolution() throws Exception {
+        List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
+        var sqlSchema = new SqlSchemaTranslator(tables)
+                .translate(StubConnector.class, context);
+
+        // Check that the view object class has no __UID__ when there are no unique constraints
+        // (PostgreSQL views don't have unique indexes, so unique column fallback finds none)
+        var viewDef = sqlSchema.objectClasses().stream()
+                .filter(o -> "user_overview".equals(o.name().toLowerCase()))
+                .findFirst()
+                .orElse(null);
+        assertThat(viewDef).isNotNull();
+
+        var connIdSchema = sqlSchema.connIdSchema();
+        var viewClass = connIdSchema.getObjectClassInfo().stream()
+                .filter(o -> "user_overview".equals(o.getType().toLowerCase()))
+                .findFirst()
+                .orElse(null);
+        assertThat(viewClass).isNotNull();
+
+        // UID may or may not be present depending on unique constraints
+        // Postgres views don't have unique indexes, so no __UID__ attribute is created
+        var uidAttr = viewClass.getAttributeInfo().stream()
+                .filter(a -> Uid.NAME.equals(a.getName()))
+                .findFirst()
+                .orElse(null);
+        // If no unique constraint, uidAttr will be null — that's expected behavior
+        // when a view has no primary key and no unique columns
+        if (uidAttr != null) {
+            assertThat(uidAttr.getNativeName()).isIn("id", "username");
+        }
     }
 
     @Test

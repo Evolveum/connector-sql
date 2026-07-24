@@ -66,6 +66,24 @@ public interface SqlObjectClassSchemaBuilder extends ObjectClassSchemaBuilder<Sq
     Boolean getOnlyExplicitlyListed();
 
     /**
+     * Sets read-only flag. When true, the object class will have
+     * {@code Creatable=false}, {@code Updatable=false}, {@code Removable=false}
+     * in the ConnId schema. Used for SQL views — these are read-only and should
+     * not support Create, Update, Delete operations. Sync and Search are still supported.
+     *
+     * @param value whether this object class is read-only
+     * @return this builder for chaining
+     */
+    SqlObjectClassSchemaBuilder readOnly(boolean value);
+
+    /**
+     * Returns the current value of the readOnly flag.
+     *
+     * @return the flag value, or {@code false} if not explicitly set
+     */
+    Boolean getReadOnly();
+
+    /**
      * Convenience method to set the SQL table name.
      *
      * @param table the SQL table name

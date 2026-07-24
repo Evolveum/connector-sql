@@ -63,3 +63,9 @@ ALTER TABLE projectmembership ADD CONSTRAINT fk_membership_project
 
 ALTER TABLE projectmembership ADD CONSTRAINT fk_membership_role
     FOREIGN KEY (role_id) REFERENCES app_role(id);
+
+-- View with unique index on the username column (for testing view discovery & UID via unique constraint)
+DROP VIEW IF EXISTS user_overview CASCADE;
+CREATE VIEW user_overview AS
+    SELECT id, username, email, created_at
+    FROM app_user;

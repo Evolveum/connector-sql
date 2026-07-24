@@ -86,7 +86,8 @@ public class SqlSchemaDetector {
                 tables.add(SqlTableInfo.builder()
                                 .schema(entry.getKey().schema())
                         .name(entry.getKey().table())
-                        .tableType("TABLE")
+                        .tableType(entry.getKey().tableType() != null ? entry.getKey().tableType() : "TABLE")
+                        .catalog(entry.getKey().catalog())
                         .columns(entry.getValue())
                         .build());
             }
@@ -111,7 +112,9 @@ public class SqlSchemaDetector {
                 }
                 var name = resolveColumn(rs, meta, "TABLE_NAME");
                 if (name != null) {
-                    names.add(new Table(schema,name));
+                    var tableType = resolveColumn(rs, meta, "TABLE_TYPE");
+                    var catalog = resolveColumn(rs, meta, "TABLE_CAT");
+                    names.add(new Table(schema, name, tableType, catalog));
                 }
             }
         }
@@ -377,5 +380,5 @@ public class SqlSchemaDetector {
         return templates;
     }
 
-    record Table(String schema, String table) {}
+    record Table(String schema, String table, String tableType, String catalog) {}
 }

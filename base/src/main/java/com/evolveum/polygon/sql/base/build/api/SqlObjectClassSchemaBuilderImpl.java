@@ -22,6 +22,7 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
     private DefinitionValue<String> schema = DefinitionValue.emptyDefault();
     private DefinitionValue<String> table;
     private Boolean onlyExplicitlyListed = false;
+    private Boolean readOnly = false;
     private final Set<String> explicitRemoteNames = new LinkedHashSet<>();
 
     public SqlObjectClassSchemaBuilderImpl(SqlSchemaBuilderImpl restSchemaBuilder, DefinitionValue<String> name) {
@@ -44,6 +45,17 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
     @Override
     public Boolean getOnlyExplicitlyListed() {
         return onlyExplicitlyListed;
+    }
+
+    @Override
+    public SqlObjectClassSchemaBuilder readOnly(boolean value) {
+        this.readOnly = value;
+        return this;
+    }
+
+    @Override
+    public Boolean getReadOnly() {
+        return readOnly;
     }
 
     /**
@@ -103,6 +115,10 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
                 var attributeBuilder = newAttribute(DefinitionValue.defaultFrom(Name.NAME));
                 attributeBuilder.emulated(DefinitionValue.detected(true));
                 attributeBuilder.sql().override(mapping);
+                if (Boolean.TRUE.equals(readOnly)) {
+                    attributeBuilder.connId().creatable(DefinitionValue.detected(false));
+                    attributeBuilder.connId().updatable(DefinitionValue.detected(false));
+                }
                 var attribute = attributeBuilder.build();
                 nativeAttrs.put(Name.NAME, attribute);
                 connIdAttrs.put(Name.NAME, attribute);
@@ -111,7 +127,7 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
 
         var sql = new SqlSchemaBuilderImpl.SqlObjectClassMapping(schema, table);
 
-        return  new SqlObjectClassDefinition(connIdInfo, nativeAttrs, connIdAttrs, sql);
+        return  new SqlObjectClassDefinition(connIdInfo, nativeAttrs, connIdAttrs, sql, readOnly);
     }
 
 
