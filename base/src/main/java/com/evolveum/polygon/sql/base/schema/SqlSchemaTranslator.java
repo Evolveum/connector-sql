@@ -141,11 +141,6 @@ public class SqlSchemaTranslator {
                     o.sql().schema(detected(table.getSchema())).table(detected(table.getName()));
                 }
         );
-        // Set locator and namespace (not on interface, cast needed)
-        objectClass.locator(table.getName());
-        if (table.getSchema() != null) {
-            objectClass.namespace(table.getSchema());
-        }
         if (table.getRemarks() != null && !table.getRemarks().isBlank()) {
             objectClass.description(detected(table.getRemarks()));
         }

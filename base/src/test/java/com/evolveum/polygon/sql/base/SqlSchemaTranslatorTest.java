@@ -1,6 +1,6 @@
 package com.evolveum.polygon.sql.base;
 
-import com.evolveum.polygon.conndev.schema.BaseSchema;
+import com.evolveum.polygon.sql.base.build.api.SqlSchema;
 import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
@@ -38,7 +38,7 @@ public class SqlSchemaTranslatorTest {
         }
     }
 
-    private BaseSchema translated(SqlSchemaTranslator translator) {
+    private SqlSchema translated(SqlSchemaTranslator translator) {
         return translator.translate(SqlSchemaDetectorIntegrationTest.StubConnector.class, context);
     }
 
@@ -113,7 +113,7 @@ public class SqlSchemaTranslatorTest {
 
         var user = schema.objectClass("user");
         assertThat(user).isNotNull();
-        //assertThat(user.locator()).isEqualTo("user");
+        assertThat(user.sql().table().value()).isEqualTo("User");
 
         // the single-PK "id" column maps to __UID__ but keeps its native name and SQL type
         var id = user.attributeFromProtocolName("id");

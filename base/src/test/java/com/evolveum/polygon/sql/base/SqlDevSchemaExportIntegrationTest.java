@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Integration tests (H2) for the development-mode schema export derived from the translated
  * {@code BaseSchema}: foreign keys are detected and expressed on the attributes as references
  * ({@code referencedObjectClass} / {@code referencedAttribute} / {@code reference}), including
- * composite keys; the table becomes the {@code locator}.
+ * composite keys; the table and schema are exported in the {@code sql} protocol block.
  */
 @Test(singleThreaded = true)
 public class SqlDevSchemaExportIntegrationTest {
@@ -58,7 +58,8 @@ public class SqlDevSchemaExportIntegrationTest {
         // role_id -> Role.
         var object = export("projectmembership");
 
-        //assertThat(value(object, "locator")).isEqualTo("projectmembership");
+        var sql = protocolBlock(object, "sql");
+        assertThat(string(sql, "table")).isEqualTo("PROJECTMEMBERSHIP");
 
         var userId = attribute(object, "user_id");
         //assertThat(string(userId, "referencedObjectClass")).isEqualTo("user");
@@ -117,9 +118,9 @@ public class SqlDevSchemaExportIntegrationTest {
                 .findFirst().orElseThrow(() -> new AssertionError("No attribute named " + name));
     }
 
-    private static String value(ConnectorObject object, String name) {
-        var attribute = object.getAttributeByName(name);
-        return attribute == null ? null : AttributeUtil.getStringValue(attribute);
+    private static EmbeddedObject protocolBlock(ConnectorObject object, String protocolName) {
+        var attribute = object.getAttributeByName(protocolName);
+        return (EmbeddedObject) AttributeUtil.getSingleValue(attribute);
     }
 
     private static String string(EmbeddedObject object, String name) {
