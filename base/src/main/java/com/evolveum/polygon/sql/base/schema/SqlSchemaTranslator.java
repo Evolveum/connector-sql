@@ -99,8 +99,8 @@ public class SqlSchemaTranslator {
     /**
      * Translate with additional object classes, using previously set connector/class and context.
      */
-    @SuppressWarnings("UnusedMethod")
     public SqlSchema translate(Collection<ObjectClassInfo> additionalObjectClasses) {
+        additionalObjectClasses.forEach(builder::defineObjectClass);
         return translateInternal(this.connectorClass, this.contextLookup);
     }
 

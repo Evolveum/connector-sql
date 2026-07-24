@@ -27,12 +27,15 @@ import com.querydsl.sql.H2Templates;
 import com.querydsl.sql.SQLTemplates;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
 import org.identityconnectors.framework.common.exceptions.InvalidCredentialException;
+import org.identityconnectors.framework.common.objects.AttributeInfoBuilder;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
+import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.spi.Configuration;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -143,9 +146,17 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                 context.setSqlTemplates(templates);
 
                 // In development mode the shared conndev_ObjectClass / conndev_Attribute classes are
-                // part of the schema, so midPoint can search the discovered schema.
-                var additional = Boolean.TRUE.equals(context.configuration().getDevelopmentMode())
-                        ? ConnDevSchema.objectClassInfos() : List.<ObjectClassInfo>of();
+                // part of the schema, so midPoint can search the discovered schema. The "sql" block
+                // (table/schema) is SQL's own protocol-specific block - conndev doesn't know its shape,
+                // so it's declared here and passed in alongside the shared object classes.
+                List<ObjectClassInfo> additional;
+                if (Boolean.TRUE.equals(context.configuration().getDevelopmentMode())) {
+                    additional = new ArrayList<>(ConnDevSchema.objectClassInfos(
+                            List.of(ConnDevSchema.embeddedBlock(SQL_BLOCK, SQL_BLOCK_TYPE)), List.of()));
+                    additional.add(sqlObjectClassBlock());
+                } else {
+                    additional = List.of();
+                }
 
                 context.schema(new SqlSchemaTranslator(builder, tables)
                         .connector(getClass(), context)
@@ -178,6 +189,19 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         }
 
         context.handlers(handlerBuilder.build());
+    }
+
+    private static final String SQL_BLOCK = "sql";
+    private static final String SQL_BLOCK_TYPE = ConnDevObjectClass.protocolBlockType(SQL_BLOCK);
+
+    /** The object-class-level {@code sql} block: DB schema and table name. */
+    private static ObjectClassInfo sqlObjectClassBlock() {
+        var builder = new ObjectClassInfoBuilder();
+        builder.setType(SQL_BLOCK_TYPE);
+        builder.setEmbedded(true);
+        builder.addAttributeInfo(AttributeInfoBuilder.build("table", String.class));
+        builder.addAttributeInfo(AttributeInfoBuilder.build("schema", String.class));
+        return builder.build();
     }
 
     protected void initializeSchema(SqlSchemaBuilder builder) {

@@ -9,6 +9,7 @@ import com.querydsl.sql.RelationalPathBase;
 import groovy.lang.Closure;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
+import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.SchemaBuilder;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Connector;
@@ -22,9 +23,20 @@ public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl
         SqlSchemaBuilder, SqlObjectClassSchemaBuilder> implements SqlSchemaBuilder {
 
     private Boolean onlyExplicitlyListed = false;
+    private final List<ObjectClassInfo> additionalObjectClasses = new ArrayList<>();
 
     public SqlSchemaBuilderImpl(Class<? extends Connector> connectorClass, ContextLookup context) {
         super(connectorClass, context);
+    }
+
+    /**
+     * Adds a ready-made ConnId object class (e.g. the shared conndev dev object classes defined in
+     * {@code ConnDevSchema}, or SQL's own {@code sql} protocol-specific block) to the schema, alongside
+     * the mapped object classes.
+     */
+    public SqlSchemaBuilderImpl defineObjectClass(ObjectClassInfo objectClass) {
+        additionalObjectClasses.add(objectClass);
+        return this;
     }
 
     @Override
@@ -74,6 +86,9 @@ public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl
             var def = obc.build();
             freshSchemaBuilder.defineObjectClass(def.connId());
             sqlObjectClassMap.put(def.objectClass(), def);
+        }
+        for (var info : additionalObjectClasses) {
+            freshSchemaBuilder.defineObjectClass(info);
         }
 
         var connIdSchema = freshSchemaBuilder.build();

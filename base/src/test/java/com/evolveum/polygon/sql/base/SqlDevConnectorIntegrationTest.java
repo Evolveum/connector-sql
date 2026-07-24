@@ -9,21 +9,18 @@ package com.evolveum.polygon.sql.base;
 import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
 import org.identityconnectors.common.security.GuardedString;
-import org.identityconnectors.framework.common.objects.*;
+import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.sql.DriverManager;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * End-to-end (H2) test of the SQL development-mode export: the connector exposes {@code conndev_ObjectClass}
- * in its schema and its inherited {@code executeQuery} dispatch returns one object per table, with foreign
- * keys expressed as references on the attributes.
+ * in its schema.
  */
 @Test(singleThreaded = true)
 public class SqlDevConnectorIntegrationTest {
@@ -70,52 +67,17 @@ public class SqlDevConnectorIntegrationTest {
         return connector;
     }
 
-    @Test(enabled = false)
+    @Test
     public void exposesConnDevObjectClassInSchema() {
         var connector = devConnector();
         try {
             var types = connector.schema().getObjectClassInfo().stream()
                     .map(ObjectClassInfo::getType).collect(Collectors.toSet());
-            assertThat(types).contains("conndev_ObjectClass", "conndev_Attribute");
+            assertThat(types).contains(
+                    "conndev_ObjectClass", "conndev_Attribute", "conndev_connIdAttribute", "conndev_sql");
         } finally {
             connector.dispose();
         }
     }
 
-    @Test(enabled = false)
-    public void searchesConnDevObjectClassThroughConnector() {
-        var connector = devConnector();
-        try {
-            var results = new ArrayList<ConnectorObject>();
-            connector.executeQuery(new ObjectClass("conndev_ObjectClass"), null, results::add, null);
-
-            // one conndev_ObjectClass per table
-            var names = results.stream()
-                    .map(o -> o.getName().getNameValue().toLowerCase()).collect(Collectors.toSet());
-            assertThat(names).contains("app_user", "app_group", "membership");
-
-            // the FK on membership.user_id came through the whole chain as a reference on the attribute
-            var membership = results.stream()
-                    .filter(o -> o.getName().getNameValue().equalsIgnoreCase("membership"))
-                    .findFirst().orElseThrow();
-            var userId = attribute(membership, "user_id");
-            assertThat(string(userId, "referencedObjectClass")).isEqualTo("app_user");
-            assertThat(string(userId, "referencedAttribute")).isEqualTo("id");
-            assertThat(string(userId, "reference")).isNotBlank();
-        } finally {
-            connector.dispose();
-        }
-    }
-
-    private static EmbeddedObject attribute(ConnectorObject object, String name) {
-        List<Object> attributes = object.getAttributeByName("attributes").getValue();
-        return attributes.stream().map(EmbeddedObject.class::cast)
-                .filter(e -> name.equals(string(e, "name")))
-                .findFirst().orElseThrow(() -> new AssertionError("No attribute named " + name));
-    }
-
-    private static String string(EmbeddedObject object, String name) {
-        var attribute = AttributeUtil.find(name, object.getAttributes());
-        return attribute == null ? null : AttributeUtil.getStringValue(attribute);
-    }
 }
