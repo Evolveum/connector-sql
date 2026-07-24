@@ -101,7 +101,7 @@ public class SqlSchemaDetector {
      */
     private List<Table> getTableList(Connection conn, String schemaName) throws SQLException {
         List<Table> names = new ArrayList<>();
-        try (var rs = conn.getMetaData().getTables(null, schemaName, "%", new String[]{"TABLE"})) {
+        try (var rs = conn.getMetaData().getTables(null, schemaName, "%", new String[]{"TABLE", "VIEW"})) {
             var meta = rs.getMetaData();
             while (rs.next()) {
                 // TABLE_SCHEM is not typo, but actual column name
