@@ -24,7 +24,6 @@ import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
 import java.sql.Date;
-import java.sql.JDBCType;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;

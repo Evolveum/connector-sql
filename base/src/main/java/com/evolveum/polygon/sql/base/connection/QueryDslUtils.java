@@ -3,7 +3,6 @@ package com.evolveum.polygon.sql.base.connection;
 import com.querydsl.core.types.Path;
 import com.querydsl.core.types.dsl.*;
 
-import java.sql.Time;
 import java.sql.Timestamp;
 import java.util.function.BiFunction;
 

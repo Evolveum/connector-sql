@@ -9,8 +9,6 @@ package com.evolveum.polygon.sql.base.connection;
 import org.assertj.core.api.Assertions;
 import org.testng.annotations.Test;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
@@ -63,7 +61,7 @@ public class QueryDslTypeMappingTest {
     public void testTimeConversion() {
         var mapping = QueryDslTypeMapping.SQL_TIME;
         Time sqlTime = Time.valueOf("14:30:00");
-        LocalTime lt = sqlTime.toLocalTime();
+        var lt = sqlTime.toLocalTime();
         var connId = (String) mapping.toConnIdValue(lt);
         assertThat(connId).isEqualTo(lt.toString());
         var back = (LocalTime) mapping.toWireValue("14:30:00");
@@ -94,7 +92,7 @@ public class QueryDslTypeMappingTest {
     public void testDateRoundTrip() {
         var mapping = QueryDslTypeMapping.SQL_DATE;
         Date original = Date.valueOf("2024-07-01");
-        ZonedDateTime connId = (ZonedDateTime) mapping.toConnIdValue(original);
+        var connId = (ZonedDateTime) mapping.toConnIdValue(original);
         var back = (Date) mapping.toWireValue(connId);
         assertThat(back).isEqualTo(original);
     }

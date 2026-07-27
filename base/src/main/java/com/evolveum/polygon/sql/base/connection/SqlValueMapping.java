@@ -9,8 +9,6 @@ package com.evolveum.polygon.sql.base.connection;
 import com.evolveum.polygon.conndev.spi.ValueMapping;
 import com.querydsl.core.types.Path;
 
-import java.sql.JDBCType;
-
 /**
  * Represents a mapping between ConnId types and SQL wire types.
  * Extends the ValueMapping interface from connector-scimrest.

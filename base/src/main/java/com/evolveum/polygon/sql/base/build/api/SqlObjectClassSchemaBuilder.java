@@ -104,6 +104,30 @@ public interface SqlObjectClassSchemaBuilder extends ObjectClassSchemaBuilder<Sq
     }
 
     /**
+     * Sets the locator (SQL table name) for this object class.
+     * Used by auto-discovery to map the SQL table to this ConnId object class.
+     *
+     * @param table the SQL table name
+     * @return this builder for chaining
+     */
+    default SqlObjectClassSchemaBuilder locator(String table) {
+        sql().table(DefinitionValue.from(table, SourceLocation.capture()));
+        return this;
+    }
+
+    /**
+     * Sets the namespace (SQL schema name) for this object class.
+     * Used by auto-discovery to provide SQL schema context.
+     *
+     * @param schema the SQL schema name
+     * @return this builder for chaining
+     */
+    default SqlObjectClassSchemaBuilder namespace(String schema) {
+        sql().schema(DefinitionValue.from(schema, SourceLocation.capture()));
+        return this;
+    }
+
+    /**
      * SQL mapping interface for object classes.
      * Maps ConnId object classes to SQL tables.
      */

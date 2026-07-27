@@ -128,13 +128,18 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
             }
             context.setSqlTemplates(templates);
 
+            var additional = new ArrayList<ObjectClassInfo>();
+            if (Boolean.TRUE.equals(context.configuration().getDevelopmentMode())) {
+                additional.addAll(ConnDevSchema.objectClassInfos());
+                additional.add(sqlObjectClassBlock());
+            }
+
             if (Boolean.TRUE.equals(context.configuration().getAutoDiscoverSchema())) {
                 try {
                     var tables = detector.discover();
                     // In development mode the shared conndev_ObjectClass / conndev_Attribute classes are
                     // part of the schema, so midPoint can search the discovered schema.
-                    var additional = Boolean.TRUE.equals(context.configuration().getDevelopmentMode())
-                            ? ConnDevSchema.objectClassInfos() : List.<ObjectClassInfo>of();
+
 
                     context.schema(new SqlSchemaTranslator(builder, tables)
                             .connector(getClass(), context)
@@ -143,6 +148,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                     throw new ConnectionFailedException("Schema detection failed: " + e.getMessage(), e);
                 }
             } else {
+                additional.forEach(builder::defineObjectClass);
                 context.schema(builder.build());
             }
 

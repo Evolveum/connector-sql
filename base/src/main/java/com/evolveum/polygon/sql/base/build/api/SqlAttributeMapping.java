@@ -18,9 +18,7 @@ import com.querydsl.core.types.dsl.*;
 import com.querydsl.sql.RelationalPathBase;
 import org.identityconnectors.framework.common.objects.filter.*;
 
-import java.math.BigDecimal;
 import java.sql.Date;
-import java.sql.JDBCType;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.Instant;

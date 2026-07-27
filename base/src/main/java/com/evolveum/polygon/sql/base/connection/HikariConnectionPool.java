@@ -143,12 +143,12 @@ public class HikariConnectionPool {
         }
 
         // Split by ":" to isolate the subprotocol (e.g., "mysql", "postgresql")
-        String[] parts = jdbcUrl.split(":");
+        var parts = jdbcUrl.split(":");
         if (parts.length < 2) {
             return null;
         }
 
-        String subprotocol = parts[1].toLowerCase();
+        var subprotocol = parts[1].toLowerCase();
 
         return switch (subprotocol) {
             case "postgresql" -> "org.postgresql.Driver";

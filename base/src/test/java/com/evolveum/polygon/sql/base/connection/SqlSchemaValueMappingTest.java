@@ -11,11 +11,13 @@ import org.testng.annotations.Test;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.Date;
-import java.sql.JDBCType;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
-import java.time.*;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -287,7 +289,7 @@ public class SqlSchemaValueMappingTest {
         assertThat(mapping.connIdType()).isEqualTo(String.class);
 
         Time sqlTime = Time.valueOf("14:30:00");
-        LocalTime lt = sqlTime.toLocalTime();
+        var lt = sqlTime.toLocalTime();
         var result = mapping.toConnIdValue(lt);
         assertThat(result).isInstanceOf(String.class);
         assertThat(result).isEqualTo(lt.toString());
@@ -418,7 +420,7 @@ public class SqlSchemaValueMappingTest {
     public void testDateRoundTrip() {
         var mapping = SqlSchemaValueMapping.DATE;
         Date original = Date.valueOf("2024-06-15");
-        ZonedDateTime connId = (ZonedDateTime) mapping.toConnIdValue(original);
+        var connId = (ZonedDateTime) mapping.toConnIdValue(original);
         var back = (Date) mapping.toWireValue(connId);
         assertThat(back).isEqualTo(original);
     }
