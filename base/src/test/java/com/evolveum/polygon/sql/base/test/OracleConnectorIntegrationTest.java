@@ -58,7 +58,6 @@ public class OracleConnectorIntegrationTest {
         config.setPoolSize(5);
         config.setConnectionTimeout(10000);
         config.setValidateConnectionOnBorrow(true);
-        config.setValidateConnectionOnBorrow(true);
         config.setAutoDiscoverSchema(false);
         config.setDevelopmentMode(true);
 

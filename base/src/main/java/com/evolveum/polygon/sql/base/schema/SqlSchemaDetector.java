@@ -67,7 +67,12 @@ public class SqlSchemaDetector {
             var conn = wrapper.getConnection();
             querydslConfig = new Configuration(templates);
 
-            List<Table> tableNames = getTableList(conn, null);
+            List<Table> tableNames;
+            try {
+                tableNames = getTableList(conn, null);
+            } catch (SQLException ex) {
+                tableNames = getTableList(conn, conn.getMetaData().getUserName());
+            }
 
             Map<Table, List<SqlColumnMeta>> colMap = new LinkedHashMap<>();
 
@@ -247,6 +252,8 @@ public class SqlSchemaDetector {
                     }
                 }
             }
+        } catch (SQLException e) {
+            // FIXME: warn that unique constraints can not be detected.
         }
         return uniqueCols;
     }
