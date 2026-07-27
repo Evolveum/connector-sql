@@ -32,7 +32,7 @@ public class HikariConnectionPool {
         config.setJdbcUrl(configuration.getJdbcUrl());
 
         var driverClassName = getDriverClassName(configuration.getJdbcUrl());
-        if (driverClassName == null) {
+        if (driverClassName != null) {
             config.setDriverClassName(driverClassName);
         }
         config.setUsername(configuration.getUsername());
