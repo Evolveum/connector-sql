@@ -1,26 +1,78 @@
 package com.evolveum.polygon.sql.base.build.api;
 
 import com.evolveum.polygon.conndev.annotations.Groovy;
+import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
+import com.evolveum.polygon.sql.base.connection.SqlValueMapping;
 
-public abstract class SqlTypeSpecification {
+public interface  SqlTypeSpecification {
 
     public interface Mixin {
 
-        @Groovy.Convenience SqlTypeSpecification INT = null;
+        @Groovy.Convenience SqlTypeSpecification INT = SqlSchemaValueMapping.INTEGER.asTypeSpecification();
 
-        @Groovy.Convenience SqlTypeSpecification BIGINT = null;
+        @Groovy.Convenience SqlTypeSpecification BIGINT = SqlSchemaValueMapping.BIGINT.asTypeSpecification();
 
-        @Groovy.Convenience SqlTypeSpecification SMALLINT = null;
+        @Groovy.Convenience SqlTypeSpecification SMALLINT = SqlSchemaValueMapping.SMALLINT.asTypeSpecification();
 
-        @Groovy.Convenience SqlTypeSpecification TINYINT = null;
+        @Groovy.Convenience SqlTypeSpecification TINYINT = SqlSchemaValueMapping.TINYINT.asTypeSpecification();
 
-        @Groovy.Convenience SqlTypeSpecification BOOLEAN = null;
+        @Groovy.Convenience SqlTypeSpecification BOOLEAN = SqlSchemaValueMapping.BOOLEAN.asTypeSpecification();
 
-        @Groovy.Convenience SqlTypeSpecification VARCHAR(int size);
+        @Groovy.Convenience SqlTypeSpecification DATE = SqlSchemaValueMapping.DATE.asTypeSpecification();
 
-        @Groovy.Convenience SqlTypeSpecification INTEGER = null;
+        @Groovy.Convenience
+        @SuppressWarnings("java:S100")
+        default SqlTypeSpecification VARCHAR(int size) {
+            return SqlSchemaValueMapping.VARCHAR.asTypeSpecification();
+        }
+
+        @Groovy.Convenience
+        @SuppressWarnings("java:S100")
+        default SqlTypeSpecification NUMBER(int precision) {
+            return SqlSchemaValueMapping.NUMERIC.asTypeSpecification();
+        }
+
+        @Groovy.Convenience
+        @SuppressWarnings("java:S100")
+        default SqlTypeSpecification NUMBER(int precision, int scale) {
+            return SqlSchemaValueMapping.NUMERIC.asTypeSpecification();
+        }
+
+        @Groovy.Convenience
+        @SuppressWarnings("java:S100")
+        default SqlTypeSpecification VARCHAR2(int size) {
+            return SqlSchemaValueMapping.VARCHAR.asTypeSpecification();
+        }
+
+        @Groovy.Convenience
+        @SuppressWarnings("java:S100")
+        default SqlTypeSpecification TIMESTAMP(int precision) {
+            return SqlSchemaValueMapping.TIMESTAMP.asTypeSpecification();
+        }
+
+        @SuppressWarnings({"java:S100", "java:S1845"})
+        default SqlTypeSpecification DATE(int precision) {
+            return SqlSchemaValueMapping.DATE.asTypeSpecification();
+        }
+
+        @Groovy.Convenience SqlTypeSpecification INTEGER = SqlSchemaValueMapping.INTEGER.asTypeSpecification();
 
     }
 
-    public abstract String getTypeName();
+    abstract String getTypeName();
+
+    abstract SqlValueMapping.SingleColumn mapping();
+
+
+    record BuiltIn(String type, SqlSchemaValueMapping mapping) implements SqlTypeSpecification {
+
+        public BuiltIn(SqlSchemaValueMapping mapping) {
+            this(mapping.name(), mapping);
+        }
+
+        @Override
+        public String getTypeName() {
+            return  type();
+        }
+    }
 }

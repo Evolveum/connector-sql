@@ -6,21 +6,10 @@
  */
 package com.evolveum.polygon.sql.base.connection;
 
+import com.evolveum.polygon.sql.base.build.api.SqlTypeSpecification;
 import com.querydsl.core.types.Path;
-import com.querydsl.core.types.dsl.Expressions;
-
-import java.math.BigDecimal;
-import java.math.BigInteger;
-import java.sql.Date;
 import java.sql.JDBCType;
-import java.sql.Time;
-import java.sql.Timestamp;
 import java.sql.Types;
-import java.time.*;
-import java.time.format.DateTimeFormatter;
-import java.time.temporal.TemporalAccessor;
-import java.util.Set;
-import java.util.function.BiFunction;
 
 /**
  * Enum of SQL schema value mappings between SQL column types and ConnId wire types.
@@ -220,5 +209,9 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
             case Types.CLOB, Types.NCLOB -> CLOB;
             default -> null;
         };
+    }
+
+    public SqlTypeSpecification asTypeSpecification() {
+        return new  SqlTypeSpecification.BuiltIn(this);
     }
 }

@@ -38,18 +38,12 @@ public class SqlSchemaDetector {
 
     private SQLTemplates templates;
 
-    public SqlSchemaDetector(SqlBaseContext context) {
+    public SqlSchemaDetector(SqlBaseContext context) throws SQLException {
         this.context = context;
-    }
 
-    /**
-     * Discovers the database tables (with columns, keys and references) from JDBC metadata.
-     * This method is idempotent and safe to call multiple times.
-     */
-    public List<SqlTableInfo> discover() throws SQLException {
-        try (var wrapper =  context.getConnection()) {
+        try (var wrapper = context.getConnection()) {
             var conn = wrapper.getConnection();
-            var meta = conn.getMetaData();
+            var meta = wrapper.getConnection().getMetaData();
             var templatesFromRegistry = new SQLTemplatesRegistry().getTemplates(meta);
             if (templatesFromRegistry == null) {
                 templatesFromRegistry = SQLTemplates.DEFAULT;
@@ -61,6 +55,16 @@ public class SqlSchemaDetector {
                 templatesFromRegistry = new H2Templates(false);
             }
             templates = templatesFromRegistry;
+        }
+    }
+
+    /**
+     * Discovers the database tables (with columns, keys and references) from JDBC metadata.
+     * This method is idempotent and safe to call multiple times.
+     */
+    public List<SqlTableInfo> discover() throws SQLException {
+        try (var wrapper =  context.getConnection()) {
+            var conn = wrapper.getConnection();
             querydslConfig = new Configuration(templates);
 
             List<Table> tableNames = getTableList(conn, null);

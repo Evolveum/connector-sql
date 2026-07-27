@@ -27,7 +27,10 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
     private SqlMappingBuilder sqlMapping;
 
     @Override public SqlMappingBuilder sql() {
-        if (sqlMapping == null) { sqlMapping = new SqlMappingBuilder(name.value()); }
+        if (sqlMapping == null) {
+            sqlMapping = new SqlMappingBuilder(name.value());
+            protocolMappings.put(SqlAttributeMapping.class, sqlMapping);
+        }
         return sqlMapping;
     }
 
@@ -63,8 +66,6 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
             return this;
         }
 
-        public SqlTypeSpecification VARCHAR(int size) { return DefaultSqlTypeSpecification.varcharType(size); }
-
         @Override public SqlMapping notNull(DefinitionValue<Boolean> notNull) { this.notNull = notNull; return this; }
         @Override public SqlMapping unique(DefinitionValue<Boolean> unique) { this.unique = unique; return this; }
         @Override public SqlMapping valueMapping(DefinitionValue<SqlValueMapping> d) { this.valueMapping = d; return this; }
@@ -84,6 +85,14 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
         public SqlAttributeMapping build() {
             if (this.override != null) {
                 return this.override;
+            }
+
+            if (this.type.isPresent()) {
+                connId().type(this.type.transform(t -> t.mapping().connIdType()));
+
+                if (this.valueMapping.isEmpty() || valueMapping.isDetected()) {
+                    this.valueMapping = this.valueMapping.moreSpecific(this.type.transform(SqlTypeSpecification::mapping));
+                }
             }
 
             if (column.isEmpty() || (valueMapping.isEmpty() && type.isEmpty())) { return null; }
