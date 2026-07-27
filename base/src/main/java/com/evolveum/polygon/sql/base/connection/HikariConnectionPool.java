@@ -57,15 +57,12 @@ public class HikariConnectionPool {
             config.setIdleTimeout(idleTimeout.longValue());
         }
 
+        config.setConnectionInitSql(null);
+        config.setConnectionTestQuery(null);
+
+        // FIXME: We should probably remove autocommit in future
         config.setAutoCommit(true);
         config.setPoolName("PolygonSQLPool");
-
-        var validateOnBorrow = configuration.getValidateConnectionOnBorrow();
-        if (validateOnBorrow != null && validateOnBorrow) {
-            config.setConnectionTestQuery("SELECT 1");
-            config.setValidationTimeout(3000);
-        }
-
         dataSource = new HikariDataSource(config);
     }
 

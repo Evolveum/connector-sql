@@ -55,6 +55,7 @@ public class SqlSchemaDetector {
                 templatesFromRegistry = new H2Templates(false);
             }
             templates = templatesFromRegistry;
+            querydslConfig = new Configuration(templates);
         }
     }
 
@@ -65,7 +66,7 @@ public class SqlSchemaDetector {
     public List<SqlTableInfo> discover() throws SQLException {
         try (var wrapper =  context.getConnection()) {
             var conn = wrapper.getConnection();
-            querydslConfig = new Configuration(templates);
+
 
             List<Table> tableNames;
             try {
