@@ -58,7 +58,7 @@ public class HikariConnectionPool {
         }
 
         config.setConnectionInitSql(null);
-        config.setConnectionTestQuery(null);
+        config.setConnectionTestQuery(configuration.getTestConnectionQuery());
 
         // FIXME: We should probably remove autocommit in future
         config.setAutoCommit(true);

@@ -24,6 +24,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
     private Integer idleTimeout = 600000;
     private Boolean validateConnectionOnBorrow = true;
     private Boolean autoDiscoverSchema = true;
+    private String testConnectionQuery;
 
     @ConfigurationProperty(required = true, order = 0)
     public String getJdbcUrl() {
@@ -39,7 +40,6 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         return username;
     }
 
-    @ConfigurationProperty(required = true, order = 30)
     public void setUsername(String username) {
         this.username = username;
     }
@@ -49,6 +49,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
      * Note: This value is sensitive and should only be used for database connection setup.
      * It is intentionally omitted from toString() to prevent accidental exposure.
      */
+    @ConfigurationProperty(required = true, order = 30)
     public GuardedString getPassword() {
         return password;
     }
@@ -106,5 +107,13 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         if (username == null || username.isEmpty()) {
             throw new IllegalArgumentException("Username is required");
         }
+    }
+
+    public String getTestConnectionQuery() {
+        return testConnectionQuery;
+    }
+
+    public void setTestConnectionQuery(String testConnectionQuery) {
+        this.testConnectionQuery = testConnectionQuery;
     }
 }
