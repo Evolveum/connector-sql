@@ -92,9 +92,6 @@ public class HikariConnectionPool {
         if (dataSource == null || dataSource.isClosed()) {
             throw new SQLException("Connection pool not initialized", (Throwable) null);
         }
-        try (var conn = dataSource.getConnection()) {
-            conn.createStatement().executeQuery("SELECT 1");
-        }
     }
 
     public void close() {

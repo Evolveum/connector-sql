@@ -128,7 +128,9 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
         if (pool == null) {
             throw new IllegalStateException("Connection pool not initialized");
         }
-        pool.test();
+        try (var resource = getConnection()) {
+            resource.getConnection().getMetaData();
+        }
     }
 
     /**
