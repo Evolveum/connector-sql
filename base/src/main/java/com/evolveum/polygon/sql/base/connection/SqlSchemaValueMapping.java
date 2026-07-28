@@ -8,6 +8,7 @@ package com.evolveum.polygon.sql.base.connection;
 
 import com.evolveum.polygon.sql.base.build.api.SqlTypeSpecification;
 import com.querydsl.core.types.Path;
+
 import java.sql.JDBCType;
 import java.sql.Types;
 
