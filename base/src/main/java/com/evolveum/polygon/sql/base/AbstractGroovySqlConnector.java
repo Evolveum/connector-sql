@@ -32,6 +32,7 @@ import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.ObjectClassInfoBuilder;
 import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.spi.Configuration;
+import org.identityconnectors.framework.spi.PoolableConnector;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -46,7 +47,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * lazily initialize it on first call or reinitialize on each call as configured.</p>
  */
 public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfiguration>
-        extends ClassHandlerConnectorBase {
+        extends ClassHandlerConnectorBase implements PoolableConnector {
 
     private final boolean reinitializeOnEachCall;
     private boolean initialized;
@@ -246,6 +247,13 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
     private void checkInitialized() {
         if (context == null || closed.get()) {
             throw new IllegalStateException("Connector not initialized. Call init() first.");
+        }
+    }
+
+    @Override
+    public void checkAlive() {
+        if (closed.get()) {
+            throw new IllegalStateException("Connector was closed.");
         }
     }
 }
