@@ -27,22 +27,37 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration test to validate Oracle database schema + initialization.
- * Connects to external Oracle instance (localhost:1521/FREEPDB1, user: oracle, password: oracle123).
- * On pre-init, drops all oracle tables; on post-init, loads schema + data.
- * Then runs connector operations against the seeded tables.
+ * Both modes connect to the same external Oracle instance
+ * (localhost:1521/FREEPDB1).
+ * <p>
+ * Two test modes are provided via inner classes:
+ * {@link OracleScriptSchemaTest} and {@link OracleAutoDiscoveryTest}.
  */
-@Test(singleThreaded = true)
-public class OracleConnectorIntegrationTest {
+public abstract class OracleConnectorIntegrationTest {
 
-    private OracleDatabaseInitializer oracle;
-    private TestOracleConnector connector;
+    protected OracleDatabaseInitializer oracle;
+    protected TestOracleConnector connector;
 
-    private static class TestOracleConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
-        TestOracleConnector() { super(false); }
-        @Override protected void initializeObjectClassHandler(SqlHandlerBuilder builder) {}
+    /** Returns true when the connector uses a Groovy schema script instead of auto-discovery. */
+    protected abstract boolean useScriptSchema();
 
-        @Override protected void initializeSchema(SqlGroovySchemaLoader loader) {
-            loader.loadResource("/oracle/basic/oracle.groovy");
+    protected static class TestOracleConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+        private final boolean loadGroovySchema;
+
+        protected TestOracleConnector(boolean loadGroovySchema) {
+            super(false);
+            this.loadGroovySchema = loadGroovySchema;
+        }
+
+        @Override
+        protected void initializeObjectClassHandler(SqlHandlerBuilder builder) {
+        }
+
+        @Override
+        protected void initializeSchema(SqlGroovySchemaLoader loader) {
+            if (loadGroovySchema) {
+                loader.loadResource("/oracle/basic/oracle.groovy");
+            }
         }
     }
 
@@ -58,10 +73,10 @@ public class OracleConnectorIntegrationTest {
         config.setPoolSize(5);
         config.setConnectionTimeout(10000);
         config.setValidateConnectionOnBorrow(true);
-        config.setAutoDiscoverSchema(false);
+        config.setAutoDiscoverSchema(!useScriptSchema());
         config.setDevelopmentMode(true);
 
-        connector = new TestOracleConnector();
+        connector = new TestOracleConnector(useScriptSchema());
         connector.init(config);
     }
 
@@ -71,9 +86,11 @@ public class OracleConnectorIntegrationTest {
         if (oracle != null) { oracle.close(); oracle = null; }
     }
 
-    private OperationOptions opts() {
+    protected OperationOptions opts() {
         return new OperationOptions(Collections.emptyMap());
     }
+
+    // ── shared test methods (executed for both modes) ──
 
     @Test
     public void testSchemaContainsAllTables() throws Exception {
@@ -100,98 +117,6 @@ public class OracleConnectorIntegrationTest {
                 "dir_xf_entitlement",
                 "dir_job_watermark"
         );
-    }
-
-    @Test
-    public void testConnIdTypesCorrectlyMapped() throws Exception {
-        var schema = connector.schema();
-
-        var orgchartTypeRef = schema.getObjectClassInfo().stream()
-                .filter(o -> "orgchart_type_ref".equals(o.getType()))
-                .findFirst().orElseThrow();
-
-        Map<String, AttributeInfo> orgchartAttrs = orgchartTypeRef.getAttributeInfo().stream()
-                .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
-
-        assertThat(orgchartAttrs).containsKey(Uid.NAME);
-        assertThat(orgchartAttrs.get(Uid.NAME).getNativeName()).isEqualTo("type_ref_id");
-
-        assertThat(orgchartAttrs).containsKey(Name.NAME);
-        assertThat(orgchartAttrs.get(Name.NAME).getNativeName()).isEqualTo("display_name");
-
-        var dirAccount = schema.getObjectClassInfo().stream()
-                .filter(o -> "dir_account".equals(o.getType()))
-                .findFirst().orElseThrow();
-
-        Map<String, AttributeInfo> dirAccountAttrs = dirAccount.getAttributeInfo().stream()
-                .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
-
-        assertThat(dirAccountAttrs).containsKey(Uid.NAME);
-        assertThat(dirAccountAttrs.get(Uid.NAME).getNativeName()).isEqualTo("account_id");
-
-        assertThat(dirAccountAttrs).containsKey(Name.NAME);
-        assertThat(dirAccountAttrs.get(Name.NAME).getNativeName()).isEqualTo("family_name");
-
-        var dirMembership = schema.getObjectClassInfo().stream()
-                .filter(o -> "dir_membership".equals(o.getType()))
-                .findFirst().orElseThrow();
-
-        Map<String, AttributeInfo> membershipAttrs = dirMembership.getAttributeInfo().stream()
-                .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
-
-        assertThat(membershipAttrs).containsKey(Uid.NAME);
-        assertThat(membershipAttrs.get(Uid.NAME).getNativeName()).isEqualTo("account_id");
-
-        assertThat(membershipAttrs).containsKey(Name.NAME);
-        assertThat(membershipAttrs.get(Name.NAME).getNativeName()).isEqualTo("service_id");
-    }
-
-    @Test
-    public void testNumericTypesCorrectlyMapped() throws Exception {
-        var schema = connector.schema();
-
-        // UIDs are always mapped to STRING regardless of SQL type
-        var orgchartTypeRef = schema.getObjectClassInfo().stream()
-                .filter(o -> "orgchart_type_ref".equals(o.getType()))
-                .findFirst().orElseThrow();
-
-        Map<String, AttributeInfo> orgchartAttrs = orgchartTypeRef.getAttributeInfo().stream()
-                .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
-        assertThat(orgchartAttrs.get(Uid.NAME).getType()).isEqualTo(String.class);
-
-        // orgchart_node: all non-UID attributes are VARCHAR or plain NUMBER fields
-        var orgchartNode = schema.getObjectClassInfo().stream()
-                .filter(o -> "orgchart_node".equals(o.getType()))
-                .findFirst().orElseThrow();
-
-        Map<String, AttributeInfo> nodeAttrs = orgchartNode.getAttributeInfo().stream()
-                .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
-        assertThat(nodeAttrs.get(Uid.NAME).getType()).isEqualTo(String.class);
-        assertThat(nodeAttrs.get("parent_unit_id").getType()).isEqualTo(BigDecimal.class);
-        assertThat(nodeAttrs.get("type_ref_id").getType()).isEqualTo(BigDecimal.class);
-        assertThat(nodeAttrs.get("hierarchy_level").getType()).isEqualTo(BigDecimal.class);
-        assertThat(nodeAttrs.get("display_order").getType()).isEqualTo(BigDecimal.class);
-
-        // dir_membership: account_id is UID → STRING, service_id is NAME → STRING
-        var dirMembership = schema.getObjectClassInfo().stream()
-                .filter(o -> "dir_membership".equals(o.getType()))
-                .findFirst().orElseThrow();
-
-        Map<String, AttributeInfo> membershipAttrs = dirMembership.getAttributeInfo().stream()
-                .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
-        assertThat(membershipAttrs.get(Uid.NAME).getType()).isEqualTo(String.class);
-        assertThat(membershipAttrs.get(Name.NAME).getType()).isEqualTo(String.class);
-
-        // Verify all non-connId VARCHAR attributes are String
-        var dirAccount = schema.getObjectClassInfo().stream()
-                .filter(o -> "dir_account".equals(o.getType()))
-                .findFirst().orElseThrow();
-
-        Map<String, AttributeInfo> acctAttrs = dirAccount.getAttributeInfo().stream()
-                .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
-        assertThat(acctAttrs.get(Uid.NAME).getType()).isEqualTo(String.class);
-        assertThat(acctAttrs.get("email_address").getType()).isEqualTo(String.class);
-        assertThat(acctAttrs.get("status_code").getType()).isEqualTo(String.class);
     }
 
     @Test
@@ -238,6 +163,125 @@ public class OracleConnectorIntegrationTest {
             List<ConnectorObject> r = new ArrayList<>();
             connector.executeQuery(new ObjectClass(name), null, r::add, opts());
             assertThat(r).withFailMessage("No results for " + name).isNotEmpty();
+        }
+    }
+
+    // ── concrete test classes ──
+
+    /**
+     * Oracle tests using a Groovy schema script (autoDiscoverSchema = false).
+     */
+    @Test(singleThreaded = true)
+    public static class OracleScriptSchemaTest extends OracleConnectorIntegrationTest {
+
+        @Override
+        protected boolean useScriptSchema() {
+            return true;
+        }
+
+        @Test
+        public void testConnIdTypesCorrectlyMapped() throws Exception {
+            var schema = connector.schema();
+
+            var orgchartTypeRef = schema.getObjectClassInfo().stream()
+                    .filter(o -> "orgchart_type_ref".equals(o.getType()))
+                    .findFirst().orElseThrow();
+
+            Map<String, AttributeInfo> orgchartAttrs = orgchartTypeRef.getAttributeInfo().stream()
+                    .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
+
+            assertThat(orgchartAttrs).containsKey(Uid.NAME);
+            assertThat(orgchartAttrs.get(Uid.NAME).getNativeName()).isEqualTo("type_ref_id");
+
+            assertThat(orgchartAttrs).containsKey(Name.NAME);
+            assertThat(orgchartAttrs.get(Name.NAME).getNativeName()).isEqualTo("display_name");
+
+            var dirAccount = schema.getObjectClassInfo().stream()
+                    .filter(o -> "dir_account".equals(o.getType()))
+                    .findFirst().orElseThrow();
+
+            Map<String, AttributeInfo> dirAccountAttrs = dirAccount.getAttributeInfo().stream()
+                    .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
+
+            assertThat(dirAccountAttrs).containsKey(Uid.NAME);
+            assertThat(dirAccountAttrs.get(Uid.NAME).getNativeName()).isEqualTo("account_id");
+
+            assertThat(dirAccountAttrs).containsKey(Name.NAME);
+            assertThat(dirAccountAttrs.get(Name.NAME).getNativeName()).isEqualTo("family_name");
+
+            var dirMembership = schema.getObjectClassInfo().stream()
+                    .filter(o -> "dir_membership".equals(o.getType()))
+                    .findFirst().orElseThrow();
+
+            Map<String, AttributeInfo> membershipAttrs = dirMembership.getAttributeInfo().stream()
+                    .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
+
+            assertThat(membershipAttrs).containsKey(Uid.NAME);
+            assertThat(membershipAttrs.get(Uid.NAME).getNativeName()).isEqualTo("account_id");
+
+            assertThat(membershipAttrs).containsKey(Name.NAME);
+            assertThat(membershipAttrs.get(Name.NAME).getNativeName()).isEqualTo("service_id");
+        }
+
+        @Test
+        public void testNumericTypesCorrectlyMapped() throws Exception {
+            var schema = connector.schema();
+
+            // UIDs are always mapped to STRING regardless of SQL type
+            var orgchartTypeRef = schema.getObjectClassInfo().stream()
+                    .filter(o -> "orgchart_type_ref".equals(o.getType()))
+                    .findFirst().orElseThrow();
+
+            Map<String, AttributeInfo> orgchartAttrs = orgchartTypeRef.getAttributeInfo().stream()
+                    .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
+            assertThat(orgchartAttrs.get(Uid.NAME).getType()).isEqualTo(String.class);
+
+            // orgchart_node: all non-UID attributes are VARCHAR or plain NUMBER fields
+            var orgchartNode = schema.getObjectClassInfo().stream()
+                    .filter(o -> "orgchart_node".equals(o.getType()))
+                    .findFirst().orElseThrow();
+
+            Map<String, AttributeInfo> nodeAttrs = orgchartNode.getAttributeInfo().stream()
+                    .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
+            assertThat(nodeAttrs.get(Uid.NAME).getType()).isEqualTo(String.class);
+            assertThat(nodeAttrs.get("parent_unit_id").getType()).isEqualTo(BigDecimal.class);
+            assertThat(nodeAttrs.get("type_ref_id").getType()).isEqualTo(BigDecimal.class);
+            assertThat(nodeAttrs.get("hierarchy_level").getType()).isEqualTo(BigDecimal.class);
+            assertThat(nodeAttrs.get("display_order").getType()).isEqualTo(BigDecimal.class);
+
+            // dir_membership: account_id is UID → STRING, service_id is NAME → STRING
+            var dirMembership = schema.getObjectClassInfo().stream()
+                    .filter(o -> "dir_membership".equals(o.getType()))
+                    .findFirst().orElseThrow();
+
+            Map<String, AttributeInfo> membershipAttrs = dirMembership.getAttributeInfo().stream()
+                    .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
+            assertThat(membershipAttrs.get(Uid.NAME).getType()).isEqualTo(String.class);
+            assertThat(membershipAttrs.get(Name.NAME).getType()).isEqualTo(String.class);
+
+            // Verify all non-connId VARCHAR attributes are String
+            var dirAccount = schema.getObjectClassInfo().stream()
+                    .filter(o -> "dir_account".equals(o.getType()))
+                    .findFirst().orElseThrow();
+
+            Map<String, AttributeInfo> acctAttrs = dirAccount.getAttributeInfo().stream()
+                    .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
+            assertThat(acctAttrs.get(Uid.NAME).getType()).isEqualTo(String.class);
+            assertThat(acctAttrs.get("email_address").getType()).isEqualTo(String.class);
+            assertThat(acctAttrs.get("status_code").getType()).isEqualTo(String.class);
+        }
+    }
+
+    /**
+     * Oracle tests using runtime schema auto-discovery (autoDiscoverSchema = true).
+     * No Groovy schema script is loaded.
+     */
+    @Test(singleThreaded = true)
+    public static class OracleAutoDiscoveryTest extends OracleConnectorIntegrationTest {
+
+        @Override
+        protected boolean useScriptSchema() {
+            return false;
         }
     }
 }
