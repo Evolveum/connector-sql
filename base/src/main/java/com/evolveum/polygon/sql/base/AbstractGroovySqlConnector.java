@@ -18,6 +18,7 @@ import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
 import com.evolveum.polygon.sql.base.dev.SqlObjectClassDevHandler;
 import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
+import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
 import com.evolveum.polygon.sql.base.search.SqlSearchOperation;
@@ -111,8 +112,8 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         var builder = new SqlSchemaBuilderImpl(getClass(), context);
         var groovyContext = context.configuration().groovyContext();
 
-        // Load Groovy scripts into the builder via subclass-provided init method
-        var loader = new SqlGroovySchemaLoader(context, builder, groovyContext);
+        // Load Groovy/YAML scripts into the builder via subclass-provided init method
+        var loader = new SqlSchemaDefinitionLoader(context, builder, groovyContext);
         initializeSchema(builder);
         initializeSchema(loader);
 

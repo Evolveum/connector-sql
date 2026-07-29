@@ -1,0 +1,4 @@
+connector:
+  schema:
+    - script: /schema/customize.groovy
+  operation: []

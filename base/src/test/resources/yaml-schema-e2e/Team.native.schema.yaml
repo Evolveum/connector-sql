@@ -1,0 +1,10 @@
+objectClass: Team
+sql:
+  table: app_group
+attributes:
+  group_id:
+    connId:
+      name: __UID__
+  group_name:
+    connId:
+      name: __NAME__

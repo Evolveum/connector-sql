@@ -4,9 +4,13 @@ package com.evolveum.polygon.sql.base.build.api;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.concepts.SourceLocation;
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinitionBuilder;
+import com.evolveum.polygon.conndev.yaml.YamlDocuments;
+import com.evolveum.polygon.conndev.yaml.YamlProtocolBlockConsumer;
+import com.evolveum.polygon.sql.base.yaml.model.YamlSqlBlock;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Uid;
+import tools.jackson.databind.JsonNode;
 
 import java.util.LinkedHashSet;
 import java.util.Map;
@@ -17,7 +21,7 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
         SqlObjectClassDefinition,
         SqlAttributeBuilder<SqlAttributeBuilder.Reference>,
         SqlAttributeBuilder.Reference,
-        SqlAttributeBuilderImpl, SqlAttributeDefinition> implements SqlObjectClassSchemaBuilder {
+        SqlAttributeBuilderImpl, SqlAttributeDefinition> implements SqlObjectClassSchemaBuilder, YamlProtocolBlockConsumer {
 
     private DefinitionValue<String> schema = DefinitionValue.emptyDefault();
     private DefinitionValue<String> table;
@@ -102,6 +106,25 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
                 return this;
             }
         };
+    }
+
+    /**
+     * The {@code sql:} top-level YAML block — sets {@link #sql()}'s table/schema, exactly like the
+     * Groovy {@code sql { table "..." } } DSL.
+     */
+    @Override
+    public void applyProtocolBlock(String name, JsonNode block) {
+        if (!"sql".equals(name)) {
+            throw new IllegalArgumentException("Unknown protocol block '" + name + "' for object class '"
+                    + name() + "'");
+        }
+        var sqlBlock = YamlDocuments.convert(block, YamlSqlBlock.class);
+        if (sqlBlock.table != null) {
+            table(sqlBlock.table);
+        }
+        if (sqlBlock.schema != null) {
+            schema(sqlBlock.schema);
+        }
     }
 
     @Override

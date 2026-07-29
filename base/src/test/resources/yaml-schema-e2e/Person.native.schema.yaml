@@ -1,0 +1,14 @@
+objectClass: Person
+sql:
+  table: app_user
+attributes:
+  user_id:
+    connId:
+      name: __UID__
+  user_name:
+    connId:
+      name: __NAME__
+  user_email:
+    connId:
+      name: emailAddress
+  loginCount: {}

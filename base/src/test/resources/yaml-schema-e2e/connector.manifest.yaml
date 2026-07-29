@@ -1,0 +1,5 @@
+connector:
+  schema:
+    - script: /yaml-schema-e2e/Person.native.schema.yaml
+    - script: /yaml-schema-e2e/Team.native.schema.yaml
+  operation: []

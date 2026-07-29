@@ -15,10 +15,11 @@ import org.identityconnectors.framework.spi.ConnectorClass;
 
 /**
  * Zero-code SQL connector that loads all schema and operation scripts
- * from a {@code connector.manifest.json} file.
+ * from a {@code connector.manifest.json} or {@code connector.manifest.yaml}/{@code .yml} file
+ * (exactly one of the three must be bundled).
  *
  * <p>Scripts are loaded once (not reinitialized on each call).
- * Place groovy script files on the classpath and reference them in the manifest.</p>
+ * Place groovy or YAML script files on the classpath and reference them in the manifest.</p>
  *
  * <p>Example connector.manifest.json:
  * <pre>{@code
@@ -38,13 +39,21 @@ import org.identityconnectors.framework.spi.ConnectorClass;
 @ConnectorClass(displayNameKey = "manifest.sql.connector.display", configurationClass = SqlConnectorConfiguration.class, messageCatalogPaths = "Messages")
 public class ManifestBasedConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
 
-    private static final String CONNECTOR_MANIFEST = "/connector.manifest.json";
+    private static final String CONNECTOR_MANIFEST = "/connector.manifest";
     private final ConnectorManifest manifest;
 
     public ManifestBasedConnector() {
+        this(CONNECTOR_MANIFEST);
+    }
+
+    /**
+     * @param manifestBaseName classpath resource base name (without {@code .yaml}/{@code .yml}/
+     *                          {@code .json}) of the manifest to load — for connectors/tests whose
+     *                          manifest lives elsewhere than the classpath root.
+     */
+    protected ManifestBasedConnector(String manifestBaseName) {
         super(false);
-        var resource = getClass().getResourceAsStream(CONNECTOR_MANIFEST);
-        this.manifest = new ConnectorManifest(resource);
+        this.manifest = ConnectorManifest.load(getClass(), manifestBaseName);
     }
 
     @Override

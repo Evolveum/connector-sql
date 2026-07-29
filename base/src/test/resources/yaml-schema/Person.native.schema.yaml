@@ -1,0 +1,7 @@
+objectClass: Person
+sql:
+  table: app_user
+attributes:
+  user_id:
+    connId:
+      name: __UID__
