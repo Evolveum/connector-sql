@@ -12,6 +12,7 @@ import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Path;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.sql.SQLQuery;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
@@ -41,10 +42,7 @@ public class SqlSearchOperation extends SqlSearchExecutor implements FilterAware
 
             int pageSize = 200;
             int offset = 0;
-            var predicate = Expressions.TRUE;
-            if (filter != null) {
-                predicate = SqlFilterTranslator.translate(objectClass, tablePath, filter);
-            }
+            BooleanExpression predicate = SqlFilterTranslator.translate(objectClass, tablePath, filter);
 
             var columns = onlyPaths(selectedAttributes).toArray(new Path[0]);
 
@@ -53,9 +51,11 @@ public class SqlSearchOperation extends SqlSearchExecutor implements FilterAware
                     SQLQuery<Tuple> query =conn.newQuery()
                             .select(columns)
                             .from(tablePath)
-                            .where(predicate)
                             .limit(pageSize)
                             .offset(offset);
+                    if (predicate != null) {
+                        query.where(predicate);
+                    }
                     var rows = query.fetch();
                     for (var row : rows) {
                         var obj = buildConnectorObject(row, selectedAttributes);
