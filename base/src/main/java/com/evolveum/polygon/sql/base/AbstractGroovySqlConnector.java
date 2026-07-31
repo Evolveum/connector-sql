@@ -47,6 +47,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
 
     private final boolean reinitializeOnEachCall;
     private boolean initialized;
+    private boolean connected;
     private SqlBaseContext context;
     private AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -62,13 +63,13 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
 
     @Override
     public SqlBaseContext context() {
-        initialize();
+        ensureConnectionInitialized();
         return context;
     }
 
     @Override
     public ObjectClassHandler handlerFor(ObjectClass objectClass) throws UnsupportedOperationException {
-        initialize();
+        ensureConnectionInitialized();
         var handler = context.handlerFor(objectClass);
         if (handler == null) {
             throw new UnsupportedOperationException("Cannot find handler for " + objectClass);
@@ -85,29 +86,51 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
             if (cfg instanceof SqlConnectorConfiguration sqlConf) {
                 context = new SqlBaseContext(sqlConf);
                 initialized = false;
+                connected = false;
             } else {
                 throw new IllegalArgumentException("Configuration must be an instance of SqlConnectorConfiguration");
             }
         }
     }
 
-    private void initialize() {
+    /**
+     * Builds the schema from local Groovy/YAML definitions only, without connecting to the database —
+     * mirrors the REST/SCIM connector, where {@code schema()} never touches the network and only
+     * {@code test()} (or an actual data operation) does. Does not undo a richer, DB-discovered schema
+     * already produced by a prior {@link #ensureConnectionInitialized()} on this instance.
+     */
+    private void ensureSchemaInitialized() {
         if (closed.get()) {
             return;
         }
         synchronized (this) {
             if (reinitializeOnEachCall || !initialized) {
-                initialize0();
+                initialize0(false);
                 initialized = true;
+                connected = false;
             }
         }
     }
 
-    private void initialize0() {
-        // Initialize connection pool first (properly closes old pool if reinitializing) — schema
-        // detection needs a live connection.
-        context.initializeConnectionPool();
+    /** Ensures a live connection pool exists and, if enabled, the schema has been discovered from the database. */
+    private void ensureConnectionInitialized() {
+        if (closed.get()) {
+            return;
+        }
+        synchronized (this) {
+            if (reinitializeOnEachCall || !connected) {
+                initialize0(true);
+                initialized = true;
+                connected = true;
+            }
+        }
+    }
 
+    private void initialize0(boolean allowConnection) {
+        if (allowConnection) {
+            // Properly closes the old pool first if reinitializing — schema detection needs a live connection.
+            context.initializeConnectionPool();
+        }
 
         var builder = new SqlSchemaBuilderImpl(getClass(), context);
         var groovyContext = context.configuration().groovyContext();
@@ -117,46 +140,35 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         initializeSchema(builder);
         initializeSchema(loader);
 
-        try {
-            var detector = new SqlSchemaDetector(context);
-            var templates = detector.getSQLTemplates();
-            if (templates == null) {
-                templates = SQLTemplates.DEFAULT;
-            }
-            context.setSqlTemplates(templates);
-
-            var additional = new ArrayList<ObjectClassInfo>();
-            if (Boolean.TRUE.equals(context.configuration().getDevelopmentMode())) {
-                additional.addAll(ConnDevSchema.objectClassInfos());
-                additional.add(sqlObjectClassBlock());
-            }
-
-            if (Boolean.TRUE.equals(context.configuration().getAutoDiscoverSchema())) {
-                try {
-                    var tables = detector.discover();
-                    // In development mode the shared conndev_ObjectClass / conndev_Attribute classes are
-                    // part of the schema, so midPoint can search the discovered schema.
-
-
-                    context.schema(new SqlSchemaTranslator(builder, tables)
-                            .connector(getClass(), context)
-                            .translate(additional));
-                } catch (SQLException e) {
-                    throw new ConnectionFailedException("Schema detection failed: " + e.getMessage(), e);
-                }
-            } else {
-                additional.forEach(builder::defineObjectClass);
-                context.schema(builder.build());
-            }
-
-        } catch (SQLException ex) {
-            throw new ConnectionFailedException(ex.getMessage(), ex);
+        var additional = new ArrayList<ObjectClassInfo>();
+        if (Boolean.TRUE.equals(context.configuration().getDevelopmentMode())) {
+            additional.addAll(ConnDevSchema.objectClassInfos());
+            additional.add(sqlObjectClassBlock());
         }
 
+        if (allowConnection && Boolean.TRUE.equals(context.configuration().getAutoDiscoverSchema())) {
+            try {
+                var detector = new SqlSchemaDetector(context);
+                var templates = detector.getSQLTemplates();
+                if (templates == null) {
+                    templates = SQLTemplates.DEFAULT;
+                }
+                context.setSqlTemplates(templates);
 
-        // Auto-discover schema if enabled: detect raw JDBC metadata, then translate it into the one
-        // framework schema model (conndev BaseSchema); everything else derives from that model.
-
+                var tables = detector.discover();
+                // In development mode the shared conndev_ObjectClass / conndev_Attribute classes are
+                // part of the schema, so midPoint can search the discovered schema.
+                context.schema(new SqlSchemaTranslator(builder, tables)
+                        .connector(getClass(), context)
+                        .translate(additional));
+            } catch (SQLException e) {
+                throw new ConnectionFailedException("Schema detection failed: " + e.getMessage(), e);
+            }
+        } else {
+            context.setSqlTemplates(SQLTemplates.DEFAULT);
+            additional.forEach(builder::defineObjectClass);
+            context.schema(builder.build());
+        }
 
         // Initialize handlers
         var handlerBuilder = new SqlHandlerBuilder(context);
@@ -215,7 +227,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
     protected abstract void initializeObjectClassHandler(SqlHandlerBuilder builder);
 
     public void test() {
-        initialize();
+        ensureConnectionInitialized();
         try {
             context.testConnection();
         } catch (ConnectionFailedException | InvalidCredentialException e) {
@@ -226,7 +238,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
     }
 
     public Schema schema() {
-        initialize();
+        ensureSchemaInitialized();
         return context.schema().connIdSchema();
     }
 
