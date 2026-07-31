@@ -13,7 +13,6 @@ import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Path;
 import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.sql.SQLQuery;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.OperationOptions;
