@@ -112,6 +112,16 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         }
     }
 
+    /**
+     * Non-throwing counterpart of {@link #validate()}: true if the required connection
+     * parameters are present, i.e. connecting to the database is actually possible.
+     */
+    public boolean isComplete() {
+        return jdbcUrl != null && !jdbcUrl.isEmpty()
+                && username != null && !username.isEmpty()
+                && password != null;
+    }
+
     public String getTestConnectionQuery() {
         return testConnectionQuery;
     }

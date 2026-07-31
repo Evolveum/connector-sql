@@ -94,10 +94,12 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
     }
 
     /**
-     * Builds the schema from local Groovy/YAML definitions only, without connecting to the database —
-     * mirrors the REST/SCIM connector, where {@code schema()} never touches the network and only
-     * {@code test()} (or an actual data operation) does. Does not undo a richer, DB-discovered schema
-     * already produced by a prior {@link #ensureConnectionInitialized()} on this instance.
+     * Builds the schema, connecting to the database and discovering it (as {@code test()} and actual
+     * data operations do) whenever the required connection parameters are present. Only falls back to
+     * building the schema from local Groovy/YAML definitions alone when the configuration is still
+     * incomplete (e.g. a brand new, not yet filled in wizard form) — connecting is pointless then and
+     * would only fail. Does not undo a richer, DB-discovered schema already produced by a prior
+     * {@link #ensureConnectionInitialized()} on this instance.
      */
     private void ensureSchemaInitialized() {
         if (closed.get()) {
@@ -105,9 +107,10 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         }
         synchronized (this) {
             if (reinitializeOnEachCall || !initialized) {
-                initialize0(false);
+                boolean allowConnection = context.configuration().isComplete();
+                initialize0(allowConnection);
                 initialized = true;
-                connected = false;
+                connected = allowConnection;
             }
         }
     }
