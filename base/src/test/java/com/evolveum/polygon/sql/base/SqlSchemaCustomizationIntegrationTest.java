@@ -38,7 +38,8 @@ public class SqlSchemaCustomizationIntegrationTest {
             config.setJdbcUrl(URL);
             config.setUsername("sa");
             config.setPassword(new GuardedString("".toCharArray()));
-            config.setAutoDiscoverSchema(true);
+            config.setScanTables(true);
+            config.setScanViews(true);
             TestSqlConnector.super.init(config);
         }
 

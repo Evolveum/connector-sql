@@ -160,7 +160,7 @@ public final class OracleDatabaseInitializer implements AutoCloseable {
     /**
      * Creates a {@link SqlBaseContext} configured to connect to the Oracle database.
      */
-    public SqlBaseContext createContext(boolean autoDiscoverSchema) throws Exception {
+    public SqlBaseContext createContext(boolean scanTables) throws Exception {
         var config = new SqlConnectorConfiguration();
         config.setJdbcUrl("jdbc:oracle:thin:@//localhost:1521/FREEPDB1");
         config.setUsername("oracle");
@@ -168,7 +168,8 @@ public final class OracleDatabaseInitializer implements AutoCloseable {
         config.setPoolSize(5);
         config.setConnectionTimeout(10000);
         config.setValidateConnectionOnBorrow(true);
-        config.setAutoDiscoverSchema(autoDiscoverSchema);
+        config.setScanTables(scanTables);
+        config.setScanViews(scanTables);
 
         var ctx = new SqlBaseContext(config);
         ctx.initializeConnectionPool();

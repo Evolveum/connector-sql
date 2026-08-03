@@ -61,7 +61,8 @@ public class SqlSchemaDetectorPostgresTest {
         config.setPoolSize(5);
         config.setConnectionTimeout(10000);
         config.setValidateConnectionOnBorrow(true);
-        config.setAutoDiscoverSchema(false);
+        config.setScanTables(false);
+        config.setScanViews(false);
 
         context = new SqlBaseContext(config);
         context.initializeConnectionPool();

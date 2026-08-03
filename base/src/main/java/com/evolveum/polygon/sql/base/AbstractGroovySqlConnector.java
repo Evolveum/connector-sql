@@ -21,6 +21,7 @@ import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
 import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
+import com.evolveum.polygon.sql.base.schema.TableFilter;
 import com.evolveum.polygon.sql.base.search.SqlSearchOperation;
 import com.evolveum.polygon.sql.base.sync.SqlSyncOperation;
 import com.evolveum.polygon.sql.base.sync.SyncConfig;
@@ -119,6 +120,16 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
 
         try {
             var detector = new SqlSchemaDetector(context);
+            var tableFilter = new TableFilter(
+                    Boolean.TRUE.equals(context.configuration().getScanTables()),
+                    Boolean.TRUE.equals(context.configuration().getScanViews()),
+                    context.configuration().getScanTableFilter(),
+                    context.configuration().getScanViewFilter(),
+                    context.configuration().getScanExcludeTables(),
+                    context.configuration().getScanExcludeViews()
+            );
+            detector.setTableFilter(tableFilter);
+
             var templates = detector.getSQLTemplates();
             if (templates == null) {
                 templates = SQLTemplates.DEFAULT;
@@ -131,7 +142,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                 additional.add(sqlObjectClassBlock());
             }
 
-            if (Boolean.TRUE.equals(context.configuration().getAutoDiscoverSchema())) {
+            if (tableFilter.isDiscoveryEnabled()) {
                 try {
                     var tables = detector.discover();
                     // In development mode the shared conndev_ObjectClass / conndev_Attribute classes are

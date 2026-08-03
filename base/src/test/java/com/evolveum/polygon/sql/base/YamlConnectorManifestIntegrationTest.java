@@ -10,7 +10,6 @@ import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
 import com.evolveum.polygon.sql.base.groovy.impl.ManifestBasedConnector;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.objects.AttributeInfo;
-import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.testng.annotations.Test;
 
@@ -39,7 +38,8 @@ public class YamlConnectorManifestIntegrationTest {
             config.setJdbcUrl(URL);
             config.setUsername("sa");
             config.setPassword(new GuardedString("".toCharArray()));
-            config.setAutoDiscoverSchema(true);
+            config.setScanTables(true);
+            config.setScanViews(true);
             TestSqlConnector.super.init(config);
         }
 
@@ -53,9 +53,9 @@ public class YamlConnectorManifestIntegrationTest {
              var s = c.createStatement()) {
             s.execute("DROP TABLE IF EXISTS app_user CASCADE");
             s.execute("""
-                    CREATE TABLE app_user (\
-                    user_id INT PRIMARY KEY, \
-                    user_name VARCHAR(50) NOT NULL, \
+                    CREATE TABLE app_user (
+                    user_id INT PRIMARY KEY,
+                    user_name VARCHAR(50) NOT NULL,
                     user_email VARCHAR(100))""");
         }
 

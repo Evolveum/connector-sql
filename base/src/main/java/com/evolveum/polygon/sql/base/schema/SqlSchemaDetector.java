@@ -36,6 +36,8 @@ public class SqlSchemaDetector {
     // Schema name to scope metadata queries (e.g., "ORACLE" for Oracle Free)
     private String userSchema;
 
+    private TableFilter tableFilter;
+
     private SQLTemplates templates;
 
     public SqlSchemaDetector(SqlBaseContext context) throws SQLException {
@@ -75,10 +77,18 @@ public class SqlSchemaDetector {
                 tableNames = getTableList(conn, conn.getMetaData().getUserName());
             }
 
+            // Apply table filter before scanning columns for excluded tables
+            var filteredTables = new ArrayList<Table>();
+            for (Table table : tableNames) {
+                if (tableFilter == null || tableFilter.passes(table.tableType(), table.table())) {
+                    filteredTables.add(table);
+                }
+            }
+
             Map<Table, List<SqlColumnMeta>> colMap = new LinkedHashMap<>();
 
-            // For each table, collect column metadata (no repeated getTables() calls)
-            for (Table table : tableNames) {
+            // For each filtered table, collect column metadata (no repeated getTables() calls)
+            for (Table table : filteredTables) {
                 if (colMap.containsKey(table)) {
                     continue;
                 }
@@ -390,6 +400,10 @@ public class SqlSchemaDetector {
      */
     public SQLTemplates getSQLTemplates() {
         return templates;
+    }
+
+    public void setTableFilter(TableFilter tableFilter) {
+        this.tableFilter = tableFilter;
     }
 
     record Table(String schema, String table, String tableType, String catalog) {}

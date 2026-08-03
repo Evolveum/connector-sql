@@ -73,7 +73,8 @@ public abstract class OracleConnectorIntegrationTest {
         config.setPoolSize(5);
         config.setConnectionTimeout(10000);
         config.setValidateConnectionOnBorrow(true);
-        config.setAutoDiscoverSchema(!useScriptSchema());
+        config.setScanTables(!useScriptSchema());
+        config.setScanViews(!useScriptSchema());
         config.setDevelopmentMode(true);
 
         connector = new TestOracleConnector(useScriptSchema());

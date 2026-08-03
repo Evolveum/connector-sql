@@ -113,11 +113,11 @@ public final class PostgresDatabaseInitializer implements AutoCloseable {
      * Creates a SqlBaseContext configured to connect to this embedded PostgreSQL instance
      * with the default schema and test data loaded, suitable for full connector integration tests.
      *
-     * @param autoDiscoverSchema whether to auto-discover schema from database tables
+     * @param scanTables whether to scan tables during schema discovery
      * @return a configured SqlBaseContext ready for testing
      * @throws Exception if the context cannot be initialized
      */
-    public SqlBaseContext createContext(boolean autoDiscoverSchema) throws Exception {
+    public SqlBaseContext createContext(boolean scanTables) throws Exception {
         var url = postgres.getJdbcUrl("postgres", "postgres");
 
         var config = new SqlConnectorConfiguration();
@@ -128,7 +128,8 @@ public final class PostgresDatabaseInitializer implements AutoCloseable {
         config.setConnectionTimeout(10000);
         config.setIdleTimeout(30);
         config.setValidateConnectionOnBorrow(true);
-        config.setAutoDiscoverSchema(autoDiscoverSchema);
+        config.setScanTables(scanTables);
+        config.setScanViews(scanTables);
 
         var ctx = new SqlBaseContext(config);
         ctx.initializeConnectionPool();

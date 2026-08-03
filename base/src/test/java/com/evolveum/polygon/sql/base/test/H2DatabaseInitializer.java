@@ -102,7 +102,8 @@ public final class H2DatabaseInitializer {
         config.setConnectionTimeout(10000);
         config.setIdleTimeout(30);
         config.setValidateConnectionOnBorrow(true);
-        config.setAutoDiscoverSchema(false);
+        config.setScanTables(false);
+        config.setScanViews(false);
 
         var ctx = new SqlBaseContext(config);
         ctx.initializeConnectionPool();

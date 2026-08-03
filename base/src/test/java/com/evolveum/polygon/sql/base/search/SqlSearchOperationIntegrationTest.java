@@ -63,7 +63,8 @@ public class SqlSearchOperationIntegrationTest {
         config.setPoolSize(5);
         config.setConnectionTimeout(10000);
         config.setValidateConnectionOnBorrow(true);
-        config.setAutoDiscoverSchema(true);
+        config.setScanTables(true);
+        config.setScanViews(true);
         config.setDevelopmentMode(true);
 
         connector = new TestSqlConnector();

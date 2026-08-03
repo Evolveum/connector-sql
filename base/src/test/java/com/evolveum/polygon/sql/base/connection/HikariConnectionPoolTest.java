@@ -32,7 +32,8 @@ public class HikariConnectionPoolTest {
         configuration.setConnectionTimeout(30000);
         configuration.setIdleTimeout(600000);
         configuration.setValidateConnectionOnBorrow(true);
-        configuration.setAutoDiscoverSchema(false);
+        configuration.setScanTables(false);
+        configuration.setScanViews(false);
     }
 
     @AfterMethod

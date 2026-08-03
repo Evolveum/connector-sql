@@ -23,7 +23,12 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
     private Integer connectionTimeout = 30000;
     private Integer idleTimeout = 600000;
     private Boolean validateConnectionOnBorrow = true;
-    private Boolean autoDiscoverSchema = true;
+    private Boolean scanTables = true;
+    private Boolean scanViews = true;
+    private String scanTableFilter;
+    private String scanViewFilter;
+    private String scanExcludeTables;
+    private String scanExcludeViews;
     private String testConnectionQuery;
 
     @ConfigurationProperty(required = true, order = 0)
@@ -90,12 +95,60 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.validateConnectionOnBorrow = validateConnectionOnBorrow;
     }
 
-    public Boolean getAutoDiscoverSchema() {
-        return autoDiscoverSchema;
+    public Boolean getScanTables() {
+        return scanTables;
     }
 
-    public void setAutoDiscoverSchema(Boolean autoDiscoverSchema) {
-        this.autoDiscoverSchema = autoDiscoverSchema;
+    public void setScanTables(Boolean scanTables) {
+        this.scanTables = scanTables;
+    }
+
+    public Boolean getScanViews() {
+        return scanViews;
+    }
+
+    public void setScanViews(Boolean scanViews) {
+        this.scanViews = scanViews;
+    }
+
+    public String getScanTableFilter() {
+        return scanTableFilter;
+    }
+
+    public void setScanTableFilter(String scanTableFilter) {
+        this.scanTableFilter = scanTableFilter;
+    }
+
+    public String getScanViewFilter() {
+        return scanViewFilter;
+    }
+
+    public void setScanViewFilter(String scanViewFilter) {
+        this.scanViewFilter = scanViewFilter;
+    }
+
+    public String getScanExcludeTables() {
+        return scanExcludeTables;
+    }
+
+    public void setScanExcludeTables(String scanExcludeTables) {
+        this.scanExcludeTables = scanExcludeTables;
+    }
+
+    public String getScanExcludeViews() {
+        return scanExcludeViews;
+    }
+
+    public void setScanExcludeViews(String scanExcludeViews) {
+        this.scanExcludeViews = scanExcludeViews;
+    }
+
+    /**
+     * Returns true if auto-discovery is enabled (scan any tables or views).
+     * Kept for backward compatibility with callers that check autoDiscoverSchema.
+     */
+    public Boolean getAutoDiscoverSchema() {
+        return Boolean.TRUE.equals(scanTables) || Boolean.TRUE.equals(scanViews);
     }
 
     @Override

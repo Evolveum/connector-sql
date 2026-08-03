@@ -40,7 +40,8 @@ public class YamlSchemaDefinitionIntegrationTest {
             config.setJdbcUrl(URL);
             config.setUsername("sa");
             config.setPassword(new GuardedString("".toCharArray()));
-            config.setAutoDiscoverSchema(true);
+            config.setScanTables(true);
+            config.setScanViews(true);
             TestSqlConnector.super.init(config);
         }
 
@@ -54,13 +55,13 @@ public class YamlSchemaDefinitionIntegrationTest {
             s.execute("DROP TABLE IF EXISTS app_user CASCADE");
             s.execute("DROP TABLE IF EXISTS app_group CASCADE");
             s.execute("""
-                    CREATE TABLE app_user (\
-                    user_id INT PRIMARY KEY, \
-                    user_name VARCHAR(50) NOT NULL, \
+                    CREATE TABLE app_user (
+                    user_id INT PRIMARY KEY,
+                    user_name VARCHAR(50) NOT NULL,
                     user_email VARCHAR(100))""");
             s.execute("""
-                    CREATE TABLE app_group (\
-                    group_id INT PRIMARY KEY, \
+                    CREATE TABLE app_group (
+                    group_id INT PRIMARY KEY,
                     group_name VARCHAR(50) NOT NULL)""");
         }
     }
