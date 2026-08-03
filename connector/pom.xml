@@ -21,7 +21,7 @@
     <packaging>pom</packaging>
     
     <properties>
-        <connId.version>1.7.0.0-SNAPSHOT</connId.version>
+        <connId.version>1.7.0.1-SNAPSHOT</connId.version>
         <bundle.name>${project.groupId}.${project.artifactId}</bundle.name>
         <bundle.version>${project.version}</bundle.version>
     </properties>
