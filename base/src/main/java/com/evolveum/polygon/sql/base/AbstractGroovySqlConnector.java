@@ -21,6 +21,7 @@ import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
 import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
+import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
 import com.evolveum.polygon.sql.base.schema.TableFilter;
 import com.evolveum.polygon.sql.base.search.SqlSearchOperation;
 import com.evolveum.polygon.sql.base.sync.SqlSyncOperation;
@@ -34,6 +35,8 @@ import org.identityconnectors.framework.spi.PoolableConnector;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -118,57 +121,55 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         initializeSchema(builder);
         initializeSchema(loader);
 
+        SqlSchemaDetector detector;
         try {
-            var detector = new SqlSchemaDetector(context);
-            var tableFilter = new TableFilter(
-                    Boolean.TRUE.equals(context.configuration().getScanTables()),
-                    Boolean.TRUE.equals(context.configuration().getScanViews()),
-                    context.configuration().getScanTableFilter(),
-                    context.configuration().getScanViewFilter(),
-                    context.configuration().getScanExcludeTables(),
-                    context.configuration().getScanExcludeViews()
-            );
-            detector.setTableFilter(tableFilter);
-
-            var templates = detector.getSQLTemplates();
-            if (templates == null) {
-                templates = SQLTemplates.DEFAULT;
-            }
-            context.setSqlTemplates(templates);
-
-            var additional = new ArrayList<ObjectClassInfo>();
-            if (Boolean.TRUE.equals(context.configuration().getDevelopmentMode())) {
-                additional.addAll(ConnDevSchema.objectClassInfos());
-                additional.add(sqlObjectClassBlock());
-            }
-
-            if (tableFilter.isDiscoveryEnabled()) {
-                try {
-                    var tables = detector.discover();
-                    // In development mode the shared conndev_ObjectClass / conndev_Attribute classes are
-                    // part of the schema, so midPoint can search the discovered schema.
-
-
-                    context.schema(new SqlSchemaTranslator(builder, tables)
-                            .connector(getClass(), context)
-                            .translate(additional));
-                } catch (SQLException e) {
-                    throw new ConnectionFailedException("Schema detection failed: " + e.getMessage(), e);
-                }
-            } else {
-                additional.forEach(builder::defineObjectClass);
-                context.schema(builder.build());
-            }
-
+            detector = new SqlSchemaDetector(context);
         } catch (SQLException ex) {
             throw new ConnectionFailedException(ex.getMessage(), ex);
         }
 
+        var tableFilter = new TableFilter(
+                Boolean.TRUE.equals(context.configuration().getScanTables()),
+                Boolean.TRUE.equals(context.configuration().getScanViews()),
+                context.configuration().getScanTableFilter(),
+                context.configuration().getScanViewFilter(),
+                context.configuration().getScanExcludeTables(),
+                context.configuration().getScanExcludeViews()
+        );
+        detector.setTableFilter(tableFilter);
 
-        // Auto-discover schema if enabled: detect raw JDBC metadata, then translate it into the one
+        var templates = detector.getSQLTemplates();
+        if (templates == null) {
+            templates = SQLTemplates.DEFAULT;
+        }
+        context.setSqlTemplates(templates);
+
+        var additional = new ArrayList<ObjectClassInfo>();
+        if (Boolean.TRUE.equals(context.configuration().getDevelopmentMode())) {
+            additional.addAll(ConnDevSchema.objectClassInfos());
+            additional.add(sqlObjectClassBlock());
+        }
+
+        List<SqlTableInfo> tables;
+        try {
+            if (tableFilter.isDiscoveryEnabled()) {
+                tables = detector.discover();
+            } else if (!builder.tableRefs().isEmpty()) {
+                tables = detector.discover(builder.tableRefs());
+
+            } else {
+                tables = new ArrayList<>();
+            }
+        } catch (SQLException e) {
+            throw new ConnectionFailedException("Schema detection failed: " + e.getMessage(), e);
+
+        }
+
+        // translate it into the one
         // framework schema model (conndev BaseSchema); everything else derives from that model.
-
-
+        context.schema(new SqlSchemaTranslator(builder, tables)
+                .connector(getClass(), context)
+                .translate(additional));
         // Initialize handlers
         var handlerBuilder = new SqlHandlerBuilder(context);
         initializeObjectClassHandler(handlerBuilder);

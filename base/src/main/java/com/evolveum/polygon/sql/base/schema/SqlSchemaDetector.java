@@ -15,6 +15,10 @@ import com.querydsl.sql.SQLTemplatesRegistry;
 
 import java.sql.*;
 import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Set;
 
 public class SqlSchemaDetector {
 
@@ -110,6 +114,71 @@ public class SqlSchemaDetector {
 
         }
     }
+
+    /**
+     * Discovers column metadata for only the specified tables.
+     * Used when scanning is disabled but user-defined object classes reference specific tables.
+     *
+     * @param tableRefs the list of table references (schema+table) to discover
+     * @return list of SqlTableInfo for the specified tables (empty if not found)
+     */
+    public List<SqlTableInfo> discover(Collection<TableRef> tableRefs) throws SQLException {
+        if (tableRefs == null || tableRefs.isEmpty()) {
+            return Collections.emptyList();
+        }
+        try (var wrapper = context.getConnection()) {
+            var conn = wrapper.getConnection();
+            Set<TableRef> refs = new LinkedHashSet<>(tableRefs);
+            Map<Table, List<SqlColumnMeta>> colMap = new LinkedHashMap<>();
+
+            // Build a lookup of actual table schemas from JDBC metadata
+            // (needed because user may provide empty schema but actual schema is e.g. "PUBLIC")
+            Map<String, String> tableToSchema = new HashMap<>();
+            try (var rs = conn.getMetaData().getTables(null, null, "%", new String[]{"TABLE", "VIEW"})) {
+                var meta = rs.getMetaData();
+                while (rs.next()) {
+                    var schema = resolveColumn(rs, meta, "TABLE_SCHEM");
+                    var name = resolveColumn(rs, meta, "TABLE_NAME");
+                    if (name != null) {
+                        tableToSchema.put(name.toLowerCase(), schema);
+                    }
+                }
+            }
+
+            for (TableRef ref : refs) {
+                String actualSchema = ref.schema();
+                if (actualSchema == null || actualSchema.isEmpty()) {
+                    String resolved = tableToSchema.get(ref.table().toLowerCase());
+                    if (resolved != null) {
+                        actualSchema = resolved;
+                    }
+                }
+                Table table = new Table(actualSchema, ref.table(), "TABLE", null);
+                List<SqlColumnMeta> cols = getColumnMetas(conn, table);
+                if (!cols.isEmpty()) {
+                    colMap.put(table, cols);
+                }
+            }
+
+            List<SqlTableInfo> tables = new ArrayList<>();
+            for (Map.Entry<Table, List<SqlColumnMeta>> entry : colMap.entrySet()) {
+                tables.add(SqlTableInfo.builder()
+                        .schema(entry.getKey().schema())
+                        .name(entry.getKey().table())
+                        .tableType("TABLE")
+                        .catalog(null)
+                        .columns(entry.getValue())
+                        .build());
+            }
+            return tables;
+
+        }
+    }
+
+    /**
+     * Minimal table reference for targeted discovery (schema + table name).
+     */
+    public record TableRef(String schema, String table) {}
 
     /**
      * Retrieves all user table names (lowercase) from the database,

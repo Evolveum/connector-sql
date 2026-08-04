@@ -21,8 +21,10 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.sql.SQLException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -241,6 +243,75 @@ public class SqlSchemaDetectorIntegrationTest {
         } catch (IllegalStateException e) {
             assertThat(e.getMessage()).isEqualTo("Connection pool not initialized");
         }
+    }
+
+    @Test
+    public void testTargetedDiscoveryByTableRef() throws Exception {
+        var detector = new SqlSchemaDetector(context);
+        var tableRef = new SqlSchemaDetector.TableRef("", "User");
+        List<SqlTableInfo> tables = detector.discover(Collections.singletonList(tableRef));
+
+        assertThat(tables).hasSize(1);
+        assertThat(tables).first().extracting(SqlTableInfo::getName).isEqualTo("User");
+        assertThat(tables.get(0).getColumns()).isNotEmpty();
+        assertThat(toColumnMap(tables.get(0)).containsKey("id")).isTrue();
+    }
+
+    @Test
+    public void testTargetedDiscoveryMultipleTables() throws Exception {
+        var detector = new SqlSchemaDetector(context);
+        var tableRefs = List.of(
+                new SqlSchemaDetector.TableRef("", "User"),
+                new SqlSchemaDetector.TableRef("", "Group")
+        );
+        List<SqlTableInfo> tables = detector.discover(tableRefs);
+
+        assertThat(tables).hasSize(2);
+        assertThat(tables.stream().map(SqlTableInfo::getName))
+                .containsExactlyInAnyOrder("User", "Group");
+    }
+
+    @Test
+    public void testTargetedDiscoveryNonExistentTable() throws Exception {
+        var detector = new SqlSchemaDetector(context);
+        var tableRef = new SqlSchemaDetector.TableRef("", "nonexistent_table");
+        List<SqlTableInfo> tables = detector.discover(Collections.singletonList(tableRef));
+
+        assertThat(tables).isEmpty();
+    }
+
+    @Test
+    public void testTargetedDiscoveryEmptyList() throws Exception {
+        var detector = new SqlSchemaDetector(context);
+        List<SqlTableInfo> tables = detector.discover(Collections.emptyList());
+        assertThat(tables).isEmpty();
+    }
+
+    @Test
+    public void testTargetedDiscoveryNullList() throws Exception {
+        var detector = new SqlSchemaDetector(context);
+        List<SqlTableInfo> tables = detector.discover(null);
+        assertThat(tables).isEmpty();
+    }
+
+    @Test
+    public void testTargetedDiscoveryWithSqlSchemaTranslator() throws Exception {
+        var detector = new SqlSchemaDetector(context);
+        var builder = new com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl(
+                StubConnector.class, context);
+
+        // Define an object class with SQL table mapping
+        builder.objectClass("User").sql().table("User");
+
+        var tableRefs = builder.tableRefs();
+        assertThat(tableRefs).hasSize(1);
+
+        var tables = detector.discover(new java.util.ArrayList<>(tableRefs));
+        var schema = new com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator(builder, tables)
+                .translate(StubConnector.class, context);
+
+        assertThat(schema).isNotNull();
+        assertThat(schema.connIdSchema().getObjectClassInfo()).isNotEmpty();
     }
 
     // --- Helpers ---

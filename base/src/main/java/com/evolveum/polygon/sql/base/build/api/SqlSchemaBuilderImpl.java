@@ -10,6 +10,7 @@ import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.build.api.RelationshipBuilder;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.schema.BaseSchemaBuilder;
+import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.querydsl.core.types.PathMetadataFactory;
 import com.querydsl.sql.RelationalPathBase;
 import groovy.lang.Closure;
@@ -22,8 +23,11 @@ import org.identityconnectors.framework.spi.Connector;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl, SqlObjectClassSchemaBuilderImpl,
         SqlSchemaBuilder, SqlObjectClassSchemaBuilder> implements SqlSchemaBuilder {
@@ -62,6 +66,23 @@ public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl
 
     public List<SqlObjectClassSchemaBuilderImpl> allObjectClassBuilders() {
         return new ArrayList<>(objectClasses.values());
+    }
+
+    /**
+     * Returns the set of table references (schema+table) from all user-defined object classes
+     * that have SQL schema/table mappings configured.
+     */
+    public Set<SqlSchemaDetector.TableRef> tableRefs() {
+        Set<SqlSchemaDetector.TableRef> refs = new LinkedHashSet<>();
+        for (SqlObjectClassSchemaBuilderImpl obc : objectClasses.values()) {
+            var sql = obc.sql();
+            String schema = sql.schema();
+            String table = sql.table();
+            if (table != null && !table.isEmpty()) {
+                refs.add(new SqlSchemaDetector.TableRef(schema, table));
+            }
+        }
+        return refs;
     }
 
     @Override

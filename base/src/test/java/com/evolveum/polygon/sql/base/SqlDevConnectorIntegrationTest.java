@@ -6,10 +6,14 @@
  */
 package com.evolveum.polygon.sql.base;
 
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
+import com.evolveum.polygon.sql.base.build.api.SqlSchema;
 import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
 import org.identityconnectors.common.security.GuardedString;
+import org.identityconnectors.framework.common.objects.AttributeInfo;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
+import org.identityconnectors.framework.common.objects.Uid;
 import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
@@ -75,6 +79,92 @@ public class SqlDevConnectorIntegrationTest {
                     .map(ObjectClassInfo::getType).collect(Collectors.toSet());
             assertThat(types).contains(
                     "conndev_ObjectClass", "conndev_Attribute", "conndev_connIdAttribute", "conndev_sql");
+        } finally {
+            connector.dispose();
+        }
+    }
+
+    /** Minimal connector with scanTables=false, scanViews=false and Groovy-defined object classes. */
+    private static class TestSqlConnectorWithScanDisabled extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+        TestSqlConnectorWithScanDisabled() {
+            super(false);
+        }
+
+        @Override
+        protected void initializeObjectClassHandler(SqlHandlerBuilder builder) {
+            // no application object-class handlers needed for this test
+        }
+
+        @Override
+        protected void initializeSchema(SqlGroovySchemaLoader loader) {
+            // Define object classes with SQL table mappings
+            loader.loadResource("/test/objectClass/User.groovy");
+            loader.loadResource("/test/objectClass/Group.groovy");
+        }
+    }
+
+    private TestSqlConnectorWithScanDisabled connectorWithScanDisabled() {
+        var config = new SqlConnectorConfiguration();
+        config.setJdbcUrl(URL);
+        config.setUsername("sa");
+        config.setPassword(new GuardedString("".toCharArray()));
+        config.setScanTables(false);
+        config.setScanViews(false);
+        var connector = new TestSqlConnectorWithScanDisabled();
+        connector.init(config);
+        return connector;
+    }
+
+    @Test
+    public void scanDisabledWithTableDefinitionsPerformsTargetedScanning() {
+        var connector = connectorWithScanDisabled();
+        try {
+            var schema = connector.schema();
+            var types = schema.getObjectClassInfo().stream()
+                    .map(ObjectClassInfo::getType).collect(Collectors.toSet());
+            // Should contain the Groovy-defined object classes and their table columns
+            assertThat(types).contains("User", "Group");
+        } finally {
+            connector.dispose();
+        }
+    }
+
+    @Test
+    public void scanDisabledWithTableDefinitionsHasUidColumn() {
+        var connector = connectorWithScanDisabled();
+        try {
+            var schema = connector.schema();
+            var userClass = schema.getObjectClassInfo().stream()
+                    .filter(o -> "User".equals(o.getType()))
+                    .findFirst().orElse(null);
+            assertThat(userClass).isNotNull();
+
+            // The id column should have been detected as UID from targeted scanning
+            var uidAttr = userClass.getAttributeInfo().stream()
+                    .filter(a -> Uid.NAME.equals(a.getName()))
+                    .findFirst().orElse(null);
+            assertThat(uidAttr).isNotNull();
+            assertThat(uidAttr.getNativeName()).isEqualTo("id");
+        } finally {
+            connector.dispose();
+        }
+    }
+
+    @Test
+    public void scanDisabledWithTableDefinitionsHasColumnAttributes() {
+        var connector = connectorWithScanDisabled();
+        try {
+            var schema = connector.schema();
+            var userClass = schema.getObjectClassInfo().stream()
+                    .filter(o -> "User".equals(o.getType()))
+                    .findFirst().orElse(null);
+            assertThat(userClass).isNotNull();
+
+            var attrs = userClass.getAttributeInfo().stream()
+                    .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
+            // The id column becomes __UID__, username is a regular attribute
+            assertThat(attrs).containsKey(Uid.NAME);
+            assertThat(attrs).containsKey("username");
         } finally {
             connector.dispose();
         }
