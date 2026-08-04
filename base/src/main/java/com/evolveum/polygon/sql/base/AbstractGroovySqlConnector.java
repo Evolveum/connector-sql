@@ -33,6 +33,7 @@ import org.identityconnectors.framework.spi.PoolableConnector;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -145,7 +146,8 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
 
         var additional = new ArrayList<ObjectClassInfo>();
         if (Boolean.TRUE.equals(context.configuration().getDevelopmentMode())) {
-            additional.addAll(ConnDevSchema.objectClassInfos());
+            additional.addAll(ConnDevSchema.objectClassInfos(
+                    List.of(ConnDevSchema.embeddedBlock(SQL_BLOCK, SQL_BLOCK_TYPE)), List.of()));
             additional.add(sqlObjectClassBlock());
         }
 
