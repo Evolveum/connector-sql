@@ -160,6 +160,19 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         if (username == null || username.isEmpty()) {
             throw new IllegalArgumentException("Username is required");
         }
+        if (password == null) {
+            throw new IllegalArgumentException("Password is required");
+        }
+    }
+
+    /**
+     * Non-throwing counterpart of {@link #validate()}: true if the required connection
+     * parameters are present, i.e. connecting to the database is actually possible.
+     */
+    public boolean isComplete() {
+        return jdbcUrl != null && !jdbcUrl.isEmpty()
+                && username != null && !username.isEmpty()
+                && password != null;
     }
 
     public String getTestConnectionQuery() {

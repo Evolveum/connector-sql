@@ -51,6 +51,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
 
     private final boolean reinitializeOnEachCall;
     private boolean initialized;
+    private boolean connected;
     private SqlBaseContext context;
     private AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -66,13 +67,13 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
 
     @Override
     public SqlBaseContext context() {
-        initialize();
+        ensureConnectionInitialized();
         return context;
     }
 
     @Override
     public ObjectClassHandler handlerFor(ObjectClass objectClass) throws UnsupportedOperationException {
-        initialize();
+        ensureConnectionInitialized();
         var handler = context.handlerFor(objectClass);
         if (handler == null) {
             throw new UnsupportedOperationException("Cannot find handler for " + objectClass);
@@ -89,29 +90,54 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
             if (cfg instanceof SqlConnectorConfiguration sqlConf) {
                 context = new SqlBaseContext(sqlConf);
                 initialized = false;
+                connected = false;
             } else {
                 throw new IllegalArgumentException("Configuration must be an instance of SqlConnectorConfiguration");
             }
         }
     }
 
-    private void initialize() {
+    /**
+     * Builds the schema, connecting to the database and discovering it (as {@code test()} and actual
+     * data operations do) whenever the required connection parameters are present. Only falls back to
+     * building the schema from local Groovy/YAML definitions alone when the configuration is still
+     * incomplete (e.g. a brand new, not yet filled in wizard form) — connecting is pointless then and
+     * would only fail. Does not undo a richer, DB-discovered schema already produced by a prior
+     * {@link #ensureConnectionInitialized()} on this instance.
+     */
+    private void ensureSchemaInitialized() {
         if (closed.get()) {
             return;
         }
         synchronized (this) {
             if (reinitializeOnEachCall || !initialized) {
-                initialize0();
+                boolean allowConnection = context.configuration().isComplete();
+                initialize0(allowConnection);
                 initialized = true;
+                connected = allowConnection;
             }
         }
     }
 
-    private void initialize0() {
-        // Initialize connection pool first (properly closes old pool if reinitializing) — schema
-        // detection needs a live connection.
-        context.initializeConnectionPool();
+    /** Ensures a live connection pool exists and, if enabled, the schema has been discovered from the database. */
+    private void ensureConnectionInitialized() {
+        if (closed.get()) {
+            return;
+        }
+        synchronized (this) {
+            if (reinitializeOnEachCall || !connected) {
+                initialize0(true);
+                initialized = true;
+                connected = true;
+            }
+        }
+    }
 
+    private void initialize0(boolean allowConnection) {
+        if (allowConnection) {
+            // Properly closes the old pool first if reinitializing — schema detection needs a live connection.
+            context.initializeConnectionPool();
+        }
 
         var builder = new SqlSchemaBuilderImpl(getClass(), context);
         var groovyContext = context.configuration().groovyContext();
@@ -227,7 +253,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
     protected abstract void initializeObjectClassHandler(SqlHandlerBuilder builder);
 
     public void test() {
-        initialize();
+        ensureConnectionInitialized();
         try {
             context.testConnection();
         } catch (ConnectionFailedException | InvalidCredentialException e) {
@@ -238,7 +264,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
     }
 
     public Schema schema() {
-        initialize();
+        ensureSchemaInitialized();
         return context.schema().connIdSchema();
     }
 
