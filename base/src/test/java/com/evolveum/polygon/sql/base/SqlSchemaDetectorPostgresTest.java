@@ -262,7 +262,7 @@ public class SqlSchemaDetectorPostgresTest {
 
         // Check that the view object class is marked as read-only
         var viewDef = sqlSchema.objectClasses().stream()
-                .filter(o -> "user_overview".equals(o.name().toLowerCase()))
+                .filter(o -> "user_overview".equalsIgnoreCase(o.name()))
                 .findFirst()
                 .orElse(null);
         assertThat(viewDef).isNotNull();
@@ -271,7 +271,7 @@ public class SqlSchemaDetectorPostgresTest {
         // All attributes should be createable=false, updateable=false for views
         var connIdSchema = sqlSchema.connIdSchema();
         var viewClass = connIdSchema.getObjectClassInfo().stream()
-                .filter(o -> "user_overview".equals(o.getType().toLowerCase()))
+                .filter(o -> "user_overview".equalsIgnoreCase(o.getType()))
                 .findFirst()
                 .orElse(null);
         assertThat(viewClass).isNotNull();
@@ -295,14 +295,14 @@ public class SqlSchemaDetectorPostgresTest {
         // Check that the view object class has no __UID__ when there are no unique constraints
         // (PostgreSQL views don't have unique indexes, so unique column fallback finds none)
         var viewDef = sqlSchema.objectClasses().stream()
-                .filter(o -> "user_overview".equals(o.name().toLowerCase()))
+                .filter(o -> "user_overview".equalsIgnoreCase(o.name()))
                 .findFirst()
                 .orElse(null);
         assertThat(viewDef).isNotNull();
 
         var connIdSchema = sqlSchema.connIdSchema();
         var viewClass = connIdSchema.getObjectClassInfo().stream()
-                .filter(o -> "user_overview".equals(o.getType().toLowerCase()))
+                .filter(o -> o.getType().equalsIgnoreCase("user_overview"))
                 .findFirst()
                 .orElse(null);
         assertThat(viewClass).isNotNull();

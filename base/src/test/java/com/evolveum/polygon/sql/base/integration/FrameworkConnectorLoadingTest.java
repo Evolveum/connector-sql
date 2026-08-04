@@ -1,0 +1,159 @@
+/*
+ * Copyright (c) 2026 Evolveum and contributors
+ *
+ * This work is licensed under European Union Public License v1.2. See LICENSE file for details.
+ *
+ */
+package com.evolveum.polygon.sql.base.integration;
+
+import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
+import com.evolveum.polygon.sql.base.groovy.impl.ManifestBasedConnector;
+import org.identityconnectors.common.security.GuardedString;
+import org.identityconnectors.framework.api.APIConfiguration;
+import org.identityconnectors.framework.api.ConnectorFacade;
+import org.identityconnectors.framework.api.ConnectorFacadeFactory;
+import org.identityconnectors.framework.api.operations.*;
+import org.identityconnectors.framework.common.objects.ObjectClassInfo;
+import org.identityconnectors.test.common.TestHelpers;
+import org.testng.annotations.AfterMethod;
+import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.Test;
+
+import java.sql.DriverManager;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Tests that the SQL connector is correctly loaded and exposed by the ConnId framework.
+ *
+ * <p>Uses {@link TestHelpers#createTestConfiguration(Class, Object)} which creates a
+ * {@link org.identityconnectors.framework.api.ConnectorInfoManager} and
+ * {@link ConnectorFacade} around the connector — exercising the full framework loading path
+ * with: configuration property resolution, message catalog processing, operation proxying,
+ * connector pooling, and classloader management.
+ *
+ * <p>Uses {@link ManifestBasedConnector} directly — the connector under test — validating that
+ * a real connector with {@code @ConnectorClass} annotation can be loaded by the ConnId framework.
+ * The test's {@code connector.manifest.json} references Groovy scripts that remap SQL tables
+ * to custom ConnId object class names.
+ */
+@Test(singleThreaded = true)
+public class FrameworkConnectorLoadingTest {
+
+    private static final String URL = "jdbc:h2:mem:frameworktest;DB_CLOSE_DELAY=-1";
+    private ConnectorFacade facade;
+    private APIConfiguration apiConfig;
+
+    @BeforeMethod
+    public void setUp() throws Exception {
+        try (var c = DriverManager.getConnection(URL, "sa", "");
+             var s = c.createStatement()) {
+            s.execute("DROP TABLE IF EXISTS app_user CASCADE");
+            s.execute("DROP TABLE IF EXISTS app_group CASCADE");
+            s.execute("""
+                    CREATE TABLE app_user (
+                    user_id INT PRIMARY KEY,
+                    user_name VARCHAR(50) NOT NULL,
+                    user_email VARCHAR(100),
+                    user_created_at TIMESTAMP,
+                    user_status VARCHAR(20))""");
+            s.execute("""
+                    CREATE TABLE app_group (
+                    group_id INT PRIMARY KEY,
+                    group_name VARCHAR(50) NOT NULL,
+                    group_description VARCHAR(200))""");
+            s.execute("INSERT INTO app_user VALUES (1, 'alice', 'alice@test.com', CURRENT_TIMESTAMP(), 'active')");
+            s.execute("INSERT INTO app_user VALUES (2, 'bob', 'bob@test.com', CURRENT_TIMESTAMP(), 'active')");
+            s.execute("INSERT INTO app_group VALUES (10, 'Admins', 'System administrators')");
+            s.execute("INSERT INTO app_group VALUES (20, 'Users', 'Regular users')");
+        }
+
+        var config = new SqlConnectorConfiguration();
+        config.setJdbcUrl(URL);
+        config.setUsername("sa");
+        config.setPassword(new GuardedString("".toCharArray()));
+        config.setScanTables(true); config.setScanViews(true);
+
+        apiConfig = TestHelpers.createTestConfiguration(
+            ManifestBasedConnector.class,
+            config
+        );
+
+        facade = ConnectorFacadeFactory.getInstance().newInstance(apiConfig);
+    }
+
+    @AfterMethod
+    public void tearDown() {
+        if (facade != null) {
+            ConnectorFacadeFactory.getInstance().dispose();
+        }
+    }
+
+    @Test
+    public void connectorFacadeIsCreated() {
+        assertThat(facade).isNotNull();
+    }
+
+    @Test
+    public void connectorFacadeKeyIsValid() {
+        var key = facade.getConnectorFacadeKey();
+        assertThat(key).isNotNull();
+        assertThat(key).isNotEmpty();
+    }
+
+    @Test
+    public void schemaOpExposesCustomObjectClasses() {
+        var schema = facade.schema();
+        assertThat(schema).isNotNull();
+
+        List<String> objectClassTypes = schema.getObjectClassInfo().stream()
+                .map(ObjectClassInfo::getType)
+                .collect(Collectors.toList());
+
+        // connector.manifest.json loads customize.groovy which maps:
+        //   app_user → Person
+        //   app_group → Team
+        assertThat(objectClassTypes).contains("Person", "Team");
+        assertThat(objectClassTypes).doesNotContain("app_user", "app_group");
+    }
+
+    @Test
+    public void testConnectThroughFacade() {
+        // Exercises the framework's connection pool and the connector's testConnection()
+        // method via the full operation proxy chain.
+        facade.test();
+    }
+
+    @Test
+    public void supportedOperationsAreExpected() {
+        Set<Class<? extends APIOperation>> ops = facade.getSupportedOperations();
+
+        assertThat(ops).contains(
+                SchemaApiOp.class,
+                SearchApiOp.class,
+                CreateApiOp.class,
+                TestApiOp.class,
+                ValidateApiOp.class);
+    }
+
+    @Test
+    public void getOperationReturnsValidInstance() {
+        assertThat(facade.getOperation(SchemaApiOp.class)).isNotNull();
+        assertThat(facade.getOperation(SearchApiOp.class)).isNotNull();
+        assertThat(facade.getOperation(CreateApiOp.class)).isNotNull();
+    }
+
+    @Test
+    public void configurationPropertiesAreExposed() {
+        var props = apiConfig.getConfigurationProperties();
+
+        assertThat(props.getProperty("jdbcUrl")).isNotNull();
+        assertThat(props.getProperty("username")).isNotNull();
+        assertThat(props.getProperty("password")).isNotNull();
+        assertThat(props.getProperty("poolSize")).isNotNull();
+        assertThat(props.getProperty("scanTables")).isNotNull();
+    }
+}

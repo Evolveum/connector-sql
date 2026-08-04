@@ -13,7 +13,6 @@ import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlSchema;
 import com.evolveum.polygon.sql.base.connection.HikariConnectionPool;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
-import com.evolveum.polygon.sql.base.connection.SqlQueryEngine;
 import com.querydsl.sql.SQLTemplates;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
@@ -34,7 +33,6 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
     private SqlSchema schema;
     private Map<ObjectClass, ObjectClassHandler> handlers;
     private volatile HikariConnectionPool connectionPool;
-    private SqlQueryEngine sqlQueryEngine;
     private SQLTemplates templates;
 
     public SqlBaseContext(SqlConnectorConfiguration configuration) {
@@ -88,16 +86,6 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
     public ObjectClassHandler handlerFor(ObjectClass objectClass) {
         return handlers != null ? handlers.get(objectClass) : null;
     }
-
-
-    public SqlQueryEngine getSqlQueryEngine() {
-        return sqlQueryEngine;
-    }
-
-    public void setSqlQueryEngine(SqlQueryEngine sqlQueryEngine) {
-        this.sqlQueryEngine = sqlQueryEngine;
-    }
-
 
     HikariConnectionPool getConnectionPool() {
         return connectionPool;

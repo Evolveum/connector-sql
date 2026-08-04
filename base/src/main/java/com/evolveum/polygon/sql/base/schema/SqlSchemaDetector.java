@@ -19,7 +19,7 @@ import java.util.*;
 public class SqlSchemaDetector {
 
     // FIXME: Probably should be keyed by product
-    private static Set<String> SCHEMAS_TO_SKIP = Set.of(
+    private static final Set<String> SCHEMAS_TO_SKIP = Set.of(
             "information_schema",
             "sys", // ORACLE system schema
             "system", // ORACLE system schema
@@ -30,21 +30,16 @@ public class SqlSchemaDetector {
     private final SqlBaseContext context;
 
     // QueryDSL Configuration for type mapping
-    private Configuration querydslConfig;
+    private final Configuration querydslConfig;
     
-    // QueryDSL SQL templates, captured once during discovery (initialized during discover())
-    // Schema name to scope metadata queries (e.g., "ORACLE" for Oracle Free)
-    private String userSchema;
-
     private TableFilter tableFilter;
 
-    private SQLTemplates templates;
+    private final SQLTemplates templates;
 
     public SqlSchemaDetector(SqlBaseContext context) throws SQLException {
         this.context = context;
 
         try (var wrapper = context.getConnection()) {
-            var conn = wrapper.getConnection();
             var meta = wrapper.getConnection().getMetaData();
             var templatesFromRegistry = new SQLTemplatesRegistry().getTemplates(meta);
             if (templatesFromRegistry == null) {
@@ -294,14 +289,14 @@ public class SqlSchemaDetector {
         if (raw == null) {
             return true;
         }
-        return raw.toUpperCase().equals("YES");
+        return raw.equalsIgnoreCase("YES");
     }
 
     private static boolean isAutoInc(String raw) {
         if (raw == null) {
             return false;
         }
-        return raw.toUpperCase().equals("YES");
+        return raw.equalsIgnoreCase("YES");
     }
 
     /**
