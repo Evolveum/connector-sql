@@ -45,15 +45,16 @@ public class SqlSchemaDetector {
 
         try (var wrapper = context.getConnection()) {
             var meta = wrapper.getConnection().getMetaData();
-            var templatesFromRegistry = new SQLTemplatesRegistry().getTemplates(meta);
-            if (templatesFromRegistry == null) {
-                templatesFromRegistry = SQLTemplates.DEFAULT;
-            }
-
             // For H2, use H2Templates with no quoting - unqualified column paths avoid table.column issues
             var productName = meta.getDatabaseProductName();
+            SQLTemplates templatesFromRegistry;
             if (productName != null && productName.toUpperCase().contains("H2")) {
                 templatesFromRegistry = new H2Templates(false);
+            } else {
+                var templatesBuilder = new SQLTemplatesRegistry().getBuilder(meta);
+                templatesFromRegistry = templatesBuilder != null
+                        ? templatesBuilder.printSchema().quote().build()
+                        : SQLTemplates.DEFAULT;
             }
             templates = templatesFromRegistry;
             querydslConfig = new Configuration(templates);
@@ -260,10 +261,13 @@ public class SqlSchemaDetector {
                     var rawAutoInc = resolveColumn(colsRs, meta, "IS_AUTOINCREMENT");
 
                     var colLower = colName.toLowerCase();
+                    var mappedColumnName = mappedColumnName(conn.getMetaData(), colName);
                     boolean isPk = pkList.contains(colLower);
 
                     // Use QueryDSL for Java type resolution (dialect-aware)
-                    var javaType = resolveJavaType(dataType, typeName, columnSize, decimalDigits, table.table(), colLower);
+                    var javaType = resolveJavaType(
+                            dataType, typeName, columnSize, decimalDigits,
+                            table.table(), mappedColumnName);
 
                     // Normalize type name using driver-typical TYPE_NAME (with fallback normalization)
                     var normalizedTypeName = normalizeTypeName(typeName);
@@ -272,7 +276,7 @@ public class SqlSchemaDetector {
                     var valueMapping = resolveValueMapping(javaType, dataType);
 
                     cols.add(SqlColumnMeta.builder()
-                            .name(colLower)
+                            .name(mappedColumnName)
                             .typeName(normalizedTypeName)
                             .typeCode(dataType)
                             .size(columnSize)
@@ -308,6 +312,22 @@ public class SqlSchemaDetector {
             }
         }
         return cols;
+    }
+
+    /**
+     * Keeps explicitly quoted, case-sensitive column names while retaining the connector's
+     * historical lowercase names for ordinary unquoted identifiers.
+     */
+    private String mappedColumnName(DatabaseMetaData metadata, String columnName) throws SQLException {
+        if (metadata.storesUpperCaseIdentifiers()
+                && columnName.equals(columnName.toUpperCase(Locale.ROOT))) {
+            return columnName.toLowerCase(Locale.ROOT);
+        }
+        if (metadata.storesLowerCaseIdentifiers()
+                && columnName.equals(columnName.toLowerCase(Locale.ROOT))) {
+            return columnName;
+        }
+        return columnName;
     }
 
     /**
