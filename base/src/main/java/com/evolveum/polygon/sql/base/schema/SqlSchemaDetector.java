@@ -45,15 +45,16 @@ public class SqlSchemaDetector {
 
         try (var wrapper = context.getConnection()) {
             var meta = wrapper.getConnection().getMetaData();
-            var templatesFromRegistry = new SQLTemplatesRegistry().getTemplates(meta);
-            if (templatesFromRegistry == null) {
-                templatesFromRegistry = SQLTemplates.DEFAULT;
-            }
-
             // For H2, use H2Templates with no quoting - unqualified column paths avoid table.column issues
             var productName = meta.getDatabaseProductName();
+            SQLTemplates templatesFromRegistry;
             if (productName != null && productName.toUpperCase().contains("H2")) {
                 templatesFromRegistry = new H2Templates(false);
+            } else {
+                var templatesBuilder = new SQLTemplatesRegistry().getBuilder(meta);
+                templatesFromRegistry = templatesBuilder != null
+                        ? templatesBuilder.printSchema().quote().build()
+                        : SQLTemplates.DEFAULT;
             }
             templates = templatesFromRegistry;
             querydslConfig = new Configuration(templates);

@@ -337,8 +337,21 @@ By default, the connector binds QueryDSL-based handlers:
 
 * `ObjectSearchOperation` -> `SqlSearchOperation` -- paginated SELECT with WHERE, ORDER BY
 * `ObjectSyncOperation` -> `SqlSyncOperation` -- incremental sync using a sync column
+* `ObjectCreateOperation` -> `SqlCreateOperation` -- transactional INSERT and read-back
+* `ObjectUpdateOperation` -> `SqlUpdateOperation` -- transactional update-delta by exact UID
+* `ObjectDeleteOperation` -> `SqlDeleteOperation` -- transactional DELETE by exact UID
 
-Create, update, and delete operations have stub handlers (`SqlHandlerBuilder.create()` returns `this` without actual implementation). Override them in operation scripts for custom SQL.
+Write handlers are registered only for writable table object classes. JDBC-discovered views and object classes configured with `readOnly true` expose search and sync, but not create, update, or delete. A handler explicitly registered by an operation script takes precedence over the corresponding built-in handler.
+
+=== Built-in Write Semantics
+
+Create converts each creatable ConnId attribute through its SQL value mapping and omits absent columns, allowing database defaults to apply. For identity/auto-increment primary keys, it obtains the generated key and reads the inserted row back in the same transaction. ConnId does not allow `__UID__` in facade create requests; for a non-generated primary key, the connector therefore uses the auto-emulated `__NAME__` value as the UID. Composite UIDs join their physical key components with `.`.
+
+Update first reads the current row, applies each `AttributeDelta`, and writes the resulting scalar column values. This supports replace, add, and remove delta forms while preserving ConnId delta semantics. UID columns, auto-increment columns, read-only attributes, and emulated attributes are not updatable.
+
+Delete uses the UID mapping as an exact predicate. Update and delete require exactly one affected row; zero rows produce `UnknownUidException`.
+
+Each built-in write runs in a JDBC transaction. Constraint and data failures are translated to ConnId exceptions: duplicate keys to `AlreadyExistsException`, invalid values/not-null/foreign-key/check failures to `InvalidAttributeValueException`, and SQL connection failures to `ConnectionFailedException`. The transaction is rolled back before the exception is returned.
 
 === Sync Configuration
 
