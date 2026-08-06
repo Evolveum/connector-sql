@@ -61,13 +61,13 @@ public class SqlDevSchemaExportIntegrationTest {
         var sql = protocolBlock(object, "sql");
         assertThat(string(sql, "table")).isEqualTo("PROJECTMEMBERSHIP");
 
-        var userId = attribute(object, "user_id");
+        var userId = attribute(object, "USER_ID");
         //assertThat(string(userId, "referencedObjectClass")).isEqualTo("user");
         //assertThat(string(userId, "referencedAttribute")).isEqualTo("id");
         //assertThat(string(userId, "reference")).isNotBlank();
         //assertThat(string(userId, "role")).isEqualTo("subject");
 
-        var projectId = attribute(object, "project_id");
+        var projectId = attribute(object, "PROJECT_ID");
         //assertThat(string(projectId, "referencedObjectClass")).isEqualTo("project");
 
         // three distinct FKs -> three distinct reference names

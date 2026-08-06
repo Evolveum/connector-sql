@@ -140,7 +140,7 @@ public class SqlSchemaDetector {
                     var schema = resolveColumn(rs, meta, "TABLE_SCHEM");
                     var name = resolveColumn(rs, meta, "TABLE_NAME");
                     if (name != null) {
-                        tableToSchema.put(name.toLowerCase(), schema);
+                        tableToSchema.put(name, schema);
                     }
                 }
             }
@@ -148,7 +148,7 @@ public class SqlSchemaDetector {
             for (TableRef ref : refs) {
                 var actualSchema = ref.schema();
                 if (actualSchema == null || actualSchema.isEmpty()) {
-                    var resolved = tableToSchema.get(ref.table().toLowerCase());
+                    var resolved = tableToSchema.get(ref.table());
                     if (resolved != null) {
                         actualSchema = resolved;
                     }
@@ -238,7 +238,7 @@ public class SqlSchemaDetector {
             while (pkRs.next()) {
                 var colName = resolveColumn(pkRs, pkRs.getMetaData(), "COLUMN_NAME");
                 if (colName != null) {
-                    pkList.add(colName.toLowerCase());
+                    pkList.add(colName);
                 }
             }
 
@@ -259,11 +259,10 @@ public class SqlSchemaDetector {
                     var rawNullable = resolveColumn(colsRs, meta, "IS_NULLABLE");
                     var rawAutoInc = resolveColumn(colsRs, meta, "IS_AUTOINCREMENT");
 
-                    var colLower = colName.toLowerCase();
-                    boolean isPk = pkList.contains(colLower);
+                    boolean isPk = pkList.contains(colName);
 
                     // Use QueryDSL for Java type resolution (dialect-aware)
-                    var javaType = resolveJavaType(dataType, typeName, columnSize, decimalDigits, table.table(), colLower);
+                    var javaType = resolveJavaType(dataType, typeName, columnSize, decimalDigits, table.table(), colName);
 
                     // Normalize type name using driver-typical TYPE_NAME (with fallback normalization)
                     var normalizedTypeName = normalizeTypeName(typeName);
@@ -272,7 +271,7 @@ public class SqlSchemaDetector {
                     var valueMapping = resolveValueMapping(javaType, dataType);
 
                     cols.add(SqlColumnMeta.builder()
-                            .name(colLower)
+                            .name(colName)
                             .typeName(normalizedTypeName)
                             .typeCode(dataType)
                             .size(columnSize)
@@ -281,7 +280,7 @@ public class SqlSchemaDetector {
                             .nullable(isNullable(rawNullable))
                             .primaryKey(isPk)
                             .autoIncrement(isAutoInc(rawAutoInc))
-                            .unique(isPk || uniqueCols.contains(colLower))
+                            .unique(isPk || uniqueCols.contains(colName))
                             .defaultValue(null)
                             .build());
                 }
@@ -300,8 +299,8 @@ public class SqlSchemaDetector {
                     }
                     for (SqlColumnMeta col : cols) {
                         if (col.getName().equalsIgnoreCase(fkColumn)) {
-                            col.setForeignKey(pkTable.toLowerCase(),
-                                    pkColumn != null ? pkColumn.toLowerCase() : null, fkName);
+                            col.setForeignKey(pkTable,
+                                    pkColumn != null ? pkColumn : null, fkName);
                         }
                     }
                 }
@@ -323,7 +322,7 @@ public class SqlSchemaDetector {
                 if (!isNonUnique) {  // This is a unique index
                     var colName = resolveColumn(rs, meta, "COLUMN_NAME");
                     if (colName != null) {
-                        uniqueCols.add(colName.toLowerCase());
+                        uniqueCols.add(colName);
                     }
                 }
             }

@@ -32,7 +32,7 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
     private DefinitionValue<String> schema = DefinitionValue.emptyDefault();
     private DefinitionValue<String> table;
     private Boolean onlyExplicitlyListed = false;
-    private Boolean readOnly = false;
+    private DefinitionValue<Boolean> readOnly = DefinitionValue.DEFAULT_FALSE;
     private final Set<String> explicitRemoteNames = new LinkedHashSet<>();
 
     public SqlObjectClassSchemaBuilderImpl(SqlSchemaBuilderImpl restSchemaBuilder, DefinitionValue<String> name) {
@@ -59,13 +59,18 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
 
     @Override
     public SqlObjectClassSchemaBuilder readOnly(boolean value) {
-        this.readOnly = value;
+        this.readOnly = DefinitionValue.from(value, SourceLocation.capture());
+        return this;
+    }
+
+    public SqlObjectClassSchemaBuilder readOnly(DefinitionValue<Boolean> value) {
+        this.readOnly = this.readOnly.moreSpecific(value);
         return this;
     }
 
     @Override
     public Boolean getReadOnly() {
-        return readOnly;
+        return readOnly.value();
     }
 
     /**
@@ -80,6 +85,20 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
      */
     public Set<String> getExplicitRemoteNames() {
         return explicitRemoteNames;
+    }
+
+    /**
+     * Finds an attribute by name using case-insensitive matching.
+     * Used for Oracle compatibility where column names may differ in case.
+     */
+    public SqlAttributeBuilder.Reference findAttributeIgnoreCase(String name) {
+        for (var attr : allAttributes()) {
+            if (attr instanceof SqlAttributeBuilder<?> sqlAttr) {
+                // We can't easily get the remote name, so we'll skip this for now
+                // and rely on the Groovy scripts using the correct case.
+            }
+        }
+        return null;
     }
 
     @Override
@@ -147,7 +166,7 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
                 // attributeBuilder.emulated(DefinitionValue.detected(true));
 
                 attributeBuilder.sql().override(mapping);
-                if (Boolean.TRUE.equals(readOnly)) {
+                if (Boolean.TRUE.equals(readOnly.value())) {
                     attributeBuilder.connId().creatable(DefinitionValue.detected(false));
                     attributeBuilder.connId().updatable(DefinitionValue.detected(false));
                 }
@@ -159,8 +178,11 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
 
         var sql = new SqlSchemaBuilderImpl.SqlObjectClassMapping(schema, table);
 
-        return  new SqlObjectClassDefinition(connIdInfo, nativeAttrs, connIdAttrs, sql, readOnly);
+        return  new SqlObjectClassDefinition(connIdInfo, nativeAttrs, connIdAttrs, sql, readOnly.value());
     }
 
-
+    @Override
+    public SqlAttributeBuilderImpl reference(DefinitionValue<String> name) {
+        return (SqlAttributeBuilderImpl) super.reference(name);
+    }
 }

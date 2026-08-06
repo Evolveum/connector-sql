@@ -85,7 +85,10 @@ public final class SqlFilterTranslator {
 
     private BooleanExpression buildValueFilter(AttributeFilter filter) {
         var attrDef = objectClass.attributeFromConnIdName(filter.getAttribute().getName());
-        if (attrDef == null || attrDef.sql() == null) {
+        if (attrDef == null)  {
+            throw SqlFilterTranslator.unknownAttributeException(filter);
+        }
+        if (attrDef.sql() == null) {
             // TODO: Maybe better exception -> eg. attrDef == null -> unknown attribute
             throw SqlFilterTranslator.unsupportedFilterException(filter);
         }
@@ -94,6 +97,10 @@ public final class SqlFilterTranslator {
             throw unsupportedFilterException(filter);
         }
         return filterProcessor.predicateFor(tablePath, filter);
+    }
+
+    private static UnsupportedOperationException unknownAttributeException(AttributeFilter filter) {
+        return new UnsupportedOperationException("Unknown attribute: " + filter.getAttribute().getName());
     }
 
     // ── Compound (AND/OR) ──────────────────────────────────────────────────

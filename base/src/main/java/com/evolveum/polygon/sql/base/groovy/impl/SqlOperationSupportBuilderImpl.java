@@ -26,4 +26,9 @@ public class SqlOperationSupportBuilderImpl extends AbstractOperationSupportBuil
     protected SqlObjectOperationSupportBuilder newObjectSpecific(BaseObjectClassDefinition classDefinition) {
         return new SqlObjectOperationBuilderImpl(this.context, (SqlObjectClassDefinition) classDefinition);
     }
+
+    @Override
+    public SqlObjectOperationBuilderImpl objectClass(String user) {
+        return (SqlObjectOperationBuilderImpl) super.objectClass(user);
+    }
 }

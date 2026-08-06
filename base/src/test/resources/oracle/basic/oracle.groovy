@@ -7,14 +7,14 @@
 
 objectClass("orgchart_type_ref") {
     sql { table "ORGCHART_TYPE_REF" }
-    attribute("type_ref_id") {
+    attribute("TYPE_REF_ID") {
         connId { name "__UID__" }
         sql { primaryKey(); type NUMBER(10) }
     }
-    attribute("type_code") {
+    attribute("TYPE_CODE") {
         sql { type VARCHAR2(20) }
     }
-    attribute("display_name") {
+    attribute("DISPLAY_NAME") {
         connId { name "__NAME__" }
         sql { type VARCHAR2(255) }
     }
@@ -22,45 +22,45 @@ objectClass("orgchart_type_ref") {
 
 objectClass("orgchart_node") {
     sql { table "ORGCHART_NODE" }
-    attribute("unit_id") {
+    attribute("UNIT_ID") {
         connId { name "__UID__" }
         sql { primaryKey(); type NUMBER(10) }
     }
-    attribute("unit_code") {
+    attribute("UNIT_CODE") {
         connId { name "__NAME__" }
         sql { type VARCHAR2(100) }
     }
-    attribute("parent_unit_id") {
+    attribute("PARENT_UNIT_ID") {
         sql { type NUMBER(10) }
     }
-    attribute("type_ref_id") {
+    attribute("TYPE_REF_ID") {
         sql { type NUMBER(10) }
     }
-    attribute("hierarchy_level") {
+    attribute("HIERARCHY_LEVEL") {
         sql { type NUMBER(3) }
     }
-    attribute("display_order") {
+    attribute("DISPLAY_ORDER") {
         sql { type NUMBER(10) }
     }
-    attribute("created_date") {
+    attribute("CREATED_DATE") {
         sql { type TIMESTAMP(6) }
     }
-    attribute("updated_date") {
+    attribute("UPDATED_DATE") {
         sql { type TIMESTAMP(6) }
     }
 }
 
 objectClass("orgchart_label") {
     sql { table "ORGCHART_LABEL" }
-    attribute("unit_id") {
+    attribute("UNIT_ID") {
         connId { name "__UID__" }
         sql { type NUMBER(10) }
     }
-    attribute("language") {
+    attribute("LANGUAGE") {
         connId { name "__NAME__" }
         sql { type VARCHAR2(10) }
     }
-    attribute("label_text") {
+    attribute("LABEL_TEXT") {
         sql { type VARCHAR2(500) }
     }
 }
@@ -71,11 +71,11 @@ objectClass("orgchart_label") {
 
 objectClass("dir_status_ref") {
     sql { table "DIR_STATUS_REF" }
-    attribute("status_code") {
+    attribute("STATUS_CODE") {
         connId { name "__UID__" }
         sql { primaryKey(); type VARCHAR2(1) }
     }
-    attribute("status_meaning") {
+    attribute("STATUS_MEANING") {
         connId { name "__NAME__" }
         sql { type VARCHAR2(100) }
     }
@@ -83,11 +83,11 @@ objectClass("dir_status_ref") {
 
 objectClass("dir_archetype_ref") {
     sql { table "DIR_ARCHETYPE_REF" }
-    attribute("archetype_code") {
+    attribute("ARCHETYPE_CODE") {
         connId { name "__UID__" }
         sql { primaryKey(); type VARCHAR2(1) }
     }
-    attribute("archetype_description") {
+    attribute("ARCHETYPE_DESCRIPTION") {
         connId { name "__NAME__" }
         sql { type VARCHAR2(255) }
     }
@@ -95,11 +95,11 @@ objectClass("dir_archetype_ref") {
 
 objectClass("dir_staff_origin_ref") {
     sql { table "DIR_STAFF_ORIGIN_REF" }
-    attribute("origin_code") {
+    attribute("ORIGIN_CODE") {
         connId { name "__UID__" }
         sql { primaryKey(); type VARCHAR2(20) }
     }
-    attribute("origin_meaning") {
+    attribute("ORIGIN_MEANING") {
         connId { name "__NAME__" }
         sql { type VARCHAR2(255) }
     }
@@ -107,11 +107,11 @@ objectClass("dir_staff_origin_ref") {
 
 objectClass("dir_institution_ref") {
     sql { table "DIR_INSTITUTION_REF" }
-    attribute("origin_code") {
+    attribute("ORIGIN_CODE") {
         connId { name "__UID__" }
         sql { primaryKey(); type VARCHAR2(20) }
     }
-    attribute("institution_name") {
+    attribute("INSTITUTION_NAME") {
         connId { name "__NAME__" }
         sql { type VARCHAR2(255) }
     }
@@ -119,11 +119,11 @@ objectClass("dir_institution_ref") {
 
 objectClass("dir_auth_domain") {
     sql { table "DIR_AUTH_DOMAIN" }
-    attribute("domain_id") {
+    attribute("DOMAIN_ID") {
         connId { name "__UID__" }
         sql { primaryKey(); type NUMBER(10) }
     }
-    attribute("domain_name") {
+    attribute("DOMAIN_NAME") {
         connId { name "__NAME__" }
         sql { type VARCHAR2(100) }
     }
@@ -131,121 +131,121 @@ objectClass("dir_auth_domain") {
 
 objectClass("dir_account") {
     sql { table "DIR_ACCOUNT" }
-    attribute("account_id") {
+    attribute("ACCOUNT_ID") {
         connId { name "__UID__" }
         sql { primaryKey(); type VARCHAR2(8) }
     }
-    attribute("family_name") {
+    attribute("FAMILY_NAME") {
         connId { name "__NAME__" }
         sql { type VARCHAR2(400) }
     }
-    attribute("given_name") {
+    attribute("GIVEN_NAME") {
         sql { type VARCHAR2(400) }
     }
-    attribute("email_address") {
+    attribute("EMAIL_ADDRESS") {
         sql { type VARCHAR2(320) }
     }
-    attribute("status_code") {
+    attribute("STATUS_CODE") {
         sql { type VARCHAR2(1) }
     }
-    attribute("archetype_code") {
+    attribute("ARCHETYPE_CODE") {
         sql { type VARCHAR2(1) }
     }
-    attribute("domain_id") {
+    attribute("DOMAIN_ID") {
         sql { type NUMBER(10) }
     }
-    attribute("external_person_id") {
+    attribute("EXTERNAL_PERSON_ID") {
         sql { type VARCHAR2(8) }
     }
-    attribute("internal_id") {
+    attribute("INTERNAL_ID") {
         sql { type VARCHAR2(60) }
     }
-    attribute("created_at") {
+    attribute("CREATED_AT") {
         sql { type TIMESTAMP(6) }
     }
-    attribute("updated_at") {
+    attribute("UPDATED_AT") {
         sql { type TIMESTAMP(6) }
     }
 }
 
 objectClass("dir_service") {
     sql { table "DIR_SERVICE" }
-    attribute("service_id") {
+    attribute("SERVICE_ID") {
         connId { name "__UID__" }
         sql { primaryKey(); type VARCHAR2(64) }
     }
-    attribute("service_full_name") {
+    attribute("SERVICE_FULL_NAME") {
         connId { name "__NAME__" }
         sql { type VARCHAR2(255) }
     }
-    attribute("is_privileged") {
+    attribute("IS_PRIVILEGED") {
         sql { type VARCHAR2(1) }
     }
-    attribute("domain_id") {
+    attribute("DOMAIN_ID") {
         sql { type NUMBER(10) }
     }
-    attribute("directorategeneral") {
+    attribute("DIRECTORATEGENERAL") {
         sql { type VARCHAR2(10) }
     }
-    attribute("app_name") {
+    attribute("APP_NAME") {
         sql { type VARCHAR2(256) }
     }
-    attribute("endpoint_time") {
+    attribute("ENDPOINT_TIME") {
         sql { type NUMBER(19) }
     }
 }
 
 objectClass("dir_membership") {
     sql { table "DIR_MEMBERSHIP" }
-    attribute("account_id") {
+    attribute("ACCOUNT_ID") {
         connId { name "__UID__" }
         sql { type VARCHAR2(8) }
     }
-    attribute("service_id") {
+    attribute("SERVICE_ID") {
         connId { name "__NAME__" }
         sql { type VARCHAR2(64) }
     }
-    attribute("membership_expiry") {
+    attribute("MEMBERSHIP_EXPIRY") {
         sql { type TIMESTAMP(6) }
     }
-    attribute("updated_at") {
+    attribute("UPDATED_AT") {
         sql { type TIMESTAMP(6) }
     }
 }
 
 objectClass("dir_xf_entitlement") {
     sql { table "DIR_XF_ENTITLEMENT" }
-    attribute("account_id") {
+    attribute("ACCOUNT_ID") {
         connId { name "__UID__" }
         sql { primaryKey(); type VARCHAR2(8) }
     }
-    attribute("is_entitled") {
+    attribute("IS_ENTITLED") {
         sql { type VARCHAR2(1) }
     }
-    attribute("endpoint_time") {
+    attribute("ENDPOINT_TIME") {
         sql { type NUMBER(19) }
     }
 }
 
 objectClass("dir_job_watermark") {
     sql { table "DIR_JOB_WATERMARK" }
-    attribute("job_name") {
+    attribute("JOB_NAME") {
         connId { name "__UID__" }
         sql { primaryKey(); type VARCHAR2(30) }
     }
-    attribute("last_confirmed") {
+    attribute("LAST_CONFIRMED") {
         sql { type TIMESTAMP(6) }
     }
-    attribute("operator") {
+    attribute("OPERATOR") {
         sql { type VARCHAR2(50) }
     }
-    attribute("note") {
+    attribute("NOTE") {
         sql { type VARCHAR2(500) }
     }
-    attribute("processed_rows") {
+    attribute("PROCESSED_ROWS") {
         sql { type NUMBER(10) }
     }
-    attribute("updated_at") {
+    attribute("UPDATED_AT") {
         sql { type TIMESTAMP(6) }
     }
 }

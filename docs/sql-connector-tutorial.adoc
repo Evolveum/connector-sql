@@ -107,7 +107,7 @@ The manifest (`connector.manifest.json`) is a small JSON file placed on the clas
 ----
 
 * `schema` -- array of schema script resources. Loaded by `SqlGroovySchemaLoader` during initialization, these define which SQL tables map to ConnId object classes and attribute definitions.
-* `operation` -- array of handler script resources. Loaded by `SqlHandlerBuilder`, these register custom search/create/update/delete/sync handlers for object classes.
+* `operation` -- array of handler script resources. Loaded by `SqlHandlerSupportBuilder`, these register custom search/create/update/delete/sync handlers for object classes.
 
 === Script Paths
 
@@ -351,7 +351,7 @@ objectClass("Team") {
 
 == Writing Operation Handler Scripts
 
-Operation handler scripts define custom search/create/update/delete/sync behavior per object class. They are loaded by `SqlHandlerBuilder` after schema initialization.
+Operation handler scripts define custom search/create/update/delete/sync behavior per object class. They are loaded by `SqlHandlerSupportBuilder` after schema initialization.
 
 === The Handler DSL
 
@@ -489,7 +489,7 @@ package com.example;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
+import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 
 public class MyCustomConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
 

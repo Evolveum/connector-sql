@@ -188,9 +188,9 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
 
         }
 
-        // translate it into the one
-        // framework schema model (conndev BaseSchema); everything else derives from that model.
-        context.schema(new SqlSchemaTranslator(builder, tables)
+        // Translate into framework schema model; translator collects detected actions for handlers.
+        var translator = new SqlSchemaTranslator(builder, tables);
+        context.schema(translator
                 .connector(getClass(), context)
                 .translate(additional));
         // Initialize handlers
@@ -201,12 +201,18 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         initializeObjectClassHandler(handlerLoader);
 
 
-
-        // Trigger defaults for each and every object class
+        // Trigger defaults for each and every object class, then apply detected handler effects
         if (context.schema() != null) {
+            var detectedActions = translator.getDetectedActions();
             for (SqlObjectClassDefinition def : context.schema().objectClasses()) {
-                // This triggers initialization of method handlers with defaults
                 handlerBuilder.objectClass(def.name());
+                var actions = detectedActions.get(def.name());
+                if (actions != null) {
+                    var ocHandlerBuilder = handlerBuilder.objectClass(def.name());
+                    for (var action : actions) {
+                        action.applyToHandlers(ocHandlerBuilder);
+                    }
+                }
             }
         }
 

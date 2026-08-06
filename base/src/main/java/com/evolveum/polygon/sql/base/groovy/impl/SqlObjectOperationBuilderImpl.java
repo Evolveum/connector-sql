@@ -29,11 +29,44 @@ public class SqlObjectOperationBuilderImpl extends BaseObjectOperationSupportBui
         > implements SqlObjectOperationSupportBuilder {
 
     private final SqlSearchOperationBuilderImpl search;
+    private boolean createDisabled;
+    private boolean updateDisabled;
+    private boolean deleteDisabled;
 
     public SqlObjectOperationBuilderImpl(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
         super(context, objectClass);
         this.search = new SqlSearchOperationBuilderImpl(this, context, objectClass);
 
+    }
+
+    public boolean isCreateDisabled() {
+        return createDisabled;
+    }
+
+    public boolean isUpdateDisabled() {
+        return updateDisabled;
+    }
+
+    public boolean isDeleteDisabled() {
+        return deleteDisabled;
+    }
+
+    @Override
+    public SqlObjectOperationSupportBuilder disableCreate() {
+        this.createDisabled = true;
+        return this;
+    }
+
+    @Override
+    public SqlObjectOperationSupportBuilder disableUpdate() {
+        this.updateDisabled = true;
+        return this;
+    }
+
+    @Override
+    public SqlObjectOperationSupportBuilder disableDelete() {
+        this.deleteDisabled = true;
+        return this;
     }
 
     @Override
@@ -103,5 +136,14 @@ public class SqlObjectOperationBuilderImpl extends BaseObjectOperationSupportBui
                  return null;
              }
          };
+     }
+
+     @Override
+     public SqlObjectClassDefinition getObjectClass() {
+         return (SqlObjectClassDefinition) super.getObjectClass();
+     }
+
+     public SqlBaseContext getContext() {
+         return (SqlBaseContext) context;
      }
  }

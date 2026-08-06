@@ -86,22 +86,22 @@ public class SqlSchemaDetectorIntegrationTest {
         assertThat(userTable).isNotNull();
         Map<String, SqlColumnMeta> columns = toColumnMap(userTable);
 
-        var idCol = columns.get("id");
+        var idCol = columns.get("ID");
         assertThat(idCol).isNotNull();
         assertThat(idCol.isPrimaryKey()).isTrue();
         assertThat(idCol.isNullable()).isFalse();
         assertThat(idCol.isAutoIncrement()).isTrue();
 
-        assertThat(columns.containsKey("username")).isTrue();
-        assertThat(columns.get("username").isNullable()).isFalse();
-        assertThat(columns.get("username").isUnique()).isTrue();
+        assertThat(columns.containsKey("USERNAME")).isTrue();
+        assertThat(columns.get("USERNAME").isNullable()).isFalse();
+        assertThat(columns.get("USERNAME").isUnique()).isTrue();
 
-        assertThat(columns.containsKey("email")).isTrue();
-        assertThat(columns.get("email").isNullable()).isTrue();
-        assertThat(columns.get("email").isUnique()).isTrue();
+        assertThat(columns.containsKey("EMAIL")).isTrue();
+        assertThat(columns.get("EMAIL").isNullable()).isTrue();
+        assertThat(columns.get("EMAIL").isUnique()).isTrue();
 
-        assertThat(columns.containsKey("created_at")).isTrue();
-        assertThat(columns.get("created_at").isNullable()).isTrue();
+        assertThat(columns.containsKey("CREATED_AT")).isTrue();
+        assertThat(columns.get("CREATED_AT").isNullable()).isTrue();
     }
 
     @Test
@@ -110,8 +110,8 @@ public class SqlSchemaDetectorIntegrationTest {
 
         Map<String, SqlColumnMeta> columns = toColumnMap(table(tables, "group"));
         assertThat(columns.size()).isEqualTo(3);
-        assertThat(columns.get("id").isNullable()).isFalse();
-        assertThat(columns.get("id").isPrimaryKey()).isTrue();
+        assertThat(columns.get("ID").isNullable()).isFalse();
+        assertThat(columns.get("ID").isPrimaryKey()).isTrue();
     }
 
     @Test
@@ -120,8 +120,8 @@ public class SqlSchemaDetectorIntegrationTest {
 
         Map<String, SqlColumnMeta> columns = toColumnMap(table(tables, "role"));
         assertThat(columns.size()).isEqualTo(3);
-        assertThat(columns.get("id").isPrimaryKey()).isTrue();
-        assertThat(columns.get("name").isNullable()).isFalse();
+        assertThat(columns.get("ID").isPrimaryKey()).isTrue();
+        assertThat(columns.get("NAME").isNullable()).isFalse();
     }
 
     @Test
@@ -130,25 +130,25 @@ public class SqlSchemaDetectorIntegrationTest {
 
         Map<String, SqlColumnMeta> columns = toColumnMap(table(tables, "project"));
         assertThat(columns.size()).isEqualTo(4);
-        assertThat(columns.get("id").isPrimaryKey()).isTrue();
-        assertThat(columns.get("name").isNullable()).isFalse();
+        assertThat(columns.get("ID").isPrimaryKey()).isTrue();
+        assertThat(columns.get("NAME").isNullable()).isFalse();
     }
 
     @Test
     public void testUserAddressSchema() throws Exception {
         List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
 
-        Map<String, SqlColumnMeta> columns = toColumnMap(table(tables, "useraddress"));
+        Map<String, SqlColumnMeta> columns = toColumnMap(table(tables, "USERADDRESS"));
         assertThat(columns.size()).isEqualTo(6);
-        assertThat(columns.get("id").isPrimaryKey()).isTrue();
+        assertThat(columns.get("ID").isPrimaryKey()).isTrue();
 
-        var userIdCol = columns.get("user_id");
+        var userIdCol = columns.get("USER_ID");
         assertThat(userIdCol).isNotNull();
         assertThat(userIdCol.isNullable()).withFailMessage("UserAddress.user_id should be NOT NULL - UserAddress cannot exist without a User").isFalse();
 
-        assertColumnType(columns.get("street"), "VARCHAR");
-        assertColumnType(columns.get("city"), "VARCHAR");
-        assertColumnType(columns.get("country"), "VARCHAR");
+        assertColumnType(columns.get("STREET"), "VARCHAR");
+        assertColumnType(columns.get("CITY"), "VARCHAR");
+        assertColumnType(columns.get("COUNTRY"), "VARCHAR");
     }
 
     @Test
@@ -157,12 +157,12 @@ public class SqlSchemaDetectorIntegrationTest {
 
         Map<String, SqlColumnMeta> columns = toColumnMap(table(tables, "projectmembership"));
         assertThat(columns.size()).isEqualTo(5);
-        assertThat(columns.get("id").isPrimaryKey()).isTrue();
+        assertThat(columns.get("ID").isPrimaryKey()).isTrue();
 
-        assertThat(columns.get("user_id").isNullable()).isFalse();
-        assertThat(columns.get("project_id").isNullable()).isFalse();
-        assertThat(columns.get("role_id").isNullable()).isFalse();
-        assertThat(columns.get("joined_at").isNullable()).isTrue();
+        assertThat(columns.get("USER_ID").isNullable()).isFalse();
+        assertThat(columns.get("PROJECT_ID").isNullable()).isFalse();
+        assertThat(columns.get("ROLE_ID").isNullable()).isFalse();
+        assertThat(columns.get("JOINED_AT").isNullable()).isTrue();
     }
 
     @Test
@@ -191,8 +191,8 @@ public class SqlSchemaDetectorIntegrationTest {
         assertThat(userAttrs.size()).isEqualTo(5);  // 4 columns + __NAME__ auto-added by ConnId
 
         assertThat(userAttrs.get(Uid.NAME).isRequired()).withFailMessage("User.id (__UID__) should be required").isTrue();
-        assertThat(userAttrs.get(Uid.NAME).getNativeName()).isEqualTo("id");
-        assertThat(userAttrs.get("email").isRequired()).withFailMessage("User.email should NOT be required").isFalse();
+        assertThat(userAttrs.get(Uid.NAME).getNativeName()).isEqualTo("ID");
+        assertThat(userAttrs.get("EMAIL").isRequired()).withFailMessage("User.email should NOT be required").isFalse();
 
         // Verify ProjectMembership: FK columns are references, still required
         var membership = objClasses.get("projectmembership");
@@ -201,10 +201,10 @@ public class SqlSchemaDetectorIntegrationTest {
                 .collect(Collectors.toMap(AttributeInfo::getName, Function.identity()));
         assertThat(memberAttrs.size()).isEqualTo(6);  // 5 columns + __NAME__ auto-added by ConnId
 
-        assertThat(memberAttrs.get("user_id").isRequired()).isTrue();
+        assertThat(memberAttrs.get("USER_ID").isRequired()).isTrue();
         //assertThat(memberAttrs.get("user_id").getReferencedObjectClassName()).isEqualTo("user");
-        assertThat(memberAttrs.get("project_id").isRequired()).isTrue();
-        assertThat(memberAttrs.get("role_id").isRequired()).isTrue();
+        assertThat(memberAttrs.get("PROJECT_ID").isRequired()).isTrue();
+        assertThat(memberAttrs.get("ROLE_ID").isRequired()).isTrue();
     }
 
     @Test
@@ -255,7 +255,7 @@ public class SqlSchemaDetectorIntegrationTest {
         assertThat(tables).hasSize(1);
         assertThat(tables).first().extracting(SqlTableInfo::getName).isEqualTo("User");
         assertThat(tables.getFirst().getColumns()).isNotEmpty();
-        assertThat(toColumnMap(tables.getFirst()).containsKey("id")).isTrue();
+        assertThat(toColumnMap(tables.getFirst()).containsKey("ID")).isTrue();
     }
 
     @Test

@@ -291,7 +291,7 @@ The `embedded true` flag tells the connector that this table is deleted via CASC
 [[handler-dsl]]
 == Groovy Handler DSL
 
-Operation handler scripts are loaded by `SqlHandlerBuilder`. The DSL provides the same `objectClass(name) {}` pattern but with a different delegate.
+Operation handler scripts are loaded by `SqlHandlerSupportBuilder`. The DSL provides the same `objectClass(name) {}` pattern but with a different delegate.
 
 === SqlObjectClassSchemaBuilder vs Handler DSL
 
@@ -629,7 +629,7 @@ Mapping is provided by `SqlSchemaValueMapping`.
    b. Create `SqlSchemaBuilderImpl`.
    c. Create `SqlGroovySchemaLoader`, call `initializeSchema(loader)` -- load Groovy scripts.
    d. If `autoDiscoverSchema` true: discover JDBC metadata, translate to ConnId schema (see note below).
-   e. Create `SqlHandlerBuilder`, call `initializeObjectClassHandler(builder)`.
+   e. Create `SqlHandlerSupportBuilder`, call `initializeObjectClassHandler(builder)`.
    f. Register default handlers for all discovered object classes.
    g. `context.handlers(builder.build())`.
 3. Subsequent calls reuse the initialized pool and context.

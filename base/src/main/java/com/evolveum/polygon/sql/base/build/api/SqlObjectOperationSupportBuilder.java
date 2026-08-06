@@ -10,5 +10,24 @@ import com.evolveum.polygon.conndev.build.api.ObjectOperationSupportBuilder;
 
 public interface SqlObjectOperationSupportBuilder extends ObjectOperationSupportBuilder {
 
+    /**
+     * Disable the Create operation for this object class.
+     * Used by detection strategies when the underlying SQL table does not support creates
+     * (e.g., views, or when all columns are primary keys).
+     */
+    SqlObjectOperationSupportBuilder disableCreate();
 
+    /**
+     * Disable the Update operation for this object class.
+     * Used by detection strategies when the underlying SQL table does not support updates
+     * (e.g., views).
+     */
+    SqlObjectOperationSupportBuilder disableUpdate();
+
+    /**
+     * Disable the Delete operation for this object class.
+     * Used by detection strategies when the underlying SQL table does not support deletes
+     * (e.g., views).
+     */
+    SqlObjectOperationSupportBuilder disableDelete();
 }

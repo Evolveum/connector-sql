@@ -8,175 +8,242 @@ package com.evolveum.polygon.sql.base.schema;
 
 import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
-import com.evolveum.polygon.conndev.schema.BaseSchema;
 import com.evolveum.polygon.sql.base.build.api.*;
-import com.evolveum.polygon.sql.base.connection.SqlValueMapping;
-import com.evolveum.polygon.sql.base.schema.strategy.DefaultDetectionStrategy;
-import com.evolveum.polygon.sql.base.schema.strategy.OnlyExplicitAttributesDetectionStrategy;
+import com.evolveum.polygon.sql.base.schema.strategy.*;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
-import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Connector;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
 
 /**
  * Translates JDBC-detected tables into the conndev {@link BaseSchema} using a unified
- * builder approach. Groovy scripts populate the builder directly, and JDBC detection
- * enhances it with SQL metadata.
+ * strategy-based approach. Detection strategies examine table and column metadata,
+ * produce {@link SchemaMappingAction} instances that modify both schema definitions and
+ * handler configurations.
  *
- * <p>No customizer intermediary — tables are correlated via SQL schema+table name matches
- * against Groovy-defined object classes, or created on-the-fly.
+ * <p>Flow within {@link #translateTable(SqlTableInfo)}:
+ * <ol>
+ *   <li>Correlate table with existing Groovy-defined object class or create new one</li>
+ *   <li>Run table-level detection strategies (view, UID, embedded)</li>
+ *   <li>Filter columns (explicit-only when configured)</li>
+ *   <li>Create attributes and run column-level detection strategies</li>
+ *   <li>Apply UID mapping from table-level strategies</li>
+ *   <li>Handle composite PK additional columns</li>
+ *   <li>Collect handler actions for post-translation application</li>
+ * </ol>
  *
+ * @see SchemaMappingRule
+ * @see SchemaMappingAction
  * @see SqlSchemaBuilderImpl
  */
 public class SqlSchemaTranslator {
 
     private final SqlSchemaBuilderImpl builder;
     private final List<SqlTableInfo> tables;
-    private final List<AttributeDetectionStrategy> strategies = new ArrayList<>();
+    private final List<SchemaMappingRule> detectionStrategies = new ArrayList<>();
+    private final Map<String, List<SchemaMappingAction>> handlerActions = new LinkedHashMap<>();
     private Class<? extends Connector> connectorClass;
     private ContextLookup contextLookup;
 
-    /**
-     * Legacy-style constructor: creates an internal builder and processes the given tables.
-     * Used by tests that don't have Groovy scripts.
-     */
     public SqlSchemaTranslator(List<SqlTableInfo> tables) {
         this(null, tables);
     }
 
-    /**
-     * Constructor accepting a pre-built schema builder (from Groovy scripts or tests).
-     *
-     * @param builder the schema builder (may be null for legacy usage)
-     * @param tables  the JDBC-detected tables to translate
-     */
     public SqlSchemaTranslator(SqlSchemaBuilderImpl builder, List<SqlTableInfo> tables) {
-        if (builder == null) {
-            // Legacy mode: create internal builder (connectorClass used for schema building)
-            // Use a raw cast to satisfy the type system - tests don't call builder.build() without setting the connector
-            @SuppressWarnings("unchecked")
-            Class<? extends Connector> placeholder = (Class<? extends Connector>) (Class<?>) Object.class;
-            this.builder = new SqlSchemaBuilderImpl(placeholder, null);
-            this.tables = tables == null || tables.isEmpty() ? Collections.emptyList() : new ArrayList<>(tables);
-        } else {
-            this.builder = builder;
-            this.tables = tables == null || tables.isEmpty() ? Collections.emptyList() : new ArrayList<>(tables);
-        }
-        this.strategies.add(new DefaultDetectionStrategy());
+        this.builder = builder == null
+                ? new SqlSchemaBuilderImpl(placeholderConnectorClass(), null)
+                : builder;
+        this.tables = tables == null || tables.isEmpty() ? Collections.emptyList() : new ArrayList<>(tables);
+        registerDefaultStrategies();
     }
 
-    /**
-     * Set connector class and context for schema building.
-     * Called automatically by {@link com.evolveum.polygon.sql.base.AbstractGroovySqlConnector}.
-     *
-     * @deprecated Use {@link #connector(Class, ContextLookup)} chain pattern instead.
-     */
-    @Deprecated
-    public SqlSchema translate(Class<? extends Connector> connectorClass, ContextLookup contextLookup) {
-        this.connectorClass = connectorClass;
-        this.contextLookup = contextLookup;
-        return translateInternal(connectorClass, contextLookup);
+    @SuppressWarnings("unchecked")
+    private static Class<? extends Connector> placeholderConnectorClass() {
+        return (Class<? extends Connector>) (Class<?>) Object.class;
     }
 
-    /**
-     * Set connector class and context for schema building.
-     * Called automatically by {@link com.evolveum.polygon.sql.base.AbstractGroovySqlConnector}.
-     */
+    private void registerDefaultStrategies() {
+        // Column-level strategies
+        detectionStrategies.add(new NullableAttributesAreNotRequiredRule());
+        detectionStrategies.add(new LargeTypesNotReturnedByDefaultRule());
+        detectionStrategies.add(new PrimaryKeyIsNotUpdatableRule());
+        detectionStrategies.add(new AutoIncrementColumnIsNotEditableRule());
+        // Table-level strategies
+        detectionStrategies.add(new ViewsShouldBeReadOnly());
+        detectionStrategies.add(new SinglePrimaryKeyIsUidRule());
+        detectionStrategies.add(new CompositePkUidMappingRule());
+        detectionStrategies.add(new UniqueAttributeAsFallbackUidRule());
+        // Explicit columns filter (applied at end when builder flag is set)
+        detectionStrategies.add(new ExplicitColumnsMappingRule(() -> this.builder));
+    }
+
     public SqlSchemaTranslator connector(Class<? extends Connector> connectorClass, ContextLookup contextLookup) {
         this.connectorClass = connectorClass;
         this.contextLookup = contextLookup;
         return this;
     }
 
-    public SqlSchemaTranslator addStrategy(AttributeDetectionStrategy strategy) {
-        this.strategies.add(strategy);
+    public SqlSchemaTranslator addStrategy(SchemaMappingRule strategy) {
+        this.detectionStrategies.add(strategy);
         return this;
     }
-    /**
-     * Translate with additional object classes, using previously set connector/class and context.
-     */
+
     public SqlSchema translate(Collection<ObjectClassInfo> additionalObjectClasses) {
         additionalObjectClasses.forEach(builder::defineObjectClass);
-        return translateInternal(this.connectorClass, this.contextLookup);
+        return translateInternal();
     }
 
-    private SqlSchema translateInternal(Class<? extends Connector> connectorClass, ContextLookup contextLookup) {
+    public Map<String, List<SchemaMappingAction>> getDetectedActions() {
+        return Collections.unmodifiableMap(handlerActions);
+    }
+
+    @Deprecated
+    public SqlSchema translate(Class<? extends Connector> connectorClass, ContextLookup contextLookup) {
+        this.connectorClass = connectorClass;
+        this.contextLookup = contextLookup;
+        return translateInternal();
+    }
+
+    @Deprecated
+    public SqlSchemaTranslator addStrategy(AttributeDetectionStrategy strategy) {
+        return this;
+    }
+
+    private SqlSchema translateInternal() {
         for (SqlTableInfo table : tables) {
             translateTable(table);
         }
         return builder.build();
     }
 
-    /**
-     * Translate a single SQL table into object class attributes.
-     */
     private void translateTable(SqlTableInfo table) {
         if (table == null || table.getColumns() == null || table.getColumns().isEmpty()) {
             return;
         }
-        // When onlyExplicitlyListed at schema builder level, skip tables with no Groovy definition
         if (builder.getOnlyExplicitlyListed() != null && builder.getOnlyExplicitlyListed()
                 && !hasCorrelatedBuilder(table)) {
             return;
         }
-        // Correlate builder: reuse existing Groovy-defined one or create new one
+
+        // Phase 1: Correlate builder
+        var objectClass = correlateBuilder(table);
+
+        // Phase 2: Collect table-level actions (including UID strategy actions)
+        List<SchemaMappingAction> tableActions = collectTableActions(table);
+
+        // Phase 3: Create attributes with core setup and column-level strategies
+        for (SqlColumnMeta column : getIncludedColumns(table)) {
+            var attribute = (SqlAttributeBuilderImpl) objectClass.attribute(column.getName());
+            setupCoreAttribute(attribute, column);
+            for (SchemaMappingRule strategy : detectionStrategies) {
+                if (strategy.checkIfApplicable(table, column)) {
+                    var action = strategy.createAction(table, column);
+                    if (action instanceof SchemaMappingAction.ColumnSpecific columnSpecific) {
+                        columnSpecific.applyToSchema(objectClass, attribute);
+                    }
+                }
+            }
+        }
+
+        // Phase 4: Apply table-level actions (UID renaming/composite PK handled by UID strategies)
+        for (SchemaMappingAction action : tableActions) {
+            action.applyToSchema(objectClass);
+        }
+
+        // Phase 5: Collect handler actions
+        var className = objectClass.name();
+        handlerActions.computeIfAbsent(className, k -> new ArrayList<>());
+        handlerActions.get(className).addAll(tableActions);
+    }
+
+    @SuppressWarnings("unchecked")
+    private SqlObjectClassSchemaBuilderImpl correlateBuilder(SqlTableInfo table) {
         var maybeClassName = detected(table.getName());
-        @SuppressWarnings("unchecked")
-        var objectClass = (SqlObjectClassSchemaBuilderImpl) builder.correlateObjectClass(
+        return (SqlObjectClassSchemaBuilderImpl) builder.correlateObjectClass(
                 o -> {
                     var sqlSchema = o.sql().schema();
                     var sqlTable = o.sql().table();
                     if (sqlSchema == null) sqlSchema = "";
                     if (sqlTable == null) sqlTable = "";
-                    boolean schemaMatches = sqlSchema.isEmpty() || sqlSchema.equals(table.getSchema());
-                    boolean tableMatches = sqlTable.equals(table.getName());
-                    return schemaMatches && tableMatches;
+                    return (sqlSchema.isEmpty() || sqlSchema.equals(table.getSchema()))
+                            && sqlTable.equals(table.getName());
                 },
                 maybeClassName,
-                o -> {
-                    o.sql().schema(detected(table.getSchema())).table(detected(table.getName()));
-                }
+                o -> o.sql().schema(detected(table.getSchema())).table(detected(table.getName()))
         );
-        if (table.getRemarks() != null && !table.getRemarks().isBlank()) {
-            objectClass.description(detected(table.getRemarks()));
+    }
+
+    private List<SchemaMappingAction> collectTableActions(SqlTableInfo table) {
+        List<SchemaMappingAction> actions = new ArrayList<>();
+        for (SchemaMappingRule strategy : detectionStrategies) {
+            if (strategy.checkIfApplicable(table, null)) {
+                var action = strategy.createAction(table, null);
+                if (action != null) {
+                    actions.add(action);
+                }
+            }
         }
-        // Auto-set readOnly for views (VIEW table type from JDBC metadata)
-        if ("VIEW".equalsIgnoreCase(table.getTableType())) {
-            objectClass.readOnly(true);
+        return actions;
+    }
+
+
+
+    private void setupCoreAttribute(SqlAttributeBuilder.Reference attribute, SqlColumnMeta column) {
+        var sql = attribute.sql();
+        sql.column(detected(column.getName()));
+        var mapping = column.getValueMapping();
+        if (mapping != null) {
+            attribute.connId().type(detected(mapping.connIdType()));
+            sql.valueMapping(DefinitionValue.detected(mapping));
+        } else {
+            attribute.connId().type(String.class);
         }
-        // Apply detection strategies for embedded classification
-        List<AttributeDetectionStrategy> effectiveStrategies = getEffectiveStrategies();
-        if (effectiveStrategies.stream().anyMatch(strategy -> strategy.isEmbedded(table))) {
-            objectClass.embedded(detected(true));
-        }
-        // Resolve UID column
-        Optional<SqlColumnMeta> uidColumn = findUid(table, strategies);
-        // Detect attribute columns
-        List<SqlColumnMeta> attributeColumns = detectColumns(table, strategies);
-        // Translate columns to attributes
-        for (SqlColumnMeta column : attributeColumns) {
-            translateColumn(column, objectClass);
-        }
-        // Map UID attribute - update ConnId name for the UID column
-        if (uidColumn.isPresent() && attributeColumns.contains(uidColumn.get())) {
-            @SuppressWarnings("unchecked")
-            var uidAttr = (SqlAttributeBuilder.Reference) objectClass.attribute(uidColumn.get().getName());
-            uidAttr.connId().name(Uid.NAME);
-            // Handle composite primary keys: add additional PK columns to the UID mapping
-            handleCompositePk(table, uidColumn.get(), objectClass);
+        if (column.getReferencedTable() != null && column.getForeignKeyName() != null) {
+            attribute.subtype(column.getForeignKeyName());
         }
     }
 
-    /**
-     * Check if a correlated Groovy object class builder exists for the table.
-     */
+    private List<SqlColumnMeta> getIncludedColumns(SqlTableInfo table) {
+        List<SqlColumnMeta> columns = new ArrayList<>(table.getColumns());
+        if (Boolean.TRUE.equals(builder.getOnlyExplicitlyListed())) {
+            columns = filterExplicitColumns(table);
+        }
+        return columns;
+    }
+
+    private List<SqlColumnMeta> filterExplicitColumns(SqlTableInfo table) {
+        if (!hasExplicitAttribute(table)) {
+            return table.getColumns();
+        }
+        return table.getColumns().stream()
+                .filter(col -> isExplicitColumn(table, col.getName()))
+                .toList();
+    }
+
+    private boolean hasExplicitAttribute(SqlTableInfo table) {
+        for (SqlObjectClassSchemaBuilderImpl oc : builder.allObjectClassBuilders()) {
+            if (sqlMatches(oc, table)) {
+                return !oc.getExplicitRemoteNames().isEmpty();
+            }
+        }
+        return false;
+    }
+
+    private boolean isExplicitColumn(SqlTableInfo table, String columnName) {
+        for (SqlObjectClassSchemaBuilderImpl oc : builder.allObjectClassBuilders()) {
+            if (sqlMatches(oc, table)) {
+                return oc.hasExplicitRemoteName(columnName);
+            }
+        }
+        return false;
+    }
+
     @SuppressWarnings("unchecked")
     private boolean hasCorrelatedBuilder(SqlTableInfo table) {
-        List<SqlObjectClassSchemaBuilder> builders = (List<SqlObjectClassSchemaBuilder>) (List<?>) builder.allObjectClassBuilders();
+        List<SqlObjectClassSchemaBuilder> builders =
+                (List<SqlObjectClassSchemaBuilder>) (List<?>) builder.allObjectClassBuilders();
         for (SqlObjectClassSchemaBuilder oc : builders) {
             if (sqlMatches(oc, table)) {
                 return true;
@@ -188,148 +255,7 @@ public class SqlSchemaTranslator {
     private boolean sqlMatches(SqlObjectClassSchemaBuilder oc, SqlTableInfo table) {
         var sqlSchema = oc.sql().schema();
         var sqlTable = oc.sql().table();
-        boolean schemaMatches = sqlSchema.isEmpty() || sqlSchema.equals(table.getSchema());
-        boolean tableMatches = sqlTable.equals(table.getName());
-        return schemaMatches && tableMatches;
-    }
-
-    /**
-     * Detect attribute columns using all registered strategies, applying explicit attribute
-     * filtering when {@code onlyExplicitlyListed} is true.
-     */
-    private List<SqlColumnMeta> detectColumns(SqlTableInfo table, List<AttributeDetectionStrategy> strategies) {
-        List<SqlColumnMeta> columns;
-        if (table.getColumns() == null || table.getColumns().isEmpty()) {
-            columns = Collections.emptyList();
-        } else {
-            columns = new ArrayList<>(table.getColumns());
-        }
-        for (AttributeDetectionStrategy strategy : strategies) {
-            // Skip the OnlyExplicitAttributesDetectionStrategy here — handled below
-            if (strategy instanceof OnlyExplicitAttributesDetectionStrategy) {
-                continue;
-            }
-            List<SqlColumnMeta> filtered = strategy.detectColumns(table);
-            if (filtered != null && !filtered.isEmpty()) {
-                columns = filtered;
-            }
-        }
-        // Apply explicit attribute filtering at the end if enabled
-        if (Boolean.TRUE.equals(builder.getOnlyExplicitlyListed())) {
-            var explicitFilter
-                    = new OnlyExplicitAttributesDetectionStrategy(builder);
-            columns = explicitFilter.detectColumns(table);
-        }
-        return columns;
-    }
-
-    private List<AttributeDetectionStrategy> getEffectiveStrategies() {
-        return new ArrayList<>(strategies);
-    }
-
-    private Optional<SqlColumnMeta> findUid(SqlTableInfo table,
-                                              List<AttributeDetectionStrategy> strategies) {
-        Optional<SqlColumnMeta> uid = Optional.empty();
-        for (AttributeDetectionStrategy strategy : strategies) {
-            if (strategy instanceof OnlyExplicitAttributesDetectionStrategy) {
-                continue;
-            }
-            uid = strategy.resolveUid(table);
-            if (uid.isPresent()) {
-                break;
-            }
-        }
-        // Fallback: if no UID detected (e.g., composite PK tables), use first PK column
-        if (uid.isEmpty()) {
-            List<SqlColumnMeta> pks = table.getColumns().stream()
-                    .filter(SqlColumnMeta::isPrimaryKey)
-                    .toList();
-            if (!pks.isEmpty()) {
-                uid = Optional.of(pks.getFirst());
-            }
-        }
-        // Fallback for views: use first unique-constrained column (view may have no PK)
-        if (uid.isEmpty()) {
-            List<SqlColumnMeta> uniqueCols = table.getColumns().stream()
-                    .filter(c -> c.isUnique() && !c.isPrimaryKey())
-                    .toList();
-            if (!uniqueCols.isEmpty()) {
-                uid = Optional.of(uniqueCols.getFirst());
-            }
-        }
-        return uid;
-    }
-
-    private void translateColumn(SqlColumnMeta column, SqlObjectClassSchemaBuilder objectClass) {
-        var attribute = objectClass.attribute(column.getName()).self();
-        var connId = attribute.connId();
-        connId.required(detected(!column.isNullable()));
-
-        var sql = attribute.sql();
-        sql.column(detected(column.getName()));
-        var mapping = column.getValueMapping();
-
-        if (column.getReferencedTable() != null) {
-            // FK columns: set subtype if needed, but skip objectClass/role
-            // The attribute will appear as a regular column, not a reference
-            if (column.getForeignKeyName() != null) {
-                attribute.subtype(column.getForeignKeyName());
-            }
-        }
-        if (mapping != null) {
-            connId.type(detected(mapping.connIdType()));
-            sql.valueMapping(DefinitionValue.detected(mapping));
-        } else {
-            // Unknown column type (e.g., Oracle returns VARCHAR as typeCode=2 (NUMERIC))
-            // Fallback: use VARCHAR mapping since typeName usually contains 'CHAR' or similar
-            connId.type(String.class);
-        }
-
-        if (isLargeType(column.getTypeName())) {
-            connId.returnedByDefault(detected(false));
-        }
-        // For read-only object classes (e.g., views), mark all attributes as non-creatable/updatable
-        if (Boolean.TRUE.equals(objectClass.getReadOnly())) {
-            connId.creatable(detected(false));
-            connId.updatable(detected(false));
-        } else if (column.isAutoIncrement()) {
-            connId.creatable(detected(false));
-            connId.updatable(detected(false));
-        } else if (column.isPrimaryKey()) {
-            connId.updatable(detected(false));
-        }
-        // FIXME: this should be called after tables correlation
-
-    }
-
-
-    private boolean isLargeType(String typeName) {
-        if (typeName == null) {
-            return false;
-        }
-        var upper = typeName.toUpperCase();
-        return upper.contains("BLOB") || upper.contains("CLOB")
-                || upper.contains("BINARY") || upper.contains("VARBINARY");
-    }
-
-    /**
-     * For tables with composite primary keys, add the additional PK columns to the UID mapping
-     * so that the SQL connector treats them as part of a multi-column composite UID.
-     */
-    @SuppressWarnings("unchecked")
-    private void handleCompositePk(SqlTableInfo table, SqlColumnMeta mainUid, SqlObjectClassSchemaBuilder objectClass) {
-        var mainName = mainUid.getName();
-        var extraPks = table.getColumns().stream()
-                .filter(c -> c.isPrimaryKey() && !mainName.equals(c.getName()))
-                .collect(Collectors.toList());
-        if (extraPks.isEmpty()) { return; }
-        var uidAttr = objectClass.attribute(mainUid.getName());
-        if (uidAttr instanceof SqlAttributeBuilder.Reference refAttr) {
-            var sql = refAttr.sql();
-            for (var pk : extraPks) {
-                var mapping = pk.getValueMapping();
-                sql.additionalColumns().column(pk.getName(), (SqlValueMapping) mapping);
-            }
-        }
+        return (sqlSchema.isEmpty() || sqlSchema.equals(table.getSchema()))
+                && sqlTable.equals(table.getName());
     }
 }

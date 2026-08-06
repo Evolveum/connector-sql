@@ -181,7 +181,7 @@ public class SqlSearchFilterTest {
             var val = uidAttr.getValue().getFirst();
             assertThat(val.toString()).isEqualTo("1");
         }
-        assertThat(getAttribute(results.getFirst(), "username")).isEqualTo("john.doe");
+        assertThat(getAttribute(results.getFirst(), "USERNAME")).isEqualTo("john.doe");
     }
 
     @Test
@@ -194,7 +194,7 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testNameFilter() throws Exception {
-        Filter nameFilter = FilterBuilder.equalTo(AttributeBuilder.build("username", "alice.jones"));
+        Filter nameFilter = FilterBuilder.equalTo(AttributeBuilder.build("USERNAME", "alice.jones"));
         List<ConnectorObject> results = executeSearch(userOcl(), nameFilter);
 
         assertThat(results).hasSize(1);
@@ -207,7 +207,7 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testNameFilterNoMatch() throws Exception {
-        Filter nameFilter = FilterBuilder.equalTo(AttributeBuilder.build("username", "nobody"));
+        Filter nameFilter = FilterBuilder.equalTo(AttributeBuilder.build("USERNAME", "nobody"));
         List<ConnectorObject> results = executeSearch(userOcl(), nameFilter);
 
         assertThat(results).isEmpty();
@@ -217,17 +217,17 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testEqualsFilter() throws Exception {
-        Filter emailFilter = FilterBuilder.equalTo(AttributeBuilder.build("email", "john@company.com"));
+        Filter emailFilter = FilterBuilder.equalTo(AttributeBuilder.build("EMAIL", "john@company.com"));
         List<ConnectorObject> results = executeSearch(userOcl(), emailFilter);
 
         assertThat(results).hasSize(1);
-        assertThat(getAttribute(results.getFirst(), "email")).isEqualTo("john@company.com");
-        assertThat(getAttribute(results.getFirst(), "username")).isEqualTo("john.doe");
+        assertThat(getAttribute(results.getFirst(), "EMAIL")).isEqualTo("john@company.com");
+        assertThat(getAttribute(results.getFirst(), "USERNAME")).isEqualTo("john.doe");
     }
 
     @Test
     public void testEqualsFilterNoMatch() throws Exception {
-        Filter emailFilter = FilterBuilder.equalTo(AttributeBuilder.build("email", "nonexistent@test.com"));
+        Filter emailFilter = FilterBuilder.equalTo(AttributeBuilder.build("EMAIL", "nonexistent@test.com"));
         List<ConnectorObject> results = executeSearch(userOcl(), emailFilter);
 
         assertThat(results).isEmpty();
@@ -235,45 +235,45 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testEqualsFilterOnBoolean() throws Exception {
-        Filter activeFilter = FilterBuilder.equalTo(AttributeBuilder.build("is_active", true));
+        Filter activeFilter = FilterBuilder.equalTo(AttributeBuilder.build("IS_ACTIVE", true));
         List<ConnectorObject> results = executeSearch(userOcl(), activeFilter);
 
         assertThat(results).hasSize(4);
         for (ConnectorObject obj : results) {
-            var active = (Boolean) getAttribute(obj, "is_active");
+            var active = (Boolean) getAttribute(obj, "IS_ACTIVE");
             assertThat(active).isTrue();
         }
     }
 
     @Test
     public void testEqualsFilterOnInteger() throws Exception {
-        Filter ageFilter = FilterBuilder.equalTo(AttributeBuilder.build("age", 30));
+        Filter ageFilter = FilterBuilder.equalTo(AttributeBuilder.build("AGE", 30));
         List<ConnectorObject> results = executeSearch(userOcl(), ageFilter);
 
         assertThat(results).hasSize(1);
-        assertThat(getAttribute(results.getFirst(), "age")).isEqualTo(30);
-        assertThat(getAttribute(results.getFirst(), "username")).isEqualTo("john.doe");
+        assertThat(getAttribute(results.getFirst(), "AGE")).isEqualTo(30);
+        assertThat(getAttribute(results.getFirst(), "USERNAME")).isEqualTo("john.doe");
     }
 
     // ─── String pattern filters ─────────────────────────────────────────
 
     @Test
     public void testContainsFilter() throws Exception {
-        Filter containsFilter = FilterBuilder.contains(AttributeBuilder.build("username", "john"));
+        Filter containsFilter = FilterBuilder.contains(AttributeBuilder.build("USERNAME", "john"));
         List<ConnectorObject> results = executeSearch(userOcl(), containsFilter);
 
         assertThat(results).hasSize(1);
         for (ConnectorObject obj : results) {
-            var username = (String) getAttribute(obj, "username");
+            var username = (String) getAttribute(obj, "USERNAME");
             assertThat(username).contains("john");
         }
-        assertThat(results).extracting(o -> getAttribute(o, "username"))
+        assertThat(results).extracting(o -> getAttribute(o, "USERNAME"))
                 .contains("john.doe");
     }
 
     @Test
     public void testStartsWithFilter() throws Exception {
-        Filter startFilter = FilterBuilder.startsWith(AttributeBuilder.build("email", "john"));
+        Filter startFilter = FilterBuilder.startsWith(AttributeBuilder.build("EMAIL", "john"));
         List<ConnectorObject> results = executeSearch(userOcl(), startFilter);
 
         assertThat(results).hasSize(1);
@@ -281,12 +281,12 @@ public class SqlSearchFilterTest {
         if (uidAttr != null && !uidAttr.getValue().isEmpty()) {
             assertThat(uidAttr.getValue().getFirst().toString()).isEqualTo("1");
         }
-        assertThat((String) getAttribute(results.getFirst(), "email")).startsWith("john");
+        assertThat((String) getAttribute(results.getFirst(), "EMAIL")).startsWith("john");
     }
 
     @Test
     public void testEndsWithFilter() throws Exception {
-        Filter endFilter = FilterBuilder.endsWith(AttributeBuilder.build("email", "@company.com"));
+        Filter endFilter = FilterBuilder.endsWith(AttributeBuilder.build("EMAIL", "@company.com"));
         List<ConnectorObject> results = executeSearch(userOcl(), endFilter);
 
         assertThat(results).hasSize(5);
@@ -296,7 +296,7 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testGreaterThanFilter() throws Exception {
-        Filter greaterFilter = FilterBuilder.greaterThan(AttributeBuilder.build("age", 25));
+        Filter greaterFilter = FilterBuilder.greaterThan(AttributeBuilder.build("AGE", 25));
         List<ConnectorObject> results = executeSearch(userOcl(), greaterFilter);
 
         assertThat(results).hasSize(3);
@@ -308,19 +308,19 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testGreaterThanOrEqualFilter() throws Exception {
-        Filter geFilter = FilterBuilder.greaterThanOrEqualTo(AttributeBuilder.build("age", 30));
+        Filter geFilter = FilterBuilder.greaterThanOrEqualTo(AttributeBuilder.build("AGE", 30));
         List<ConnectorObject> results = executeSearch(userOcl(), geFilter);
 
         assertThat(results).hasSize(2);
         for (ConnectorObject obj : results) {
-            var age = (Integer) getAttribute(obj, "age");
+            var age = (Integer) getAttribute(obj, "AGE");
             assertThat(age).isGreaterThanOrEqualTo(30);
         }
     }
 
     @Test
     public void testLessThanFilter() throws Exception {
-        Filter ltFilter = FilterBuilder.lessThan(AttributeBuilder.build("age", 28));
+        Filter ltFilter = FilterBuilder.lessThan(AttributeBuilder.build("AGE", 28));
         List<ConnectorObject> results = executeSearch(userOcl(), ltFilter);
 
         assertThat(results).hasSize(2);
@@ -332,12 +332,12 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testLessThanOrEqualFilter() throws Exception {
-        Filter leFilter = FilterBuilder.lessThanOrEqualTo(AttributeBuilder.build("age", 28));
+        Filter leFilter = FilterBuilder.lessThanOrEqualTo(AttributeBuilder.build("AGE", 28));
         List<ConnectorObject> results = executeSearch(userOcl(), leFilter);
 
         assertThat(results).hasSize(3);
         for (ConnectorObject obj : results) {
-            var age = (Integer) getAttribute(obj, "age");
+            var age = (Integer) getAttribute(obj, "AGE");
             assertThat(age).isLessThanOrEqualTo(28);
         }
     }
@@ -347,8 +347,8 @@ public class SqlSearchFilterTest {
     @Test
     public void testAndFilter() throws Exception {
         Filter andFilter = FilterBuilder.and(
-                FilterBuilder.equalTo(AttributeBuilder.build("age", 28)),
-                FilterBuilder.equalTo(AttributeBuilder.build("is_active", true))
+                FilterBuilder.equalTo(AttributeBuilder.build("AGE", 28)),
+                FilterBuilder.equalTo(AttributeBuilder.build("IS_ACTIVE", true))
         );
         List<ConnectorObject> results = executeSearch(userOcl(), andFilter);
 
@@ -357,14 +357,14 @@ public class SqlSearchFilterTest {
         if (uidAttr != null && !uidAttr.getValue().isEmpty()) {
             assertThat(uidAttr.getValue().getFirst().toString()).isEqualTo("2");
         }
-        assertThat(getAttribute(results.getFirst(), "username")).isEqualTo("jane.smith");
+        assertThat(getAttribute(results.getFirst(), "USERNAME")).isEqualTo("jane.smith");
     }
 
     @Test
     public void testAndFilterNoMatch() throws Exception {
         Filter andFilter = FilterBuilder.and(
-                FilterBuilder.equalTo(AttributeBuilder.build("age", 28)),
-                FilterBuilder.equalTo(AttributeBuilder.build("username", "bob.wilson"))
+                FilterBuilder.equalTo(AttributeBuilder.build("AGE", 28)),
+                FilterBuilder.equalTo(AttributeBuilder.build("USERNAME", "bob.wilson"))
         );
         List<ConnectorObject> results = executeSearch(userOcl(), andFilter);
 
@@ -374,14 +374,14 @@ public class SqlSearchFilterTest {
     @Test
     public void testOrFilter() throws Exception {
         Filter orFilter = FilterBuilder.or(
-                FilterBuilder.equalTo(AttributeBuilder.build("age", 22)),
-                FilterBuilder.equalTo(AttributeBuilder.build("age", 35))
+                FilterBuilder.equalTo(AttributeBuilder.build("AGE", 22)),
+                FilterBuilder.equalTo(AttributeBuilder.build("AGE", 35))
         );
         List<ConnectorObject> results = executeSearch(userOcl(), orFilter);
 
         assertThat(results).hasSize(2);
         for (ConnectorObject obj : results) {
-            var age = (Integer) getAttribute(obj, "age");
+            var age = (Integer) getAttribute(obj, "AGE");
             assertThat(age).isIn(22, 35);
         }
     }
@@ -390,10 +390,10 @@ public class SqlSearchFilterTest {
     public void testComplexNestedFilter() throws Exception {
         // (age > 24 AND age < 33) AND is_active = true
         Filter rangeFilter = FilterBuilder.and(
-                FilterBuilder.greaterThan(AttributeBuilder.build("age", 24)),
-                FilterBuilder.lessThan(AttributeBuilder.build("age", 33))
+                FilterBuilder.greaterThan(AttributeBuilder.build("AGE", 24)),
+                FilterBuilder.lessThan(AttributeBuilder.build("AGE", 33))
         );
-        Filter activeFilter = FilterBuilder.equalTo(AttributeBuilder.build("is_active", true));
+        Filter activeFilter = FilterBuilder.equalTo(AttributeBuilder.build("IS_ACTIVE", true));
         Filter complexFilter = FilterBuilder.and(rangeFilter, activeFilter);
 
         List<ConnectorObject> results = executeSearch(userOcl(), complexFilter);
@@ -401,11 +401,11 @@ public class SqlSearchFilterTest {
         assertThat(results).hasSize(3);
         for (ConnectorObject obj : results) {
             var age = (Integer) getAttribute(obj, "age");
-            var active = (Boolean) getAttribute(obj, "is_active");
+            var active = (Boolean) getAttribute(obj, "IS_ACTIVE");
             assertThat(age).isGreaterThan(24).isLessThan(33);
             assertThat(active).isTrue();
         }
-        assertThat(results).extracting(o -> getAttribute(o, "username"))
+        assertThat(results).extracting(o -> getAttribute(o, "USERNAME"))
                 .contains("john.doe", "jane.smith", "alice.jones");
     }
 
@@ -414,13 +414,13 @@ public class SqlSearchFilterTest {
     @Test
     public void testNotFilter() throws Exception {
         Filter notFilter = FilterBuilder.not(
-                FilterBuilder.equalTo(AttributeBuilder.build("age", 30))
+                FilterBuilder.equalTo(AttributeBuilder.build("AGE", 30))
         );
         List<ConnectorObject> results = executeSearch(userOcl(), notFilter);
 
         assertThat(results).hasSize(4);
         for (ConnectorObject obj : results) {
-            var age = (Integer) getAttribute(obj, "age");
+            var age = (Integer) getAttribute(obj, "AGE");
             assertThat(age).isNotEqualTo(30);
         }
     }
@@ -428,13 +428,13 @@ public class SqlSearchFilterTest {
     @Test
     public void testNotFilterWithAnd() throws Exception {
         // NOT (username starts with 'j')
-        Filter startsWithJ = FilterBuilder.startsWith(AttributeBuilder.build("username", "j"));
+        Filter startsWithJ = FilterBuilder.startsWith(AttributeBuilder.build("USERNAME", "j"));
         Filter notFilter = FilterBuilder.not(startsWithJ);
         List<ConnectorObject> results = executeSearch(userOcl(), notFilter);
 
         assertThat(results).hasSize(3);
         for (ConnectorObject obj : results) {
-            var username = (String) getAttribute(obj, "username");
+            var username = (String) getAttribute(obj, "USERNAME");
             assertThat(username).isNotNull();
             assertThat(username.startsWith("j")).isFalse();
         }
@@ -444,7 +444,7 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testFilterOnGroupTable() throws Exception {
-        Filter nameFilter = FilterBuilder.startsWith(AttributeBuilder.build("name", "dev"));
+        Filter nameFilter = FilterBuilder.startsWith(AttributeBuilder.build("NAME", "dev"));
         List<ConnectorObject> results = executeSearch(groupOcl(), nameFilter);
 
         assertThat(results).hasSize(1);
@@ -458,7 +458,7 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testFilterOnGroupTableNoMatch() throws Exception {
-        Filter nameFilter = FilterBuilder.equalTo(AttributeBuilder.build("name", "nonexistent"));
+        Filter nameFilter = FilterBuilder.equalTo(AttributeBuilder.build("NAME", "nonexistent"));
         List<ConnectorObject> results = executeSearch(groupOcl(), nameFilter);
 
         assertThat(results).isEmpty();
@@ -468,7 +468,7 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testSearchWithFilterReturnsCompleteAttributes() throws Exception {
-        Filter emailFilter = FilterBuilder.contains(AttributeBuilder.build("email", "company"));
+        Filter emailFilter = FilterBuilder.contains(AttributeBuilder.build("EMAIL", "company"));
         List<ConnectorObject> results = executeSearch(userOcl(), emailFilter);
 
         assertThat(results).hasSize(5);
@@ -481,13 +481,13 @@ public class SqlSearchFilterTest {
             Set<Attribute> attrs = obj.getAttributes();
             assertThat(attrs).isNotEmpty();
             assertThat(attrs).extracting(Attribute::getName)
-                    .contains("username", "email", "age", "is_active");
+                    .contains("USERNAME", "EMAIL", "AGE", "IS_ACTIVE");
         }
     }
 
     @Test
     public void testFilterOnlyReturnsFilteringAttributes() throws Exception {
-        Filter ageFilter = FilterBuilder.greaterThan(AttributeBuilder.build("age", 25));
+        Filter ageFilter = FilterBuilder.greaterThan(AttributeBuilder.build("AGE", 25));
         List<ConnectorObject> results = executeSearch(userOcl(), ageFilter);
 
         assertThat(results).hasSize(3);
@@ -507,46 +507,46 @@ public class SqlSearchFilterTest {
 
     @Test
     public void testEqualsFilterOnTimestamp() throws Exception {
-        Filter filter = FilterBuilder.equalTo(AttributeBuilder.build("created_at", toZdt("2024-01-15 10:00:00")));
+        Filter filter = FilterBuilder.equalTo(AttributeBuilder.build("CREATED_AT", toZdt("2024-01-15 10:00:00")));
         List<ConnectorObject> results = executeSearch(userOcl(), filter);
 
         assertThat(results).hasSize(1);
-        assertThat(getAttribute(results.getFirst(), "username")).isEqualTo("john.doe");
+        assertThat(getAttribute(results.getFirst(), "USERNAME")).isEqualTo("john.doe");
     }
 
     @Test
     public void testGreaterThanFilterOnTimestamp() throws Exception {
-        Filter filter = FilterBuilder.greaterThan(AttributeBuilder.build("created_at", toZdt("2024-03-01 00:00:00")));
+        Filter filter = FilterBuilder.greaterThan(AttributeBuilder.build("CREATED_AT", toZdt("2024-03-01 00:00:00")));
         List<ConnectorObject> results = executeSearch(userOcl(), filter);
 
         assertThat(results).hasSize(3);
-        assertThat(results).extracting(o -> getAttribute(o, "username"))
+        assertThat(results).extracting(o -> getAttribute(o, "USERNAME"))
                 .contains("bob.wilson", "alice.jones", "charlie.brown");
     }
 
     @Test
     public void testGreaterThanOrEqualFilterOnTimestamp() throws Exception {
-        Filter filter = FilterBuilder.greaterThanOrEqualTo(AttributeBuilder.build("created_at", toZdt("2024-03-10 09:00:00")));
+        Filter filter = FilterBuilder.greaterThanOrEqualTo(AttributeBuilder.build("CREATED_AT", toZdt("2024-03-10 09:00:00")));
         List<ConnectorObject> results = executeSearch(userOcl(), filter);
 
         assertThat(results).hasSize(3);
-        assertThat(results).extracting(o -> getAttribute(o, "username"))
+        assertThat(results).extracting(o -> getAttribute(o, "USERNAME"))
                 .contains("bob.wilson", "alice.jones", "charlie.brown");
     }
 
     @Test
     public void testLessThanFilterOnTimestamp() throws Exception {
-        Filter filter = FilterBuilder.lessThan(AttributeBuilder.build("created_at", toZdt("2024-03-01 00:00:00")));
+        Filter filter = FilterBuilder.lessThan(AttributeBuilder.build("CREATED_AT", toZdt("2024-03-01 00:00:00")));
         List<ConnectorObject> results = executeSearch(userOcl(), filter);
 
         assertThat(results).hasSize(2);
-        assertThat(results).extracting(o -> getAttribute(o, "username"))
+        assertThat(results).extracting(o -> getAttribute(o, "USERNAME"))
                 .contains("john.doe", "jane.smith");
     }
 
     @Test
     public void testLessThanOrEqualFilterOnTimestamp() throws Exception {
-        Filter filter = FilterBuilder.lessThanOrEqualTo(AttributeBuilder.build("created_at", toZdt("2024-04-05 14:00:00")));
+        Filter filter = FilterBuilder.lessThanOrEqualTo(AttributeBuilder.build("CREATED_AT", toZdt("2024-04-05 14:00:00")));
         List<ConnectorObject> results = executeSearch(userOcl(), filter);
 
         assertThat(results).hasSize(4);
@@ -555,26 +555,26 @@ public class SqlSearchFilterTest {
     @Test
     public void testBetweenFilterOnTimestamp() throws Exception {
         Filter betweenFilter = FilterBuilder.and(
-                FilterBuilder.greaterThanOrEqualTo(AttributeBuilder.build("created_at", toZdt("2024-02-20 11:00:00"))),
-                FilterBuilder.lessThanOrEqualTo(AttributeBuilder.build("created_at", toZdt("2024-04-05 14:00:00")))
+                FilterBuilder.greaterThanOrEqualTo(AttributeBuilder.build("CREATED_AT", toZdt("2024-02-20 11:00:00"))),
+                FilterBuilder.lessThanOrEqualTo(AttributeBuilder.build("CREATED_AT", toZdt("2024-04-05 14:00:00")))
         );
         List<ConnectorObject> results = executeSearch(userOcl(), betweenFilter);
 
         assertThat(results).hasSize(3);
-        assertThat(results).extracting(o -> getAttribute(o, "username"))
+        assertThat(results).extracting(o -> getAttribute(o, "USERNAME"))
                 .contains("jane.smith", "bob.wilson", "alice.jones");
     }
 
     @Test
     public void testComplexFilterWithTimestampAndBoolean() throws Exception {
         Filter complexFilter = FilterBuilder.and(
-                FilterBuilder.greaterThan(AttributeBuilder.build("created_at", toZdt("2024-03-01 00:00:00"))),
-                FilterBuilder.equalTo(AttributeBuilder.build("is_active", true))
+                FilterBuilder.greaterThan(AttributeBuilder.build("CREATED_AT", toZdt("2024-03-01 00:00:00"))),
+                FilterBuilder.equalTo(AttributeBuilder.build("IS_ACTIVE", true))
         );
         List<ConnectorObject> results = executeSearch(userOcl(), complexFilter);
 
         assertThat(results).hasSize(2);
-        assertThat(results).extracting(o -> getAttribute(o, "username"))
+        assertThat(results).extracting(o -> getAttribute(o, "USERNAME"))
                 .contains("alice.jones", "charlie.brown");
     }
 }

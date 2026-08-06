@@ -192,10 +192,10 @@ public abstract class OracleConnectorIntegrationTest {
                     .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
 
             assertThat(orgchartAttrs).containsKey(Uid.NAME);
-            assertThat(orgchartAttrs.get(Uid.NAME).getNativeName()).isEqualTo("type_ref_id");
+            assertThat(orgchartAttrs.get(Uid.NAME).getNativeName()).isEqualTo("TYPE_REF_ID");
 
             assertThat(orgchartAttrs).containsKey(Name.NAME);
-            assertThat(orgchartAttrs.get(Name.NAME).getNativeName()).isEqualTo("display_name");
+            assertThat(orgchartAttrs.get(Name.NAME).getNativeName()).isEqualTo("DISPLAY_NAME");
 
             var dirAccount = schema.getObjectClassInfo().stream()
                     .filter(o -> "dir_account".equals(o.getType()))
@@ -205,10 +205,10 @@ public abstract class OracleConnectorIntegrationTest {
                     .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
 
             assertThat(dirAccountAttrs).containsKey(Uid.NAME);
-            assertThat(dirAccountAttrs.get(Uid.NAME).getNativeName()).isEqualTo("account_id");
+            assertThat(dirAccountAttrs.get(Uid.NAME).getNativeName()).isEqualTo("ACCOUNT_ID");
 
             assertThat(dirAccountAttrs).containsKey(Name.NAME);
-            assertThat(dirAccountAttrs.get(Name.NAME).getNativeName()).isEqualTo("family_name");
+            assertThat(dirAccountAttrs.get(Name.NAME).getNativeName()).isEqualTo("FAMILY_NAME");
 
             var dirMembership = schema.getObjectClassInfo().stream()
                     .filter(o -> "dir_membership".equals(o.getType()))
@@ -218,10 +218,10 @@ public abstract class OracleConnectorIntegrationTest {
                     .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
 
             assertThat(membershipAttrs).containsKey(Uid.NAME);
-            assertThat(membershipAttrs.get(Uid.NAME).getNativeName()).isEqualTo("account_id");
+            assertThat(membershipAttrs.get(Uid.NAME).getNativeName()).isEqualTo("ACCOUNT_ID");
 
             assertThat(membershipAttrs).containsKey(Name.NAME);
-            assertThat(membershipAttrs.get(Name.NAME).getNativeName()).isEqualTo("service_id");
+            assertThat(membershipAttrs.get(Name.NAME).getNativeName()).isEqualTo("SERVICE_ID");
         }
 
         @Test
@@ -245,10 +245,10 @@ public abstract class OracleConnectorIntegrationTest {
             Map<String, AttributeInfo> nodeAttrs = orgchartNode.getAttributeInfo().stream()
                     .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
             assertThat(nodeAttrs.get(Uid.NAME).getType()).isEqualTo(String.class);
-            assertThat(nodeAttrs.get("parent_unit_id").getType()).isEqualTo(BigDecimal.class);
-            assertThat(nodeAttrs.get("type_ref_id").getType()).isEqualTo(BigDecimal.class);
-            assertThat(nodeAttrs.get("hierarchy_level").getType()).isEqualTo(BigDecimal.class);
-            assertThat(nodeAttrs.get("display_order").getType()).isEqualTo(BigDecimal.class);
+            assertThat(nodeAttrs.get("PARENT_UNIT_ID").getType()).isEqualTo(BigDecimal.class);
+            assertThat(nodeAttrs.get("TYPE_REF_ID").getType()).isEqualTo(BigDecimal.class);
+            assertThat(nodeAttrs.get("HIERARCHY_LEVEL").getType()).isEqualTo(BigDecimal.class);
+            assertThat(nodeAttrs.get("DISPLAY_ORDER").getType()).isEqualTo(BigDecimal.class);
 
             // dir_membership: account_id is UID → STRING, service_id is NAME → STRING
             var dirMembership = schema.getObjectClassInfo().stream()
@@ -268,8 +268,8 @@ public abstract class OracleConnectorIntegrationTest {
             Map<String, AttributeInfo> acctAttrs = dirAccount.getAttributeInfo().stream()
                     .collect(Collectors.toMap(AttributeInfo::getName, a -> a));
             assertThat(acctAttrs.get(Uid.NAME).getType()).isEqualTo(String.class);
-            assertThat(acctAttrs.get("email_address").getType()).isEqualTo(String.class);
-            assertThat(acctAttrs.get("status_code").getType()).isEqualTo(String.class);
+            assertThat(acctAttrs.get("EMAIL_ADDRESS").getType()).isEqualTo(String.class);
+            assertThat(acctAttrs.get("STATUS_CODE").getType()).isEqualTo(String.class);
         }
     }
 

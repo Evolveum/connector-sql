@@ -122,7 +122,7 @@ public class SqlSchemaTranslatorTest {
         assertThat(user.sql().table().value()).isEqualTo("User");
 
         // the single-PK "id" column maps to __UID__ but keeps its native name and SQL type
-        var id = user.attributeFromProtocolName("id");
+        var id = user.attributeFromProtocolName("ID");
         assertThat(id.connId().getName()).isEqualTo(Uid.NAME);
         //assertThat(id.nativeType()).isEqualTo("INT");
 
@@ -136,7 +136,7 @@ public class SqlSchemaTranslatorTest {
         var schema = translated(new SqlSchemaTranslator(discovered()));
 
         var membership = schema.objectClass("projectmembership");
-        var userId = membership.attributeFromProtocolName("user_id");
+        var userId = membership.attributeFromProtocolName("USER_ID");
         //assertThat(userId.connId().getReferencedObjectClassName()).isEqualTo("user");
         //assertThat(userId.referencedAttribute()).isEqualTo("id");
         assertThat(userId.connId().getSubtype()).isNotBlank();
