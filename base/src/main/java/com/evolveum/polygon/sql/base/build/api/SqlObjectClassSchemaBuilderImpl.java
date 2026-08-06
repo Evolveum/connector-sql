@@ -142,7 +142,10 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
             var uidAttribute = connIdAttrs.get(Uid.NAME);
             if (uidAttribute != null && uidAttribute.sql() instanceof SqlAttributeMapping mapping) {
                 var attributeBuilder = newAttribute(DefinitionValue.defaultFrom(Name.NAME));
-                attributeBuilder.emulated(DefinitionValue.detected(true));
+
+                // FIXME: Currently breaks with built-in attribute resolvers
+                // attributeBuilder.emulated(DefinitionValue.detected(true));
+
                 attributeBuilder.sql().override(mapping);
                 if (Boolean.TRUE.equals(readOnly)) {
                     attributeBuilder.connId().creatable(DefinitionValue.detected(false));

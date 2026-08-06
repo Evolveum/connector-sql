@@ -8,8 +8,8 @@ package com.evolveum.polygon.sql.base.test;
 
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
-import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
+import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
+import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.objects.*;
 import org.testng.annotations.AfterMethod;
@@ -50,13 +50,13 @@ public abstract class OracleConnectorIntegrationTest {
         }
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerBuilder builder) {
+        protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
         }
 
         @Override
-        protected void initializeSchema(SqlGroovySchemaLoader loader) {
+        protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
             if (loadGroovySchema) {
-                loader.loadResource("/oracle/basic/oracle.groovy");
+                loader.loadFromResource("/oracle/basic/oracle.groovy");
             }
         }
     }

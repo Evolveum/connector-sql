@@ -146,14 +146,14 @@ public class SqlSchemaDetector {
             }
 
             for (TableRef ref : refs) {
-                String actualSchema = ref.schema();
+                var actualSchema = ref.schema();
                 if (actualSchema == null || actualSchema.isEmpty()) {
-                    String resolved = tableToSchema.get(ref.table().toLowerCase());
+                    var resolved = tableToSchema.get(ref.table().toLowerCase());
                     if (resolved != null) {
                         actualSchema = resolved;
                     }
                 }
-                Table table = new Table(actualSchema, ref.table(), "TABLE", null);
+                var table = new Table(actualSchema, ref.table(), "TABLE", null);
                 List<SqlColumnMeta> cols = getColumnMetas(conn, table);
                 if (!cols.isEmpty()) {
                     colMap.put(table, cols);

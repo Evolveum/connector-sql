@@ -6,7 +6,7 @@
  */
 package com.evolveum.polygon.sql.base;
 
-import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
+import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 import com.evolveum.polygon.sql.base.groovy.impl.ManifestBasedConnector;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.objects.AttributeInfo;
@@ -46,7 +46,7 @@ public class YamlSchemaDefinitionIntegrationTest {
         }
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerBuilder builder) { }
+        protected void initializeObjectClassHandler(SqlHandlerLoader builder) { }
     }
 
     private void initTables() throws Exception {

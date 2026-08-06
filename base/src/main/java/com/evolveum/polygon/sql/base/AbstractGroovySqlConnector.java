@@ -9,23 +9,20 @@ package com.evolveum.polygon.sql.base;
 import com.evolveum.polygon.conndev.dev.ConnDevObjectClass;
 import com.evolveum.polygon.conndev.dev.ConnDevSchema;
 import com.evolveum.polygon.conndev.spi.ClassHandlerConnectorBase;
+import com.evolveum.polygon.conndev.spi.CompositeObjectClassHandler;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
-import com.evolveum.polygon.conndev.spi.ObjectSyncOperation;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilder;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
 import com.evolveum.polygon.sql.base.dev.SqlObjectClassDevHandler;
-import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
+import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.sql.base.groovy.impl.SqlOperationSupportBuilderImpl;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
 import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
 import com.evolveum.polygon.sql.base.schema.TableFilter;
-import com.evolveum.polygon.sql.base.search.SqlSearchOperation;
-import com.evolveum.polygon.sql.base.sync.SqlSyncOperation;
-import com.evolveum.polygon.sql.base.sync.SyncConfig;
 import com.querydsl.sql.SQLTemplates;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
 import org.identityconnectors.framework.common.exceptions.InvalidCredentialException;
@@ -35,7 +32,6 @@ import org.identityconnectors.framework.spi.PoolableConnector;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -143,7 +139,7 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         var groovyContext = context.configuration().groovyContext();
 
         // Load Groovy/YAML scripts into the builder via subclass-provided init method
-        var loader = new SqlSchemaDefinitionLoader(context, builder, groovyContext);
+        var loader = new SqlSchemaDefinitionLoader(builder, groovyContext);
         initializeSchema(builder);
         initializeSchema(loader);
 
@@ -198,28 +194,31 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                 .connector(getClass(), context)
                 .translate(additional));
         // Initialize handlers
-        var handlerBuilder = new SqlHandlerBuilder(context);
-        initializeObjectClassHandler(handlerBuilder);
 
-        if (Boolean.TRUE.equals(context.configuration().getDevelopmentMode())) {
-            handlerBuilder.register(new ObjectClass(ConnDevObjectClass.OBJECT_CLASS_NAME),
-                    ObjectSearchOperation.class, new SqlObjectClassDevHandler(context));
-        }
+        var handlerBuilder = new SqlOperationSupportBuilderImpl(context);
 
-        // Register QueryDSL-based search and sync operations for all application object classes (tables)
+        var handlerLoader = new SqlHandlerLoader(context, handlerBuilder);
+        initializeObjectClassHandler(handlerLoader);
+
+
+
+        // Trigger defaults for each and every object class
         if (context.schema() != null) {
             for (SqlObjectClassDefinition def : context.schema().objectClasses()) {
-                var oc = def.objectClass();
-                var mapping = def.sql();
-                if (mapping != null) {
-                    handlerBuilder.register(oc, ObjectSearchOperation.class, new SqlSearchOperation(context, def));
-                    handlerBuilder.register(oc, ObjectSyncOperation.class,
-                        new SqlSyncOperation(context, def, SyncConfig.defaultFor(def)));
-                }
+                // This triggers initialization of method handlers with defaults
+                handlerBuilder.objectClass(def.name());
             }
         }
 
-        context.handlers(handlerBuilder.build());
+        var handlers = handlerBuilder.build();
+        // FIXME: This should be somehow unified
+        if (Boolean.TRUE.equals(context.configuration().getDevelopmentMode())) {
+            var name = new ObjectClass(ConnDevObjectClass.OBJECT_CLASS_NAME);
+            var handler = CompositeObjectClassHandler.of(name,ObjectSearchOperation.class, new SqlObjectClassDevHandler(context));
+            handlers.put(name, handler);
+        }
+
+        context.handlers(handlers);
     }
 
     private static final String SQL_BLOCK = "sql";
@@ -244,14 +243,14 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
      *
      * @param loader the Groovy schema loader to populate
      */
-    protected abstract void initializeSchema(SqlGroovySchemaLoader loader);
+    protected abstract void initializeSchema(SqlSchemaDefinitionLoader loader);
 
     /**
      * Initializes operation handlers for object classes by loading Groovy scripts.
      *
      * @param builder the handler builder to populate
      */
-    protected abstract void initializeObjectClassHandler(SqlHandlerBuilder builder);
+    protected abstract void initializeObjectClassHandler(SqlHandlerLoader builder);
 
     public void test() {
         ensureConnectionInitialized();

@@ -30,7 +30,7 @@ public class SqlSchemaDefinitionLoaderTest {
         var config = new SqlConnectorConfiguration();
         var context = new SqlBaseContext(config);
         builder = new SqlSchemaBuilderImpl(ManifestBasedConnector.class, context);
-        return new SqlSchemaDefinitionLoader(context, builder, config.groovyContext());
+        return new SqlSchemaDefinitionLoader(builder, config.groovyContext());
     }
 
     @Test

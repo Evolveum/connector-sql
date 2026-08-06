@@ -9,8 +9,8 @@ package com.evolveum.polygon.sql.base.search;
 import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
-import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
+import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
+import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
 import com.evolveum.polygon.sql.base.test.PostgresDatabaseInitializer;
 import org.identityconnectors.framework.common.objects.*;
 import org.testng.annotations.AfterMethod;
@@ -40,8 +40,8 @@ public class SqlSearchOperationPostgresTest {
 
     private static class TestSqlConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
         TestSqlConnector() { super(false); }
-        @Override protected void initializeObjectClassHandler(SqlHandlerBuilder builder) {}
-        @Override protected void initializeSchema(SqlGroovySchemaLoader loader) {
+        @Override protected void initializeObjectClassHandler(SqlHandlerLoader builder) {}
+        @Override protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
             // No scripts to load - schema is auto-discovered from DB tables
         }
     }

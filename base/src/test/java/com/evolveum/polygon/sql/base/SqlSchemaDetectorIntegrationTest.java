@@ -6,6 +6,7 @@
  */
 package com.evolveum.polygon.sql.base;
 
+import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
 import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
@@ -21,10 +22,10 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -253,8 +254,8 @@ public class SqlSchemaDetectorIntegrationTest {
 
         assertThat(tables).hasSize(1);
         assertThat(tables).first().extracting(SqlTableInfo::getName).isEqualTo("User");
-        assertThat(tables.get(0).getColumns()).isNotEmpty();
-        assertThat(toColumnMap(tables.get(0)).containsKey("id")).isTrue();
+        assertThat(tables.getFirst().getColumns()).isNotEmpty();
+        assertThat(toColumnMap(tables.getFirst()).containsKey("id")).isTrue();
     }
 
     @Test
@@ -297,7 +298,7 @@ public class SqlSchemaDetectorIntegrationTest {
     @Test
     public void testTargetedDiscoveryWithSqlSchemaTranslator() throws Exception {
         var detector = new SqlSchemaDetector(context);
-        var builder = new com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl(
+        var builder = new SqlSchemaBuilderImpl(
                 StubConnector.class, context);
 
         // Define an object class with SQL table mapping
@@ -306,8 +307,8 @@ public class SqlSchemaDetectorIntegrationTest {
         var tableRefs = builder.tableRefs();
         assertThat(tableRefs).hasSize(1);
 
-        var tables = detector.discover(new java.util.ArrayList<>(tableRefs));
-        var schema = new com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator(builder, tables)
+        var tables = detector.discover(new ArrayList<>(tableRefs));
+        var schema = new SqlSchemaTranslator(builder, tables)
                 .translate(StubConnector.class, context);
 
         assertThat(schema).isNotNull();

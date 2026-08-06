@@ -21,13 +21,7 @@ import org.identityconnectors.framework.common.objects.SchemaBuilder;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Connector;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl, SqlObjectClassSchemaBuilderImpl,
         SqlSchemaBuilder, SqlObjectClassSchemaBuilder> implements SqlSchemaBuilder {
@@ -76,8 +70,8 @@ public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl
         Set<SqlSchemaDetector.TableRef> refs = new LinkedHashSet<>();
         for (SqlObjectClassSchemaBuilderImpl obc : objectClasses.values()) {
             var sql = obc.sql();
-            String schema = sql.schema();
-            String table = sql.table();
+            var schema = sql.schema();
+            var table = sql.table();
             if (table != null && !table.isEmpty()) {
                 refs.add(new SqlSchemaDetector.TableRef(schema, table));
             }

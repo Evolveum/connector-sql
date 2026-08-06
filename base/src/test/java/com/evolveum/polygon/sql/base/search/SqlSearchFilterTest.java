@@ -8,8 +8,8 @@ package com.evolveum.polygon.sql.base.search;
 
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
-import com.evolveum.polygon.sql.base.groovy.SqlGroovySchemaLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlHandlerBuilder;
+import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
+import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.Filter;
@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.identityconnectors.framework.common.objects.Uid.NAME;
 
 /**
  * Integration tests for filter-based search operations.
@@ -49,12 +48,12 @@ public class SqlSearchFilterTest {
         TestConnector() { super(false); }
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerBuilder builder) {
+        protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
             // Use default handlers
         }
 
         @Override
-        protected void initializeSchema(SqlGroovySchemaLoader loader) {
+        protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
             // Auto-discover schema from tables
         }
     }

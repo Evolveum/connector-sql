@@ -8,6 +8,7 @@ package com.evolveum.polygon.sql.base;
 
 import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.concepts.RetrievableContext;
+import com.evolveum.polygon.conndev.groovy.ConnectorContext;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlSchema;
@@ -25,7 +26,7 @@ import java.util.Map;
  *
  * <p>All public methods are safe to call concurrently after initialization.</p>
  */
-public class SqlBaseContext implements ContextLookup, RetrievableContext {
+public class SqlBaseContext implements ConnectorContext, ContextLookup, RetrievableContext {
 
     private static final String POOL_CLOSED_MSG = "Connection pool has been closed";
 
@@ -55,8 +56,18 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
         throw new IllegalStateException("No context of type " + contextType.getName());
     }
 
+    @Override
+    public <T extends RetrievableContext> T getUnchecked(Class<T> contextType) {
+        return null;
+    }
+
     public SqlSchema schema() {
         return schema;
+    }
+
+    @Override
+    public boolean getDevelopmentMode() {
+        return Boolean.TRUE.equals(configuration.getDevelopmentMode());
     }
 
     public void schema(SqlSchema schema) {
@@ -75,7 +86,7 @@ public class SqlBaseContext implements ContextLookup, RetrievableContext {
         return handlers != null ? Collections.unmodifiableMap(handlers) : Collections.emptyMap();
     }
 
-    public void handlers(Map<ObjectClass, ObjectClassHandler> handlers) {
+    public void handlers(Map<ObjectClass, ? extends ObjectClassHandler> handlers) {
         if (handlers == null) {
             this.handlers = null;
             return;

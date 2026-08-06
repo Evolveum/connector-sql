@@ -7,9 +7,9 @@
 package com.evolveum.polygon.sql.base.groovy;
 
 import com.evolveum.polygon.conndev.groovy.GroovyContext;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.conndev.yaml.ScriptResources;
 import com.evolveum.polygon.conndev.yaml.YamlSchemaLoader;
-import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
 
 import java.io.IOException;
@@ -29,22 +29,22 @@ import java.nio.charset.StandardCharsets;
  * (no forked model), so YAML-declared attributes/{@code sql{}} blocks take effect immediately, merging
  * with auto-discovered columns exactly like Groovy customization scripts do.
  */
-public class SqlSchemaDefinitionLoader extends SqlGroovySchemaLoader {
+public class SqlSchemaDefinitionLoader extends GroovySchemaLoader {
 
     private final YamlSchemaLoader yamlLoader;
 
-    public SqlSchemaDefinitionLoader(SqlBaseContext context, SqlSchemaBuilderImpl builder, GroovyContext groovyContext) {
-        super(context, builder, groovyContext);
+    public SqlSchemaDefinitionLoader(SqlSchemaBuilderImpl builder, GroovyContext groovyContext) {
+        super(groovyContext, builder);
         this.yamlLoader = new YamlSchemaLoader(builder);
     }
 
     @Override
-    public void loadResource(String resourceName) {
+    public void loadFromResource(String resourceName) {
         var resolved = ScriptResources.resolveWithYamlFallback(getClass(), resourceName);
         if (ScriptResources.isYaml(resolved)) {
             loadYamlFromResource(resolved);
         } else {
-            super.loadResource(resolved);
+            super.loadFromResource(resolved);
         }
     }
 
