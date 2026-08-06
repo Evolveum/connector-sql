@@ -383,8 +383,23 @@ By default, the connector binds QueryDSL-based handlers:
 
 * `ObjectSearchOperation` -> `SqlSearchOperation` -- paginated SELECT with WHERE, ORDER BY
 * `ObjectSyncOperation` -> `SqlSyncOperation` -- incremental sync using a sync column
+* `ObjectCreateOperation` -> `SqlCreateOperation` -- transactional INSERT and read-back
+* `ObjectUpdateOperation` -> `SqlUpdateOperation` -- transactional update-delta by UID
+* `ObjectDeleteOperation` -> `SqlDeleteOperation` -- transactional DELETE by UID
 
-Create, update, and delete operations have stub handlers (`SqlHandlerBuilder.create()`). Override them in operation scripts for custom SQL.
+The write handlers are available automatically for writable tables. Views and object classes declared with `readOnly true` do not receive create, update, or delete handlers. An explicitly registered handler in an operation script overrides the corresponding default.
+
+=== Using the Built-in Write Operations
+
+No operation script is required for ordinary single-table provisioning. Keep the manifest's `operation` array empty and define a SQL-backed `__UID__` mapping.
+
+For an auto-generated primary key, send `__NAME__` and the creatable data attributes. The connector omits the UID column, retrieves the generated key, and reads the created row back in one transaction.
+
+For a natural or composite primary key, ConnId still does not permit `__UID__` in a facade create request. If no separate `__NAME__` mapping is configured, the connector auto-emulates `__NAME__` from the UID mapping; provide the natural/composite key in `__NAME__`. Composite key parts use `.` as the delimiter, for example `tenant-1.account-42`.
+
+Update accepts ConnId `AttributeDelta` values. Replace, add, and remove forms are applied to the current row before one SQL UPDATE is executed. Delete and update use the full UID mapping and fail with `UnknownUidException` if no row matches.
+
+All writes are transactional. Duplicate keys become `AlreadyExistsException`; not-null, foreign-key, check, and value-conversion failures become `InvalidAttributeValueException`; failed transactions are rolled back.
 
 === Sync Configuration
 
@@ -423,7 +438,7 @@ objectClass("User") {
 
 === Custom Search
 
-The handler closure's top-level function must be defined at the script's outer scope, and the script's delegate receives it. Here's a simplified pattern you can follow -- the delegate is a `GroovyHandlerFacade` that only accepts handlers (not closure-based overrides in the current codebase `create()` method is a stub):
+The handler closure's top-level function must be defined at the script's outer scope, and the script's delegate receives it. The delegate is a `GroovyHandlerFacade` that accepts complete operation-handler objects:
 
 [source,groovy]
 // In your handler script, define a Groovy function at top level:

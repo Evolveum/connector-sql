@@ -10,8 +10,11 @@ import com.evolveum.polygon.conndev.dev.ConnDevObjectClass;
 import com.evolveum.polygon.conndev.dev.ConnDevSchema;
 import com.evolveum.polygon.conndev.spi.ClassHandlerConnectorBase;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
+import com.evolveum.polygon.conndev.spi.ObjectCreateOperation;
+import com.evolveum.polygon.conndev.spi.ObjectDeleteOperation;
 import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
 import com.evolveum.polygon.conndev.spi.ObjectSyncOperation;
+import com.evolveum.polygon.conndev.spi.ObjectUpdateOperation;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilder;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
@@ -26,6 +29,9 @@ import com.evolveum.polygon.sql.base.schema.TableFilter;
 import com.evolveum.polygon.sql.base.search.SqlSearchOperation;
 import com.evolveum.polygon.sql.base.sync.SqlSyncOperation;
 import com.evolveum.polygon.sql.base.sync.SyncConfig;
+import com.evolveum.polygon.sql.base.write.SqlCreateOperation;
+import com.evolveum.polygon.sql.base.write.SqlDeleteOperation;
+import com.evolveum.polygon.sql.base.write.SqlUpdateOperation;
 import com.querydsl.sql.SQLTemplates;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
 import org.identityconnectors.framework.common.exceptions.InvalidCredentialException;
@@ -206,15 +212,25 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                     ObjectSearchOperation.class, new SqlObjectClassDevHandler(context));
         }
 
-        // Register QueryDSL-based search and sync operations for all application object classes (tables)
+        // Register QueryDSL-based operations for all application object classes (tables).
+        // Explicit Groovy handlers take precedence over these defaults.
         if (context.schema() != null) {
             for (SqlObjectClassDefinition def : context.schema().objectClasses()) {
                 var oc = def.objectClass();
                 var mapping = def.sql();
                 if (mapping != null) {
-                    handlerBuilder.register(oc, ObjectSearchOperation.class, new SqlSearchOperation(context, def));
-                    handlerBuilder.register(oc, ObjectSyncOperation.class,
-                        new SqlSyncOperation(context, def, SyncConfig.defaultFor(def)));
+                    handlerBuilder.registerIfAbsent(
+                            oc, ObjectSearchOperation.class, new SqlSearchOperation(context, def));
+                    handlerBuilder.registerIfAbsent(oc, ObjectSyncOperation.class,
+                            new SqlSyncOperation(context, def, SyncConfig.defaultFor(def)));
+                    if (!Boolean.TRUE.equals(def.getReadOnly())) {
+                        handlerBuilder.registerIfAbsent(
+                                oc, ObjectCreateOperation.class, new SqlCreateOperation(context, def));
+                        handlerBuilder.registerIfAbsent(
+                                oc, ObjectUpdateOperation.class, new SqlUpdateOperation(context, def));
+                        handlerBuilder.registerIfAbsent(
+                                oc, ObjectDeleteOperation.class, new SqlDeleteOperation(context, def));
+                    }
                 }
             }
         }

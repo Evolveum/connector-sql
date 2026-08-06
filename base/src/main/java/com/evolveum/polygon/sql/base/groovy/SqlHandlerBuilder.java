@@ -43,6 +43,13 @@ public class SqlHandlerBuilder {
         return this;
     }
 
+    /** Registers a built-in handler without replacing an explicitly configured one. */
+    public SqlHandlerBuilder registerIfAbsent(
+            ObjectClass objectClass, Class<?> operationType, Object handler) {
+        handlers.computeIfAbsent(objectClass, k -> new HashMap<>()).putIfAbsent(operationType, handler);
+        return this;
+    }
+
     /**
      * Evaluates a Groovy script from a classpath resource as handler definitions.
      * Scripts can call objectClass("name") { search(...) } to register handlers.
