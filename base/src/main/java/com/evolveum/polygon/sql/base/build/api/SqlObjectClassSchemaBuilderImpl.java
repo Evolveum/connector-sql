@@ -12,15 +12,15 @@ import com.evolveum.polygon.conndev.concepts.SourceLocation;
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinitionBuilder;
 import com.evolveum.polygon.conndev.yaml.YamlDocuments;
 import com.evolveum.polygon.conndev.yaml.YamlProtocolBlockConsumer;
+import com.evolveum.polygon.sql.base.schema.SqlChildJoinConfig;
+import com.evolveum.polygon.sql.base.schema.SqlJunctionJoinConfig;
 import com.evolveum.polygon.sql.base.yaml.model.YamlSqlBlock;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Uid;
 import tools.jackson.databind.JsonNode;
 
-import java.util.LinkedHashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBuilder<
         SqlObjectClassSchemaBuilder,
@@ -34,6 +34,8 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
     private Boolean onlyExplicitlyListed = false;
     private DefinitionValue<Boolean> readOnly = DefinitionValue.DEFAULT_FALSE;
     private final Set<String> explicitRemoteNames = new LinkedHashSet<>();
+    private final List<SqlChildJoinConfig> embeddedJoinConfigs = new ArrayList<>();
+    private final List<SqlJunctionJoinConfig> junctionJoinConfigs = new ArrayList<>();
 
     public SqlObjectClassSchemaBuilderImpl(SqlSchemaBuilderImpl restSchemaBuilder, DefinitionValue<String> name) {
         super(restSchemaBuilder, name);
@@ -85,6 +87,26 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
      */
     public Set<String> getExplicitRemoteNames() {
         return explicitRemoteNames;
+    }
+
+    /** Adds a join config for an embedded child table. */
+    public void addEmbeddedJoinConfig(SqlChildJoinConfig config) {
+        embeddedJoinConfigs.add(config);
+    }
+
+    /** Adds a join config for a junction table reference. */
+    public void addJunctionJoinConfig(SqlJunctionJoinConfig config) {
+        junctionJoinConfigs.add(config);
+    }
+
+    /** Returns the embedded join configurations. */
+    public List<SqlChildJoinConfig> getEmbeddedJoinConfigs() {
+        return Collections.unmodifiableList(embeddedJoinConfigs);
+    }
+
+    /** Returns the junction join configurations. */
+    public List<SqlJunctionJoinConfig> getJunctionJoinConfigs() {
+        return Collections.unmodifiableList(junctionJoinConfigs);
     }
 
     /**

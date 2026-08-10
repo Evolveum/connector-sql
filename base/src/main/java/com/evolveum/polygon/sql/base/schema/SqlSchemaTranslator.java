@@ -9,11 +9,14 @@ package com.evolveum.polygon.sql.base.schema;
 import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.sql.base.build.api.*;
+import com.evolveum.polygon.sql.base.schema.ChildTableRelationship.*;
 import com.evolveum.polygon.sql.base.schema.strategy.*;
+import com.evolveum.polygon.sql.base.schema.strategy.ChildTableRelationshipDetectionRule;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.spi.Connector;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
 
@@ -44,6 +47,12 @@ public class SqlSchemaTranslator {
     private final List<SqlTableInfo> tables;
     private final List<SchemaMappingRule> detectionStrategies = new ArrayList<>();
     private final Map<String, List<SchemaMappingAction>> handlerActions = new LinkedHashMap<>();
+
+    private final Map<String, List<ChildTableRelationship>> relationshipMap = new LinkedHashMap<>();
+    private final Set<String> embeddedChildTableNames = new LinkedHashSet<>();
+    private final Set<String> simpleAttributeChildTableNames = new LinkedHashSet<>();
+    private final Set<String> junctionTableNames = new LinkedHashSet<>();
+
     private Class<? extends Connector> connectorClass;
     private ContextLookup contextLookup;
 
@@ -77,6 +86,8 @@ public class SqlSchemaTranslator {
         detectionStrategies.add(new UniqueAttributeAsFallbackUidRule());
         // Explicit columns filter (applied at end when builder flag is set)
         detectionStrategies.add(new ExplicitColumnsMappingRule(() -> this.builder));
+        // Child table relationship detection (table-level, requires pre-phase)
+        detectionStrategies.add(new ChildTableRelationshipDetectionRule(this));
     }
 
     public SqlSchemaTranslator connector(Class<? extends Connector> connectorClass, ContextLookup contextLookup) {
@@ -99,6 +110,23 @@ public class SqlSchemaTranslator {
         return Collections.unmodifiableMap(handlerActions);
     }
 
+    public List<ChildTableRelationship> getTableRelationships(String tableName) {
+        var rels = relationshipMap.get(tableName);
+        return rels != null ? rels : Collections.emptyList();
+    }
+
+    public Set<String> getEmbeddedChildTables() {
+        return Collections.unmodifiableSet(embeddedChildTableNames);
+    }
+
+    public Set<String> getJunctionTables() {
+        return Collections.unmodifiableSet(junctionTableNames);
+    }
+
+    private record ForeignKeyMeta(String childTable, String childColumn,
+                                  String targetTable, String referencedColumn,
+                                  boolean isConstraintBased) {}
+
     @Deprecated
     public SqlSchema translate(Class<? extends Connector> connectorClass, ContextLookup contextLookup) {
         this.connectorClass = connectorClass;
@@ -112,14 +140,217 @@ public class SqlSchemaTranslator {
     }
 
     private SqlSchema translateInternal() {
+        detectRelationships();
         for (SqlTableInfo table : tables) {
             translateTable(table);
         }
         return builder.build();
     }
 
+    /**
+     * Pre-phase: analyzes all tables for foreign key relationships and classifies
+     * child tables as SINGLE_VALUE_EMBEDDED, MULTI_VALUE_EMBEDDED, or JUNCTION_TABLE.
+     */
+    private void detectRelationships() {
+        // Build case-insensitive table name lookup
+        Map<String, SqlTableInfo> tableLookup = new HashMap<>();
+        for (SqlTableInfo table : tables) {
+            tableLookup.put(table.getName().toUpperCase(), table);
+        }
+
+        // Collect all FK constraints and convention-based FKs
+        List<ForeignKeyMeta> allFks = new ArrayList<>();
+
+        for (SqlTableInfo childTable : tables) {
+            var childName = childTable.getName();
+            Set<String> fkTargetTables = new LinkedHashSet<>();
+            Map<String, ForeignKeyMeta> fkColumns = new LinkedHashMap<>();
+
+            for (SqlColumnMeta col : childTable.getColumns()) {
+                // Constraint-based FK
+                if (col.getReferencedTable() != null && col.getForeignKeyName() != null) {
+                    var refTable = col.getReferencedTable();
+                    fkTargetTables.add(refTable.toUpperCase());
+                    fkColumns.putIfAbsent(col.getName().toUpperCase(),
+                            new ForeignKeyMeta(childName, col.getName(), refTable, col.getReferencedColumn(), true));
+                }
+                // Convention-based FK: column ends with _id and a matching table exists
+                if (col.getName().toLowerCase().endsWith("_id") && col.getReferencedTable() == null) {
+                    var possibleTable = col.getName().substring(0, col.getName().length() - 3).toLowerCase();
+                    if (tableLookup.containsKey(possibleTable.toUpperCase())) {
+                        fkTargetTables.add(possibleTable.toUpperCase());
+                        if (!fkColumns.containsKey(col.getName().toUpperCase())) {
+                            fkColumns.put(col.getName().toUpperCase(),
+                                    new ForeignKeyMeta(childName, col.getName(),
+                                            possibleTable, "id", false));
+                        }
+                    }
+                }
+            }
+
+            // Only process if this table has FK references
+            if (!fkTargetTables.isEmpty()) {
+                allFks.addAll(fkColumns.values());
+
+                // Classify based on number of FK targets
+                if (fkTargetTables.size() >= 2) {
+                    // FKs to 2+ tables: check if PK columns = FK columns (true junction pattern)
+                    Set<String> pkCols = childTable.getColumns().stream()
+                            .filter(SqlColumnMeta::isPrimaryKey)
+                            .map(c -> c.getName().toUpperCase())
+                            .collect(HashSet::new, (s, c) -> s.add(c), Set::addAll);
+                    Set<String> fkCols = fkColumns.keySet();
+                    boolean fkColsArePk = fkCols.equals(pkCols);
+
+                    if (fkColsArePk) {
+                        // JUNCTION: FKs to 2+ tables AND FK columns are the PK
+                        // Tables with independent PK (like project_membership with separate 'id')
+                        // are NOT treated as junction tables
+                        junctionTableNames.add(childName.toUpperCase());
+
+                        // Find the target table info for each FK target
+                        for (String targetKey : fkTargetTables) {
+                            var junctionTableForTarget = tableLookup.get(targetKey);
+                            if (junctionTableForTarget == null) {
+                                continue;
+                            }
+
+                            // Collect the FKs between junction and other targets (parent side)
+                            for (String otherTarget : fkTargetTables) {
+                                if (otherTarget.equals(targetKey)) {
+                                    continue;
+                                }
+                                var otherTable = tableLookup.get(otherTarget);
+                                if (otherTable == null) {
+                                    continue;
+                                }
+
+                                // Parent → target reference through junction
+                                List<JoinKey> parentKeys = new ArrayList<>();
+                                for (var fk : fkColumns.values()) {
+                                    if (fk.targetTable().toUpperCase().equals(otherTarget)) {
+                                        parentKeys.add(new JoinKey("id", fk.childColumn()));
+                                    }
+                                }
+
+                                List<JoinKey> targetKeys = new ArrayList<>();
+                                for (var fk : fkColumns.values()) {
+                                    if (fk.targetTable().toUpperCase().equals(targetKey)) {
+                                        targetKeys.add(new JoinKey(fk.childColumn(), "id"));
+                                    }
+                                }
+
+                                if (!parentKeys.isEmpty() && !targetKeys.isEmpty()) {
+                                    var parentName = otherTable.getName();
+                                    relationshipMap.computeIfAbsent(parentName, k -> new ArrayList<>())
+                                            .add(new JunctionRelationship(
+                                                    parentName, childName,
+                                                    parentKeys, targetKeys,
+                                                    junctionTableForTarget.getName(),
+                                                    ChildTableType.JUNCTION_TABLE, false));
+                                }
+                            }
+                        }
+                    }
+                    // Tables with 2+ FK targets but FK ≠ PK: no special treatment,
+                    // handled like regular tables with multiple foreign key columns
+                } else {
+                    // Embedded relationship: FK to exactly 1 table
+                    // Detect when FK columns are part of the PK:
+                    //   - SINGLE_VALUE: PK == FK columns only (one-to-one)
+                    //   - MULTI_VALUE_ATTRIBUTE: PK ⊃ FK  + all non-FK PK columns are value columns
+                    //     → becomes a normal multivalue attribute (not EmbeddedObject)
+                    //   - MULTI_VALUE_EMBEDDED: everything else (surrogate PK, etc.)
+                    // Tables whose FK is NOT part of PK remain standalone
+                    Set<String> pkCols = new HashSet<>();
+                    Set<String> fkCols = new HashSet<>();
+                    for (SqlColumnMeta col : childTable.getColumns()) {
+                        if (col.isPrimaryKey()) {
+                            pkCols.add(col.getName().toUpperCase());
+                        }
+                        if (fkColumns.containsKey(col.getName().toUpperCase())) {
+                            fkCols.add(col.getName().toUpperCase());
+                        }
+                    }
+
+                    // Detect as child table if FK columns are part of the PK
+                    // (FK forms the "identity" linking to parent)
+                    boolean fkIsPartOfPk = !fkCols.isEmpty() && !pkCols.isEmpty() && pkCols.containsAll(fkCols);
+
+                    if (fkIsPartOfPk) {
+                        var targetKey = fkTargetTables.iterator().next();
+                        var targetTable = tableLookup.get(targetKey);
+                        if (targetTable == null) {
+                            continue;
+                        }
+
+                        // PK == FK only → one-to-one (single-valued)
+                        boolean pkEqualsFkOnly = pkCols.equals(fkCols);
+
+                        // Count ALL non-FK columns in the table (not just PK)
+                        // FK + single value column → multi-value simple attribute
+                        // FK + additional data columns → multi-value embedded objects
+                        Set<String> nonFkCols = childTable.getColumns().stream()
+                                .filter(col -> !fkColumns.containsKey(col.getName().toUpperCase()))
+                                .map(col -> col.getName().toUpperCase())
+                                .collect(Collectors.toCollection(LinkedHashSet::new));
+
+                        // Build join keys from FK columns
+                        List<JoinKey> joinKeys = new ArrayList<>();
+                        boolean anyConvention = false;
+                        for (var fk : fkColumns.values()) {
+                            String parentCol = fk.referencedColumn() != null ? fk.referencedColumn() : "id";
+                            joinKeys.add(new JoinKey(parentCol, fk.childColumn()));
+                            anyConvention = anyConvention || !fk.isConstraintBased();
+                        }
+                        var parentName = targetTable.getName();
+
+                        if (pkEqualsFkOnly) {
+                            embeddedChildTableNames.add(childName.toUpperCase());
+                            relationshipMap.computeIfAbsent(parentName, k -> new ArrayList<>())
+                                    .add(new EmbeddedRelationship(
+                                            parentName, childName,
+                                            joinKeys, ChildTableType.SINGLE_VALUE_EMBEDDED, anyConvention));
+                        } else if (nonFkCols.size() == 1) {
+                            // FK + exactly one additional column → simple multivalue attribute
+                            // Child table is NOT an embedded OC, just a scalar attribute on parent
+                            simpleAttributeChildTableNames.add(childName.toUpperCase());
+                            SqlColumnMeta valueCol = null;
+                            for (SqlColumnMeta col : childTable.getColumns()) {
+                                if (!fkColumns.containsKey(col.getName().toUpperCase())) {
+                                    valueCol = col;
+                                    break;
+                                }
+                            }
+                            if (valueCol != null) {
+                                relationshipMap.computeIfAbsent(parentName, k -> new ArrayList<>())
+                                        .add(new SimpleAttributeRelationship(
+                                                parentName, childName,
+                                                joinKeys, valueCol,
+                                                ChildTableType.MULTI_VALUE_ATTRIBUTE, anyConvention));
+                            }
+                        } else {
+                            // FK + multiple additional columns → multi-value embedded objects
+                            embeddedChildTableNames.add(childName.toUpperCase());
+                            relationshipMap.computeIfAbsent(parentName, k -> new ArrayList<>())
+                                    .add(new EmbeddedRelationship(
+                                            parentName, childName,
+                                            joinKeys, ChildTableType.MULTI_VALUE_EMBEDDED, anyConvention));
+                        }
+                    }
+                }
+            }
+        }
+    }
     private void translateTable(SqlTableInfo table) {
         if (table == null || table.getColumns() == null || table.getColumns().isEmpty()) {
+            return;
+        }
+        // Junction tables and simple-attribute child tables are invisible — no OC created for them
+        if (junctionTableNames.contains(table.getName().toUpperCase())) {
+            return;
+        }
+        if (simpleAttributeChildTableNames.contains(table.getName().toUpperCase())) {
             return;
         }
         if (builder.getOnlyExplicitlyListed() != null && builder.getOnlyExplicitlyListed()

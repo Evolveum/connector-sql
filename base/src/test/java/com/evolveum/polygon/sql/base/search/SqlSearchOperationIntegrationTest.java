@@ -92,6 +92,8 @@ public class SqlSearchOperationIntegrationTest {
         assertThat(schema.getObjectClassInfo()).isNotEmpty();
         List<String> names = schema.getObjectClassInfo().stream()
                 .map(ObjectClassInfo::getType).map(String::toLowerCase).toList();
+        // useraddress is now detected as embedded child table of app_user (PK=FK+auto_increment)
+        // Embedded OCs are still present in schema but have no handlers
         assertThat(names).contains(
                 "app_user", "app_group", "app_role", "project", "useraddress", "projectmembership");
     }
@@ -99,6 +101,8 @@ public class SqlSearchOperationIntegrationTest {
     @Test
     public void testSearchWithUnqualifiedPaths() throws Exception {
         // This test verifies that unqualified column paths work (key fix for H2 MySQL mode)
+        // NOTE: useraddress is now detected as an embedded child table of app_user
+        // (PK=id AUTO_INCREMENT, FK=user_id), so no standalone handler is created
         List<ConnectorObject> results = new ArrayList<>();
         connector.executeQuery(new ObjectClass("app_user"), null, results::add, opts());
 

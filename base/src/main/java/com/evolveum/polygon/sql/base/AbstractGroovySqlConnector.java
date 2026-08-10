@@ -205,6 +205,10 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         if (context.schema() != null) {
             var detectedActions = translator.getDetectedActions();
             for (SqlObjectClassDefinition def : context.schema().objectClasses()) {
+                // Skip embedded child tables - they are resolved as attributes on the parent
+                if (def.connId().isEmbedded()) {
+                    continue;
+                }
                 handlerBuilder.objectClass(def.name());
                 var actions = detectedActions.get(def.name());
                 if (actions != null) {
