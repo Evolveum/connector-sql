@@ -8,10 +8,12 @@ package com.evolveum.polygon.sql.base.search;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
+import com.querydsl.core.types.PathMetadataFactory;
+import com.querydsl.sql.RelationalPathBase;
 
 /**
  * Represents a reference to a SQL table with type-aware column access from schema metadata.
- * 
+ *
  * <p>Used by custom query closures: {@code q.table("accounts", "a")}</p>
  */
 @SuppressWarnings("rawtypes")
@@ -20,11 +22,27 @@ public class SqlTablePath {
     private final SqlBaseContext context;
     private final String tableName;
     private final String alias;
+    private RelationalPathBase<Object> tableRef;
 
     SqlTablePath(SqlBaseContext context, String tableName, String alias) {
         this.context = context;
         this.tableName = tableName;
         this.alias = alias;
+    }
+
+    /**
+     * Returns the QueryDSL relational table reference. Lazily created and cached.
+     */
+    @SuppressWarnings("unused")
+    public RelationalPathBase<Object> tableRef() {
+        if (tableRef == null) {
+            tableRef = new RelationalPathBase<>(
+                    Object.class,
+                    PathMetadataFactory.forVariable(alias),
+                    null,
+                    tableName);
+        }
+        return tableRef;
     }
 
     /** Table name from schema. */

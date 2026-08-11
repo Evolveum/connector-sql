@@ -13,11 +13,7 @@ import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Path;
-import com.querydsl.core.types.PathMetadataFactory;
 import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.core.types.dsl.Expressions;
-import com.querydsl.core.types.dsl.StringPath;
-import com.querydsl.sql.RelationalPathBase;
 import com.querydsl.sql.SQLQuery;
 import groovy.lang.Closure;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
@@ -74,8 +70,7 @@ public class SqlCustomSearchOperation implements FilterAwareExecuteQueryProcesso
 
             // FROM
             if (fromTable != null) {
-                RelationalPathBase<Object> tableRef = createTableRef(fromTable);
-                query.from(tableRef);
+                query.from(fromTable.tableRef());
             }
 
             // WHERE
@@ -98,8 +93,7 @@ public class SqlCustomSearchOperation implements FilterAwareExecuteQueryProcesso
                 var rows = query.fetch();
 
                 for (Tuple row : rows) {
-                    var obj = buildConnectorObject(
-                            row, selectPaths, fromTable);
+                    var obj = buildConnectorObject(row, selectPaths);
                     if (!resultsHandler.handle(obj)) return;
                 }
 
@@ -114,32 +108,24 @@ public class SqlCustomSearchOperation implements FilterAwareExecuteQueryProcesso
         }
     }
 
-    private RelationalPathBase<Object> createTableRef(SqlTablePath table) {
-        return new RelationalPathBase<>(
-                Object.class,
-                PathMetadataFactory.forVariable(table.getAlias()),
-                null,
-                table.getTableName());
-    }
-
-    private ConnectorObject buildConnectorObject(Tuple row,
-                                                 List<Path<?>> columns,
-                                                 SqlTablePath fromTable) {
+    private ConnectorObject buildConnectorObject(Tuple row, List<Path<?>> selectPaths) {
         var builder = new ConnectorObjectBuilder();
         builder.setObjectClass(objectClass.objectClass());
 
-        // Extract values by column name from the tuple
-        // QueryDSL stores results labeled by Expression.toString()
-        // For aliased columns: "alias"."columnName"
+        // Match each object class attribute to a SELECT path by column name,
+        // then extract the value using the actual path used in the query.
         for (var attr : objectClass.attributes()) {
             var mapping = attr.sql();
             if (mapping == null || mapping.column() == null) continue;
-            
+
             var colName = mapping.column().value();
             if (colName == null) continue;
 
-            // Try to extract value from the tuple
-            var value = extractByLabel(row, colName, fromTable);
+            var matchedPath = findPathForColumn(selectPaths, colName);
+            if (matchedPath == null) continue;
+
+            @SuppressWarnings("unchecked")
+            var value = row.get((Path<Object>) matchedPath);
             if (value != null) {
                 try {
                     builder.addAttribute(attr.attributeOf(
@@ -153,32 +139,16 @@ public class SqlCustomSearchOperation implements FilterAwareExecuteQueryProcesso
         return builder.build();
     }
 
-    private Object extractByLabel(Tuple row, String colName, 
-                                    SqlTablePath fromTable) {
-        String alias = fromTable != null ? fromTable.getAlias() : null;
-        
-        // Try with alias prefix: QueryDSL stores paths as "alias"."columnName"
-        // or just "columnName" - need to try both
-        if (alias != null) {
-            RelationalPathBase<Object> tableRef = createTableRef(fromTable);
-            try {
-                var path = Expressions.stringPath(tableRef, colName);
-                return row.get(path);
-            } catch (Exception ignored) {}
+    /**
+     * Finds the SELECT path that corresponds to a column name.
+     * QueryDSL paths are labeled as "alias"."columnName" - we match on the suffix.
+     */
+    private Path<?> findPathForColumn(List<Path<?>> selectPaths, String colName) {
+        for (Path<?> p : selectPaths) {
+            if (p.toString().toLowerCase().endsWith(colName.toLowerCase())) {
+                return p;
+            }
         }
-        
-        // Try bare column name
-        try {
-            StringPath path = Expressions.stringPath(colName);
-            return row.get(path);
-        } catch (Exception ignored) {}
-
-        // Try with quotes
-        try {
-            StringPath path = Expressions.stringPath("\"" + colName + "\"");
-            return row.get(path);
-        } catch (Exception ignored) {}
-
         return null;
     }
 
