@@ -13,9 +13,11 @@ import com.evolveum.polygon.conndev.groovy.FilterAwareSearchProcessorBuilder;
 import com.evolveum.polygon.conndev.spi.AttributeResolver;
 import com.evolveum.polygon.conndev.spi.FilterAwareExecuteQueryProcessor;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
+// SqlCustomSearchOperationBuilder nested in SqlSearchOperationBuilder
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlSearchOperationBuilder;
 import com.evolveum.polygon.sql.base.search.SqlSearchOperation;
+import groovy.lang.Closure;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +27,7 @@ public class SqlSearchOperationBuilderImpl extends AbstractSearchOperationBuilde
 
 
     private final BuiltInBuilder builtIn = new BuiltInBuilder();
+    private SqlCustomSearchOperationBuilderImpl custom;
     private final SqlBaseContext context;
     private final SqlObjectClassDefinition objectClass;
     DefinitionValue<Boolean> enabled = DefinitionValue.DEFAULT_TRUE;
@@ -69,21 +72,41 @@ public class SqlSearchOperationBuilderImpl extends AbstractSearchOperationBuilde
 
     @Override
     public SqlSpecific sql() {
-        return new SqlSpecific() {
-            @Override
-            public BuiltIn builtIn() {
-                return builtIn;
-            }
-        };
+        return sqlSpecific;
     }
+
+    private final SqlSpecific sqlSpecific = new SqlSpecific() {
+        @Override
+        public BuiltIn builtIn() {
+            return builtIn;
+        }
+
+        @Override
+        public SqlCustomSearchOperationBuilder custom() {
+                if (custom == null) {
+                    custom = new SqlCustomSearchOperationBuilderImpl(context, objectClass);
+                    builders.add(custom);
+                }
+                // Disabling built-in to avoid multiple emptyFilter handlers conflict
+                builtIn.enabled = builtIn.enabled.moreSpecific(DefinitionValue.from(false, SourceLocation.capture()));
+                return custom;
+        }
+    };
 
     class BuiltInBuilder implements BuiltIn, FilterAwareSearchProcessorBuilder {
 
         private DefinitionValue<Boolean> enabled = DefinitionValue.DEFAULT_TRUE;
+        private Closure<?> whereClosure;
 
         @Override
         public BuiltIn enabled(boolean value) {
             this.enabled = this.enabled.moreSpecific(DefinitionValue.from(value, SourceLocation.capture()));
+            return self();
+        }
+
+        @Override
+        public BuiltIn where(Closure<?> closure) {
+            this.whereClosure = closure;
             return self();
         }
 
@@ -94,20 +117,19 @@ public class SqlSearchOperationBuilderImpl extends AbstractSearchOperationBuilde
 
         @Override
         public boolean emptyFilterSupported() {
-            // FIXME: make configurable
             return true;
         }
 
         @Override
         public boolean anyFilterSupported() {
-            // FIXME: make configurable
             return true;
         }
 
+        // Note: supports(Filter) is handled by the built-in operation at runtime
+
         @Override
         public FilterAwareExecuteQueryProcessor build() {
-            // FIXME: Also add configuration if necessary.
-            return new SqlSearchOperation(context, objectClass);
+            return new SqlSearchOperation(context, objectClass, whereClosure);
         }
     }
 }

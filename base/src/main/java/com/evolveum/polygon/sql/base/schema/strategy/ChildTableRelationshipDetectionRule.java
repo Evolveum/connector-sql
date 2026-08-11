@@ -11,7 +11,6 @@ import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeBuilderImpl;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilderImpl;
 import com.evolveum.polygon.sql.base.groovy.impl.SqlObjectOperationBuilderImpl;
-import com.evolveum.polygon.sql.base.groovy.impl.SqlSearchOperationBuilderImpl;
 import com.evolveum.polygon.sql.base.schema.*;
 import com.evolveum.polygon.sql.base.search.SqlJoinAttributeResolver;
 import com.evolveum.polygon.sql.base.search.SqlJunctionAttributeResolver;

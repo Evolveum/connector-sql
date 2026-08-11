@@ -14,6 +14,7 @@ import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlSchema;
 import com.evolveum.polygon.sql.base.connection.HikariConnectionPool;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
+import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
 import com.querydsl.sql.SQLTemplates;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
@@ -35,6 +36,7 @@ public class SqlBaseContext implements ConnectorContext, ContextLookup, Retrieva
     private Map<ObjectClass, ObjectClassHandler> handlers;
     private volatile HikariConnectionPool connectionPool;
     private SQLTemplates templates;
+    private Map<String, SqlTableInfo> tableInfos;
 
     public SqlBaseContext(SqlConnectorConfiguration configuration) {
         this.configuration = configuration;
@@ -168,5 +170,33 @@ public class SqlBaseContext implements ConnectorContext, ContextLookup, Retrieva
 
     public SQLTemplates getSqlTemplates() {
         return templates;
+    }
+
+    /**
+     * Populates table info map with detected tables.
+     * Key is lowercase table name for case-insensitive lookup.
+     */
+    void setTableInfos(Map<String, SqlTableInfo> tableInfos) {
+        this.tableInfos = tableInfos != null ? Map.copyOf(tableInfos) : null;
+    }
+
+    /**
+     * Returns the table info map for custom query building.
+     */
+    public Map<String, SqlTableInfo> getTableInfos() {
+        return tableInfos;
+    }
+
+    /**
+     * Looks up table info by table name (case-insensitive).
+     */
+    public SqlTableInfo findTableInfo(String tableName) {
+        if (tableInfos == null || tableName == null) return null;
+        for (Map.Entry<String, SqlTableInfo> entry : tableInfos.entrySet()) {
+            if (entry.getKey().equalsIgnoreCase(tableName)) {
+                return entry.getValue();
+            }
+        }
+        return null;
     }
 }

@@ -35,6 +35,7 @@ import org.identityconnectors.framework.spi.PoolableConnector;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -196,6 +197,9 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         context.schema(translator
                 .connector(getClass(), context)
                 .translate(additional));
+
+        // Populate table info map for custom query support
+        populateTableInfo(context, tables);
         // Initialize handlers
 
         var handlerBuilder = new SqlOperationSupportBuilderImpl(context);
@@ -232,6 +236,15 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         }
 
         context.handlers(handlers);
+    }
+
+    private static void populateTableInfo(SqlBaseContext context, List<SqlTableInfo> tables) {
+        var tableMap = new LinkedHashMap<String, SqlTableInfo>();
+        for (SqlTableInfo table : tables) {
+            // Use lowercase table name as key for case-insensitive lookup
+            tableMap.put(table.getName().toLowerCase(), table);
+        }
+        context.setTableInfos(tableMap);
     }
 
     private static final String SQL_BLOCK = "sql";

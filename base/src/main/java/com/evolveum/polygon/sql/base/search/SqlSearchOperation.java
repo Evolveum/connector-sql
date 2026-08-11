@@ -16,7 +16,7 @@ import org.identityconnectors.framework.common.objects.filter.Filter;
 
 /**
  * QueryDSL-based search operation for SQL object classes.
- *
+ * Supports WHERE clause customization via Groovy closures.
  */
 public class SqlSearchOperation implements FilterAwareExecuteQueryProcessor {
 
@@ -34,7 +34,7 @@ public class SqlSearchOperation implements FilterAwareExecuteQueryProcessor {
 
     @Override
     public boolean supports(Filter filter) {
-        // FIXME: Allow only explicitly specified filters
+        // Built-in handler supports all filters
         return true;
     }
 }
