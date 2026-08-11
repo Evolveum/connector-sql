@@ -33,10 +33,10 @@ public class SqlCreateOperation extends SqlWriteOperationSupport implements Obje
             var table = tablePath();
             var uidDefinition = uidDefinition();
             var suppliedUid = suppliedUid(createAttributes);
-            var assignments = createAssignments(table, createAttributes);
+            var columnValues = createColumnValues(table, createAttributes);
             var insert = new SQLInsertClause(
                     connection.getConnection(), context.getSqlTemplates(), table);
-            setAssignments(insert, assignments);
+            applyColumnValues(insert, columnValues);
 
             final org.identityconnectors.framework.common.objects.Uid uid;
             if (suppliedUid != null) {
@@ -52,7 +52,7 @@ public class SqlCreateOperation extends SqlWriteOperationSupport implements Obje
                 }
                 var generatedPath = generatedKeyPath(uidDefinition.sql(), table);
                 uid = generatedUid(
-                        uidDefinition.sql(), generatedKey(insert, generatedPath), table, assignments);
+                        uidDefinition.sql(), generatedKey(insert, generatedPath), table, columnValues);
             }
 
             var created = findByUid(connection, uid, options, false);

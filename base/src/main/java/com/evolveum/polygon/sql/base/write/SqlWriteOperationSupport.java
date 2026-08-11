@@ -99,9 +99,9 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
         return null;
     }
 
-    protected Map<Path<?>, Object> createAssignments(
+    protected Map<Path<?>, Object> createColumnValues(
             RelationalPathBase<?> table, Collection<Attribute> attributes) {
-        var assignments = new LinkedHashMap<Path<?>, Object>();
+        var columnValues = new LinkedHashMap<Path<?>, Object>();
 
         if (attributes != null) {
             for (var attribute : attributes) {
@@ -115,7 +115,7 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
                 if (Name.NAME.equals(attribute.getName())
                         && mapsSameColumns(definition, uidDefinition)) {
                     if (uidDefinition.connId().isCreateable()) {
-                        addAssignments(assignments, uidDefinition,
+                        addColumnValues(columnValues, uidDefinition,
                                 singleValue(attribute.getName(), attribute.getValue()), table);
                     }
                     continue;
@@ -127,7 +127,7 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
                     if (Name.NAME.equals(attribute.getName())
                             && uidDefinition.connId().isCreateable()
                             && mapsSameColumns(definition, uidDefinition)) {
-                        addAssignments(assignments, uidDefinition,
+                        addColumnValues(columnValues, uidDefinition,
                                 singleValue(attribute.getName(), attribute.getValue()), table);
                     }
                     continue;
@@ -135,20 +135,20 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
                 if (!definition.connId().isCreateable()) {
                     throw invalid("Attribute " + attribute.getName() + " is not creatable");
                 }
-                addAssignments(assignments, definition,
+                addColumnValues(columnValues, definition,
                         singleValue(attribute.getName(), attribute.getValue()), table);
             }
         }
 
-        return assignments;
+        return columnValues;
     }
 
-    protected Map<Path<?>, Object> updateAssignments(
+    protected Map<Path<?>, Object> updateColumnValues(
             RelationalPathBase<?> table, ConnectorObject current,
             Collection<AttributeDelta> modifications) {
-        var assignments = new LinkedHashMap<Path<?>, Object>();
+        var columnValues = new LinkedHashMap<Path<?>, Object>();
         if (modifications == null) {
-            return assignments;
+            return columnValues;
         }
 
         for (var modification : modifications) {
@@ -162,10 +162,10 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
                 before = AttributeBuilder.build(modification.getName());
             }
             var after = modification.applyTo(before);
-            addAssignments(assignments, definition,
+            addColumnValues(columnValues, definition,
                     singleValue(modification.getName(), after.getValue()), table);
         }
-        return assignments;
+        return columnValues;
     }
 
     protected BooleanExpression uidPredicate(RelationalPathBase<?> table, Uid uid) {
@@ -221,7 +221,7 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
     }
 
     protected Uid generatedUid(SqlAttributeMapping mapping, Object generatedKey,
-                               Path<?> table, Map<Path<?>, Object> assignments) {
+                               Path<?> table, Map<Path<?>, Object> columnValues) {
         if (generatedKey == null) {
             throw new ConnectorException("Database did not return a generated UID");
         }
@@ -236,12 +236,12 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
             var uid = new StringBuilder(connIdPart(multiColumn.mainColumn(), generatedKey));
             for (var additionalColumn : multiColumn.additionalColumns()) {
                 var path = additionalColumn.dslPath(table);
-                if (!assignments.containsKey(path)) {
+                if (!columnValues.containsKey(path)) {
                     throw new ConnectorException(
                             "Generated composite UID requires a value for column " + path);
                 }
                 uid.append(multiColumn.delimiter())
-                        .append(connIdPart(additionalColumn, assignments.get(path)));
+                        .append(connIdPart(additionalColumn, columnValues.get(path)));
             }
             return new Uid(uid.toString());
         }
@@ -252,12 +252,12 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
         return executeWithKey(insert, path);
     }
 
-    protected void setAssignments(SQLInsertClause insert, Map<Path<?>, Object> assignments) {
-        assignments.forEach((path, value) -> set(insert, path, value));
+    protected void applyColumnValues(SQLInsertClause insert, Map<Path<?>, Object> columnValues) {
+        columnValues.forEach((path, value) -> set(insert, path, value));
     }
 
-    protected void setAssignments(SQLUpdateClause update, Map<Path<?>, Object> assignments) {
-        assignments.forEach((path, value) -> set(update, path, value));
+    protected void applyColumnValues(SQLUpdateClause update, Map<Path<?>, Object> columnValues) {
+        columnValues.forEach((path, value) -> set(update, path, value));
     }
 
     protected <T> T inTransaction(String action, TransactionWork<T> work) {
@@ -316,15 +316,15 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
                 .equals(new LinkedHashSet<>(second.sql().selectPaths(table)));
     }
 
-    private void addAssignments(Map<Path<?>, Object> assignments, SqlAttributeDefinition definition,
-                                Object value, RelationalPathBase<?> table) {
+    private void addColumnValues(Map<Path<?>, Object> columnValues, SqlAttributeDefinition definition,
+                                 Object value, RelationalPathBase<?> table) {
         for (var columnValue : definition.sql().columnValues(table, value)) {
             var path = columnValue.path();
-            if (assignments.containsKey(path)
-                    && !Objects.deepEquals(assignments.get(path), columnValue.value())) {
+            if (columnValues.containsKey(path)
+                    && !Objects.deepEquals(columnValues.get(path), columnValue.value())) {
                 throw invalid("Conflicting values for SQL column " + path);
             }
-            assignments.put(path, columnValue.value());
+            columnValues.put(path, columnValue.value());
         }
     }
 

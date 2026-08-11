@@ -38,14 +38,14 @@ public class SqlUpdateOperation extends SqlWriteOperationSupport implements Obje
         return inTransaction("Update " + objectClass.name(), connection -> {
             var current = requireByUid(connection, uid, options, true);
             var table = tablePath();
-            var assignments = updateAssignments(table, current, requested);
-            if (assignments.isEmpty()) {
+            var columnValues = updateColumnValues(table, current, requested);
+            if (columnValues.isEmpty()) {
                 return requested;
             }
 
             var update = new SQLUpdateClause(
                     connection.getConnection(), context.getSqlTemplates(), table);
-            setAssignments(update, assignments);
+            applyColumnValues(update, columnValues);
             var affected = update.where(uidPredicate(table, uid)).execute();
             if (affected == 0) {
                 throw new UnknownUidException(uid, objectClass.objectClass());
