@@ -6,106 +6,46 @@
  */
 package com.evolveum.polygon.sql.base.search;
 
-import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
-import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
-import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
-import org.identityconnectors.common.security.GuardedString;
-import org.identityconnectors.framework.common.objects.*;
-import org.testng.annotations.AfterMethod;
-import org.testng.annotations.BeforeMethod;
+import com.evolveum.polygon.sql.base.test.SqlIntegrationTestBase;
+import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.testng.annotations.Test;
 
-import java.io.IOException;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Integration tests for SQL search operation using H2 embedded database in MySQL mode.
- * These tests verify QueryDSL-based search works correctly with H2's case-sensitivity handling.
+ * Verifies QueryDSL-based search works correctly with H2's case-sensitivity handling.
  */
 @Test(singleThreaded = true)
-public class SqlSearchOperationIntegrationTest {
+public class SqlSearchOperationIntegrationTest
+        extends SqlIntegrationTestBase<SqlSearchOperationIntegrationTest.TestSqlConnector> {
 
-    private static final String URL = "jdbc:h2:mem:searchtest8;DB_CLOSE_DELAY=-1;MODE=MySQL";
-    private TestSqlConnector connector;
-
-    private static class TestSqlConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
-        TestSqlConnector() { super(false); }
-        @Override
-        protected void initializeObjectClassHandler(SqlHandlerLoader builder) {}
-
-        @Override
-        protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
-            // No scripts to load - schema is auto-discovered from DB tables
-        }
+    protected static class TestSqlConnector extends DefaultTestConnector {
+        protected TestSqlConnector() { super(); }
     }
 
-    @BeforeMethod
-    public void setUp() throws Exception {
-        try (Connection conn = DriverManager.getConnection(URL, "sa", "");
-             var stmt = conn.createStatement()) {
-            stmt.execute(readResource("h2/basic/search_schema.sql"));
-            stmt.execute("COMMIT");
-            stmt.execute(readResource("h2/basic/search_data.sql"));
-            stmt.execute("COMMIT");
-        }
+    @Override
+    protected String[] resourceSchemaPaths() {
+        return new String[]{"h2/basic/search_schema.sql", "h2/basic/search_data.sql"};
+    }
 
-        var config = new SqlConnectorConfiguration();
-        config.setJdbcUrl(URL);
-        config.setUsername("sa");
-        config.setPassword(new GuardedString("".toCharArray()));
-        config.setPoolSize(5);
-        config.setConnectionTimeout(10000);
-        config.setValidateConnectionOnBorrow(true);
-        config.setScanTables(true);
-        config.setScanViews(true);
-        config.setDevelopmentMode(true);
-
+    @Override
+    protected void initConnector() {
         connector = new TestSqlConnector();
-        connector.init(config);
-    }
-
-    @AfterMethod
-    public void tearDown() {
-        if (connector != null) { connector.dispose(); connector = null; }
-    }
-
-    private static String readResource(String path) throws IOException {
-        var is = Thread.currentThread().getContextClassLoader().getResourceAsStream(path);
-        if (is == null) throw new IllegalArgumentException("Resource not found: " + path);
-        return new String(is.readAllBytes());
-    }
-
-    private OperationOptions opts() {
-        return new OperationOptions(Collections.emptyMap());
+        connector.init(defaultConfig());
     }
 
     @Test
-    public void testSchemaContainsDiscoveredObjectClasses() throws Exception {
-        var schema = connector.schema();
-        assertThat(schema.getObjectClassInfo()).isNotEmpty();
-        List<String> names = schema.getObjectClassInfo().stream()
-                .map(ObjectClassInfo::getType).map(String::toLowerCase).toList();
-        // useraddress is now detected as embedded child table of app_user (PK=FK+auto_increment)
-        // Embedded OCs are still present in schema but have no handlers
-        assertThat(names).contains(
+    public void testSchemaContainsDiscoveredObjectClasses() {
+        assertThat(schemaNames()).contains(
                 "app_user", "app_group", "app_role", "project", "useraddress", "projectmembership");
     }
 
     @Test
     public void testSearchWithUnqualifiedPaths() throws Exception {
-        // This test verifies that unqualified column paths work (key fix for H2 MySQL mode)
-        // NOTE: useraddress is now detected as an embedded child table of app_user
-        // (PK=id AUTO_INCREMENT, FK=user_id), so no standalone handler is created
-        List<ConnectorObject> results = new ArrayList<>();
-        connector.executeQuery(new ObjectClass("app_user"), null, results::add, opts());
-
+        List<ConnectorObject> results = search("app_user", null);
         assertThat(results).hasSize(2);
         for (ConnectorObject o : results) {
             assertThat(o.getUid().getValue()).isNotNull();
@@ -115,31 +55,24 @@ public class SqlSearchOperationIntegrationTest {
 
     @Test
     public void testSearchGroups() throws Exception {
-        List<ConnectorObject> r = new ArrayList<>();
-        connector.executeQuery(new ObjectClass("app_group"), null, r::add, opts());
-        assertThat(r).hasSize(2);
+        assertThat(search("app_group", null)).hasSize(2);
     }
 
     @Test
     public void testSearchRoles() throws Exception {
-        List<ConnectorObject> r = new ArrayList<>();
-        connector.executeQuery(new ObjectClass("app_role"), null, r::add, opts());
-        assertThat(r).hasSize(3);
+        assertThat(search("app_role", null)).hasSize(3);
     }
 
     @Test
     public void testSearchProjects() throws Exception {
-        List<ConnectorObject> r = new ArrayList<>();
-        connector.executeQuery(new ObjectClass("project"), null, r::add, opts());
-        assertThat(r).hasSize(2);
+        assertThat(search("project", null)).hasSize(2);
     }
 
     @Test
     public void testAllObjectClassesWork() throws Exception {
         for (String name : List.of("app_user", "app_group", "app_role", "project", "useraddress", "projectmembership")) {
-            List<ConnectorObject> r = new ArrayList<>();
-            connector.executeQuery(new ObjectClass(name), null, r::add, opts());
-            assertThat(r).isNotEmpty().withFailMessage("No results for " + name);
+            assertThat(search(name, null))
+                    .isNotEmpty().withFailMessage("No results for " + name);
         }
     }
 }

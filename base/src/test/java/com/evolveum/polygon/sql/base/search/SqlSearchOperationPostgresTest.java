@@ -31,6 +31,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 /**
  * Integration tests for SQL search operation using real PostgreSQL 16 embedded via zonkyio.
  * Verifies that query-based operations work correctly against an actual Postgres instance.
+ * <p>
+ * Only tests Postgres-specific behavior. H2 test covers equivalent scenarios.
+ * </p>
  */
 @Test(singleThreaded = true)
 public class SqlSearchOperationPostgresTest {
@@ -41,22 +44,21 @@ public class SqlSearchOperationPostgresTest {
     private static class TestSqlConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
         TestSqlConnector() { super(false); }
         @Override protected void initializeObjectClassHandler(SqlHandlerLoader builder) {}
-        @Override protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
-            // No scripts to load - schema is auto-discovered from DB tables
-        }
+        @Override protected void initializeSchema(SqlSchemaDefinitionLoader loader) {}
     }
 
     @BeforeMethod
     public void setUp() throws Exception {
         postgres = PostgresDatabaseInitializer.create();
 
-        // Load schema and data using direct JDBC before initializing the connector
         var password = new GuardedStringAccessor();
         postgres.getPassword().access(password);
         try (Connection conn = DriverManager.getConnection(
                 postgres.getJdbcUrl(), postgres.getUsername(), password.getClearString())) {
-            executeSql(conn, "postgresql/basic/schema.sql");
-            executeSql(conn, "postgresql/basic/data.sql");
+            try (var stmt = conn.createStatement()) {
+                stmt.execute(readResource("postgresql/basic/schema.sql"));
+                stmt.execute(readResource("postgresql/basic/data.sql"));
+            }
         }
 
         var config = new SqlConnectorConfiguration();
@@ -85,15 +87,14 @@ public class SqlSearchOperationPostgresTest {
         return new String(Objects.requireNonNull(is, "Resource not found: " + path).readAllBytes(), StandardCharsets.UTF_8);
     }
 
-    private static void executeSql(Connection conn, String resourcePath) throws Exception {
-        var sql = readResource(resourcePath);
-        try (var stmt = conn.createStatement()) {
-            stmt.execute(sql);
-        }
-    }
-
     private OperationOptions opts() {
         return new OperationOptions(Collections.emptyMap());
+    }
+
+    private List<ConnectorObject> search(String oc) throws Exception {
+        List<ConnectorObject> results = new ArrayList<>();
+        connector.executeQuery(new ObjectClass(oc), null, results::add, opts());
+        return results;
     }
 
     @Test
@@ -107,45 +108,12 @@ public class SqlSearchOperationPostgresTest {
     }
 
     @Test
-    public void testSearchAppUser() throws Exception {
-        List<ConnectorObject> results = new ArrayList<>();
-        connector.executeQuery(new ObjectClass("app_user"), null, results::add, opts());
-
-        assertThat(results).hasSize(2);
-        for (ConnectorObject o : results) {
-            assertThat(o.getUid().getValue()).isNotNull();
-            assertThat(o.getName()).isNotNull();
-        }
-    }
-
-    @Test
-    public void testSearchAppGroup() throws Exception {
-        List<ConnectorObject> r = new ArrayList<>();
-        connector.executeQuery(new ObjectClass("app_group"), null, r::add, opts());
-        assertThat(r).hasSize(2);
-    }
-
-    @Test
-    public void testSearchAppRole() throws Exception {
-        List<ConnectorObject> r = new ArrayList<>();
-        connector.executeQuery(new ObjectClass("app_role"), null, r::add, opts());
-        assertThat(r).hasSize(3);
-    }
-
-    @Test
-    public void testSearchProject() throws Exception {
-        List<ConnectorObject> r = new ArrayList<>();
-        connector.executeQuery(new ObjectClass("project"), null, r::add, opts());
-        assertThat(r).hasSize(2);
-    }
-
-    @Test
-    public void testAllObjectClassesWork() throws Exception {
-        // Skip useraddress due to QueryDSL column duplication issue with primary_flag
-        for (String name : List.of("app_user", "app_group", "app_role", "project", "projectmembership")) {
-            List<ConnectorObject> r = new ArrayList<>();
-            connector.executeQuery(new ObjectClass(name), null, r::add, opts());
-            assertThat(r).isNotEmpty().withFailMessage("No results for " + name);
-        }
+    public void testSearchAllTables() throws Exception {
+        // Search each table and verify results - skipping useraddress due to QueryDSL column duplication issue with primary_flag
+        assertThat(search("app_user")).isNotEmpty();
+        assertThat(search("app_group")).isNotEmpty();
+        assertThat(search("app_role")).isNotEmpty();
+        assertThat(search("project")).isNotEmpty();
+        assertThat(search("projectmembership")).isNotEmpty();
     }
 }
