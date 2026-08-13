@@ -13,6 +13,8 @@ import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
+import java.util.List;
+
 /**
  * Zero-code SQL connector that loads all schema and operation scripts
  * from a {@code connector.manifest.json} or {@code connector.manifest.yaml}/{@code .yml} file
@@ -64,5 +66,15 @@ public class ManifestBasedConnector extends AbstractGroovySqlConnector<SqlConnec
     @Override
     protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
         manifest.operationScripts().forEach(builder::loadFromResource);
+    }
+
+    @Override
+    protected List<String> schemaResources(String excludedResource) {
+        return manifest.schemaScripts(excludedResource);
+    }
+
+    @Override
+    protected List<String> operationResources(String excludedResource) {
+        return manifest.operationScripts(excludedResource);
     }
 }

@@ -1,0 +1,1 @@
+objectClass('Employee') { disableCreate() }

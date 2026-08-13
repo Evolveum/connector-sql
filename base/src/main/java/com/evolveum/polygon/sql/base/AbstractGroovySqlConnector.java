@@ -8,6 +8,9 @@ package com.evolveum.polygon.sql.base;
 
 import com.evolveum.polygon.conndev.dev.ConnDevObjectClass;
 import com.evolveum.polygon.conndev.dev.ConnDevSchema;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptValidator;
+import com.evolveum.polygon.conndev.groovy.ScriptValidationRequest;
+import com.evolveum.polygon.conndev.groovy.ScriptValidationResult;
 import com.evolveum.polygon.conndev.spi.ClassHandlerConnectorBase;
 import com.evolveum.polygon.conndev.spi.CompositeObjectClassHandler;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
@@ -276,6 +279,28 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
     public Schema schema() {
         ensureSchemaInitialized();
         return context.schema().connIdSchema();
+    }
+
+    /**
+     * Validates the candidate script against a throwaway target seeded with all currently
+     * deployed sibling scripts (via {@link #schemaResources} / {@link #operationResources}, minus
+     * {@code filename} itself), so cross-references to them (e.g. a schema attribute's {@code
+     * referencedObjectClass}) resolve during evaluation and build, and so the candidate replaces
+     * rather than merges with its own old content.
+     */
+    @Override
+    protected ScriptValidationResult validateScript(ScriptValidationRequest request) throws Exception {
+        ensureSchemaInitialized();
+        if (ScriptValidationRequest.ARTIFACT_KIND_SCHEMA.equals(request.artifactKind())) {
+            var builder = new SqlSchemaBuilderImpl(getClass(), context);
+            var loader = new SqlSchemaDefinitionLoader(builder, context.configuration().groovyContext());
+            schemaResources(request.filename()).forEach(loader::loadFromResource);
+            return GroovyScriptValidator.validate(loader::parse, builder::build, request.scriptText(), request.operation());
+        }
+        var handlerBuilder = new SqlOperationSupportBuilderImpl(context);
+        var handlerLoader = new SqlHandlerLoader(context, handlerBuilder);
+        operationResources(request.filename()).forEach(handlerLoader::loadFromResource);
+        return GroovyScriptValidator.validate(handlerLoader::parse, handlerBuilder::build, request.scriptText(), request.operation());
     }
 
     @Override

@@ -1,0 +1,8 @@
+{
+  "connector": {
+    "schema": [],
+    "operation": [
+      { "script": "/manifests/script-validation/Employee.op.groovy" }
+    ]
+  }
+}

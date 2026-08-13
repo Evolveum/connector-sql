@@ -32,7 +32,7 @@ public class SqlHandlerLoader {
      * Scripts can call objectClass("name") { search(...) } to register handlers.
      */
     public void loadFromResource(String resourceName) {
-        try (var is = this.getClass().getClassLoader().getResourceAsStream(resourceName)) {
+        try (var is = this.getClass().getResourceAsStream(resourceName)) {
             if (is == null) return;
             shell.evaluate(new InputStreamReader(is), resourceName);
         } catch (Exception e) {
@@ -47,6 +47,10 @@ public class SqlHandlerLoader {
      */
     public void loadFromString(String scriptText) {
         shell.evaluate(scriptText);
+    }
+
+    public groovy.lang.Script parse(String scriptText) {
+        return shell.parse(scriptText);
     }
 
 }
