@@ -10,13 +10,10 @@ import com.evolveum.polygon.conndev.groovy.BaseObjectOperationSupportBuilder;
 import com.evolveum.polygon.conndev.spi.ObjectClassOperation;
 import com.evolveum.polygon.conndev.spi.ObjectCreateOperation;
 import com.evolveum.polygon.conndev.spi.ObjectDeleteOperation;
-import com.evolveum.polygon.conndev.spi.ObjectSyncOperation;
 import com.evolveum.polygon.conndev.spi.ObjectUpdateOperation;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectOperationSupportBuilder;
-import com.evolveum.polygon.sql.base.sync.SqlSyncOperation;
-import com.evolveum.polygon.sql.base.sync.SyncConfig;
 
 import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
 
@@ -38,8 +35,6 @@ public class SqlObjectOperationBuilderImpl extends BaseObjectOperationSupportBui
         this.create = new SqlCreateOperationBuilderImpl(context, objectClass);
         this.update = new SqlUpdateOperationBuilderImpl(context, objectClass);
         this.delete = new SqlDeleteOperationBuilderImpl(context, objectClass);
-        registerOperation(ObjectSyncOperation.class,
-                new SqlSyncOperation(context, objectClass, SyncConfig.defaultFor(objectClass)));
 
         if (Boolean.TRUE.equals(objectClass.getReadOnly())) {
             disableCreate();

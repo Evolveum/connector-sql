@@ -22,8 +22,6 @@ import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.OperationOptions;
-import org.identityconnectors.framework.common.objects.SyncDelta;
-import org.identityconnectors.framework.common.objects.SyncToken;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.common.objects.filter.FilterBuilder;
@@ -48,7 +46,6 @@ public class SqlWriteOperationIntegrationTest {
     private static final ObjectClass EXTERNAL_ACCOUNT = new ObjectClass("external_account");
     private static final ObjectClass MEMBERSHIP = new ObjectClass("membership");
     private static final ObjectClass GENERATED_MEMBERSHIP = new ObjectClass("generated_membership");
-    private static final ObjectClass SYNC_RECORD = new ObjectClass("sync_record");
     private static final ObjectClass USER_VIEW = new ObjectClass("app_user_view");
 
     private String jdbcUrl;
@@ -146,14 +143,6 @@ public class SqlWriteOperationIntegrationTest {
                         role_name VARCHAR(64) NOT NULL,
                         PRIMARY KEY (id, tenant_id)
                     );
-                    CREATE TABLE sync_record (
-                        id INT PRIMARY KEY,
-                        record_value VARCHAR(64) NOT NULL,
-                        updated_at TIMESTAMP NOT NULL
-                    );
-                    INSERT INTO sync_record VALUES
-                        (1, 'first', TIMESTAMP '2026-01-01 00:00:00'),
-                        (2, 'second', TIMESTAMP '2026-01-02 00:00:00');
                     CREATE VIEW app_user_view AS
                         SELECT id, username, email, status FROM app_user;
                     """);
@@ -299,43 +288,6 @@ public class SqlWriteOperationIntegrationTest {
                 .containsExactly(replacement);
         connector.delete(USER, uid, options());
         assertThat(search(USER, null)).isEmpty();
-    }
-
-    @Test
-    public void testSyncSupportsNumericAndTimestampPaths() throws Exception {
-        var timestampToken = connector.getLatestSyncToken(SYNC_RECORD);
-        assertThat(timestampToken.getValue()).isInstanceOf(Long.class);
-
-        var initialDeltas = new ArrayList<SyncDelta>();
-        connector.sync(SYNC_RECORD, null, initialDeltas::add, options());
-        assertThat(initialDeltas).hasSize(2);
-
-        var previousToken = initialDeltas.getLast().getToken();
-        try (var connection = DriverManager.getConnection(jdbcUrl, "sa", "");
-                var statement = connection.createStatement()) {
-            statement.executeUpdate("""
-                    UPDATE sync_record
-                    SET record_value = 'changed', updated_at = TIMESTAMP '2026-01-03 00:00:00'
-                    WHERE id = 1
-                    """);
-        }
-
-        var changedDeltas = new ArrayList<SyncDelta>();
-        connector.sync(SYNC_RECORD, previousToken, changedDeltas::add, options());
-        assertThat(changedDeltas).hasSize(1);
-        assertThat(changedDeltas.getFirst().getUid().getUidValue()).isEqualTo("1");
-
-        var userUid = connector.create(USER, Set.of(
-                AttributeBuilder.build(Name.NAME, "sync.user"),
-                AttributeBuilder.build("username", "sync.user")), options());
-        SyncToken numericToken = connector.getLatestSyncToken(USER);
-        assertThat(numericToken.getValue()).isInstanceOf(Number.class);
-        assertThat(numericToken.getValue().toString()).isEqualTo(userUid.getUidValue());
-
-        var numericDeltas = new ArrayList<SyncDelta>();
-        connector.sync(USER, new SyncToken(0L), numericDeltas::add, options());
-        assertThat(numericDeltas).hasSize(1);
-        assertThat(numericDeltas.getFirst().getUid()).isEqualTo(userUid);
     }
 
     private SqlConnectorConfiguration configuration() {
