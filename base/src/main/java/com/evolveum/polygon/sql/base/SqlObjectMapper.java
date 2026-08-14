@@ -18,7 +18,7 @@ import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.Uid;
 
 import java.util.Collection;
-import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -39,19 +39,37 @@ public final class SqlObjectMapper {
 
     public Map<SqlAttributeDefinition, Collection<Path<?>>> selectColumns(
             Path<?> table, OperationOptions options) {
-        Map<SqlAttributeDefinition, Collection<Path<?>>> columns = new HashMap<>();
+        Map<SqlAttributeDefinition, Collection<Path<?>>> columns = new LinkedHashMap<>();
         // UID and Name must be always selected
         var uidAttribute = objectClass.attributeFromConnIdName(Uid.NAME);
         columns.put(uidAttribute, uidAttribute.sql().selectPaths(table));
 
         var nameAttribute = objectClass.attributeFromConnIdName(Name.NAME);
-        if (nameAttribute.sql() != null) {
+        if (nameAttribute != null && nameAttribute.sql() != null) {
             columns.put(nameAttribute, nameAttribute.sql().selectPaths(table));
         }
 
-        for (var attr : objectClass.attributes()) {
-            if (attr.sql() != null && attr.connId().isReturnedByDefault()) {
-                columns.put(attr, attr.sql().selectPaths(table));
+        var requestedAttributes = options != null ? options.getAttributesToGet() : null;
+        var returnDefaultAttributes = options != null
+                ? options.getReturnDefaultAttributes()
+                : null;
+        var includeDefaults = Boolean.TRUE.equals(returnDefaultAttributes)
+                || (requestedAttributes == null && returnDefaultAttributes == null);
+
+        if (includeDefaults) {
+            for (var attr : objectClass.attributes()) {
+                if (attr.sql() != null && attr.connId().isReturnedByDefault()) {
+                    columns.put(attr, attr.sql().selectPaths(table));
+                }
+            }
+        }
+
+        if (requestedAttributes != null) {
+            for (var requestedName : requestedAttributes) {
+                var attr = attributeFromConnIdName(requestedName);
+                if (attr != null && attr.sql() != null) {
+                    columns.put(attr, attr.sql().selectPaths(table));
+                }
             }
         }
 
@@ -72,7 +90,8 @@ public final class SqlObjectMapper {
                 builder.addAttribute(attr.attributeOf(value));
             }
         }
-        // FIXME: Maybe there is need to compute UID, NAME attributes
+        // FIXME: Composite UIDs are already produced by their mapping; derived or
+        // emulated NAME mappings may still need explicit computation here.
         return builder.build();
     }
 
@@ -80,6 +99,18 @@ public final class SqlObjectMapper {
             Map<SqlAttributeDefinition, Collection<Path<?>>> selectedAttributes) {
         return selectedAttributes.values().stream()
                 .flatMap(Collection::stream)
+                .distinct()
                 .toList();
+    }
+
+    private SqlAttributeDefinition attributeFromConnIdName(String name) {
+        var attribute = objectClass.attributeFromConnIdName(name);
+        if (attribute != null) {
+            return attribute;
+        }
+        return objectClass.attributes().stream()
+                .filter(candidate -> candidate.connId().getName().equalsIgnoreCase(name))
+                .findFirst()
+                .orElse(null);
     }
 }
