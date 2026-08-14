@@ -110,6 +110,7 @@ public class SqlObjectOperationBuilderImpl extends BaseObjectOperationSupportBui
         return register(ObjectDeleteOperation.class, operation);
     }
 
+    @Override
     public <T extends ObjectClassOperation> SqlObjectOperationBuilderImpl register(
             Class<T> operationType, T operation) {
         registerOperation(operationType, operation);

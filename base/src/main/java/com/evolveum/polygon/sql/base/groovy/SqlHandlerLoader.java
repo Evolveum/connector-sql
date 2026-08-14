@@ -8,7 +8,6 @@ package com.evolveum.polygon.sql.base.groovy;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlOperationSupportBuilder;
-import com.evolveum.polygon.sql.base.groovy.impl.SqlObjectOperationBuilderImpl;
 import com.evolveum.polygon.conndev.spi.ObjectClassOperation;
 import groovy.lang.GroovyShell;
 import org.codehaus.groovy.runtime.MethodClosure;
@@ -67,8 +66,7 @@ public class SqlHandlerLoader {
         var className = definition != null
                 ? definition.name()
                 : objectClass.getObjectClassValue();
-        var objectBuilder = (SqlObjectOperationBuilderImpl)
-                builder.objectClass(className);
+        var objectBuilder = builder.objectClass(className);
         objectBuilder.register(operationType, operation);
     }
 
