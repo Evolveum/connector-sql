@@ -10,11 +10,6 @@ import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.spi.FilterAwareExecuteQueryProcessor;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
-import com.querydsl.core.Tuple;
-import com.querydsl.core.types.Path;
-import com.querydsl.core.types.dsl.BooleanExpression;
-import com.querydsl.sql.SQLQuery;
-import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
 import org.identityconnectors.framework.common.objects.filter.Filter;
@@ -23,57 +18,18 @@ import org.identityconnectors.framework.common.objects.filter.Filter;
  * QueryDSL-based search operation for SQL object classes.
  *
  */
-public class SqlSearchOperation extends SqlSearchExecutor implements FilterAwareExecuteQueryProcessor {
+public class SqlSearchOperation implements FilterAwareExecuteQueryProcessor {
 
+    private final SqlSearchExecutor executor;
 
     public SqlSearchOperation(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
-        super(context, objectClass);
+        this.executor = new SqlSearchExecutor(context, objectClass);
     }
 
     @Override
     public void executeQuery(ContextLookup c, Filter filter, ResultsHandler resultsHandler,
                               OperationOptions options) {
-
-        var tablePath = objectClass.sql().pathAlias("o");
-        var selectedAttributes = selectColumns(tablePath, options);
-
-        try (var conn = context.getConnection()) {
-
-            int pageSize = 200;
-            int offset = 0;
-            BooleanExpression predicate = SqlFilterTranslator.translate(objectClass, tablePath, filter);
-
-            var columns = onlyPaths(selectedAttributes).toArray(new Path[0]);
-
-            while (true) {
-                try {
-                    SQLQuery<Tuple> query =conn.newQuery()
-                            .select(columns)
-                            .from(tablePath)
-                            .limit(pageSize)
-                            .offset(offset);
-                    if (predicate != null) {
-                        query.where(predicate);
-                    }
-                    var rows = query.fetch();
-                    for (var row : rows) {
-                        var obj = buildConnectorObject(row, selectedAttributes);
-                        if (!resultsHandler.handle(obj)) {
-                            return;
-                        }
-                    }
-
-                    if (rows.isEmpty() || rows.size() < pageSize) {
-                        return;
-                    }
-
-                    offset += pageSize;
-                } catch (Exception e) {
-                    throw new ConnectorException(
-                            "QueryDSL select failed: " + e.getMessage(), e);
-                }
-            }
-        }
+        executor.execute(filter, resultsHandler, options);
     }
 
     @Override

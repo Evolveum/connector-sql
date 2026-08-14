@@ -7,11 +7,11 @@
 package com.evolveum.polygon.sql.base.write;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.sql.base.SqlObjectMapper;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeMapping;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
-import com.evolveum.polygon.sql.base.search.SqlSearchExecutor;
 import com.querydsl.core.types.Path;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.sql.RelationalPathBase;
@@ -42,24 +42,30 @@ import java.util.Objects;
 /**
  * Shared mapping, transaction, lookup, and exception support for SQL write operations.
  */
-abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
+final class SqlWriteOperationSupport {
 
-    protected SqlWriteOperationSupport(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
-        super(context, objectClass);
+    private final SqlBaseContext context;
+    private final SqlObjectClassDefinition objectClass;
+    private final SqlObjectMapper objectMapper;
+
+    SqlWriteOperationSupport(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
+        this.context = context;
+        this.objectClass = objectClass;
+        this.objectMapper = new SqlObjectMapper(objectClass);
     }
 
-    protected void requireWritable() {
+    void requireWritable() {
         if (Boolean.TRUE.equals(objectClass.getReadOnly())) {
             throw new UnsupportedOperationException(
                     "Object class " + objectClass.name() + " is read-only");
         }
     }
 
-    protected RelationalPathBase<?> tablePath() {
-        return objectClass.sql().pathAlias("o");
+    RelationalPathBase<?> tablePath() {
+        return objectMapper.tablePath();
     }
 
-    protected SqlAttributeDefinition uidDefinition() {
+    SqlAttributeDefinition uidDefinition() {
         var definition = objectClass.attributeFromConnIdName(Uid.NAME);
         if (definition == null || definition.sql() == null) {
             throw new ConnectorException(
@@ -68,7 +74,7 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
         return definition;
     }
 
-    protected Uid suppliedUid(Collection<Attribute> attributes) {
+    Uid suppliedUid(Collection<Attribute> attributes) {
         if (attributes == null) {
             return null;
         }
@@ -100,7 +106,7 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
         return null;
     }
 
-    protected Map<Path<?>, Object> createColumnValues(
+    Map<Path<?>, Object> createColumnValues(
             RelationalPathBase<?> table, Collection<Attribute> attributes) {
         var columnValues = new LinkedHashMap<Path<?>, Object>();
 
@@ -144,7 +150,7 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
         return columnValues;
     }
 
-    protected Map<Path<?>, Object> updateColumnValues(
+    Map<Path<?>, Object> updateColumnValues(
             RelationalPathBase<?> table, ConnectorObject current,
             Collection<AttributeDelta> modifications) {
         var columnValues = new LinkedHashMap<Path<?>, Object>();
@@ -169,7 +175,7 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
         return columnValues;
     }
 
-    protected BooleanExpression uidPredicate(RelationalPathBase<?> table, Uid uid) {
+    BooleanExpression uidPredicate(RelationalPathBase<?> table, Uid uid) {
         if (uid == null || uid.getUidValue() == null) {
             throw invalid("UID must not be null");
         }
@@ -181,7 +187,7 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
         return filter.eq(table, uid.getUidValue());
     }
 
-    protected ConnectorObject findByUid(
+    ConnectorObject findByUid(
             SqlConnection connection, Uid uid, OperationOptions options, boolean includeAllAttributes) {
         var table = tablePath();
         Map<SqlAttributeDefinition, Collection<Path<?>>> selectedAttributes;
@@ -193,7 +199,7 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
                 }
             }
         } else {
-            selectedAttributes = selectColumns(table, options);
+            selectedAttributes = objectMapper.selectColumns(table, options);
         }
 
         var columns = selectedAttributes.values().stream()
@@ -209,10 +215,12 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
                 .from(table)
                 .where(uidPredicate(table, uid))
                 .fetchOne();
-        return row != null ? buildConnectorObject(row, selectedAttributes) : null;
+        return row != null
+                ? objectMapper.buildConnectorObject(table, row, selectedAttributes)
+                : null;
     }
 
-    protected ConnectorObject requireByUid(
+    ConnectorObject requireByUid(
             SqlConnection connection, Uid uid, OperationOptions options, boolean includeAllAttributes) {
         var object = findByUid(connection, uid, options, includeAllAttributes);
         if (object == null) {
@@ -221,7 +229,7 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
         return object;
     }
 
-    protected Uid generatedUid(SqlAttributeMapping mapping, Object generatedKey,
+    Uid generatedUid(SqlAttributeMapping mapping, Object generatedKey,
                                Path<?> table, Map<Path<?>, Object> columnValues) {
         if (generatedKey == null) {
             throw new ConnectorException("Database did not return a generated UID");
@@ -249,19 +257,19 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
         throw new ConnectorException("Unsupported UID mapping " + mapping.getClass().getName());
     }
 
-    protected Object generatedKey(SQLInsertClause insert, Path<?> path) {
+    Object generatedKey(SQLInsertClause insert, Path<?> path) {
         return executeWithKey(insert, path);
     }
 
-    protected void applyColumnValues(SQLInsertClause insert, Map<Path<?>, Object> columnValues) {
+    void applyColumnValues(SQLInsertClause insert, Map<Path<?>, Object> columnValues) {
         columnValues.forEach((path, value) -> set(insert, path, value));
     }
 
-    protected void applyColumnValues(SQLUpdateClause update, Map<Path<?>, Object> columnValues) {
+    void applyColumnValues(SQLUpdateClause update, Map<Path<?>, Object> columnValues) {
         columnValues.forEach((path, value) -> set(update, path, value));
     }
 
-    protected <T> T inTransaction(String action, TransactionWork<T> work) {
+    <T> T inTransaction(String action, TransactionWork<T> work) {
         try (var connection = context.getConnection()) {
             try {
                 connection.setAutoCommit(false);
@@ -281,7 +289,7 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
         }
     }
 
-    protected InvalidAttributeValueException invalid(String message) {
+    InvalidAttributeValueException invalid(String message) {
         return new InvalidAttributeValueException(message);
     }
 
@@ -430,7 +438,7 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
     }
 
     @FunctionalInterface
-    protected interface TransactionWork<T> {
+    interface TransactionWork<T> {
         T execute(SqlConnection connection) throws Exception;
     }
 }

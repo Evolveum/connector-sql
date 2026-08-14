@@ -9,11 +9,11 @@ package com.evolveum.polygon.sql.base.sync;
 import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.spi.ObjectSyncOperation;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.sql.base.SqlObjectMapper;
 import com.evolveum.polygon.sql.base.SqlTuple;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeMapping;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
-import com.evolveum.polygon.sql.base.search.SqlSearchExecutor;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Path;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -39,20 +39,25 @@ import java.util.List;
 /**
  * QueryDSL-based sync operation for SQL object classes.
  */
-public class SqlSyncOperation extends SqlSearchExecutor implements ObjectSyncOperation {
+public class SqlSyncOperation implements ObjectSyncOperation {
 
+    private final SqlBaseContext context;
+    private final SqlObjectClassDefinition objectClass;
+    private final SqlObjectMapper objectMapper;
     private final SyncConfig syncConfig;
 
     public SqlSyncOperation(SqlBaseContext context,
                             SqlObjectClassDefinition objectClassDef,
                             SyncConfig syncConfig) {
-        super(context, objectClassDef);
+        this.context = context;
+        this.objectClass = objectClassDef;
+        this.objectMapper = new SqlObjectMapper(objectClassDef);
         this.syncConfig = syncConfig;
     }
 
     @Override
     public void sync(SyncToken token, SyncResultsHandler handler, OperationOptions options, ContextLookup ctx) {
-        RelationalPathBase<?> path = getTablePath();
+        RelationalPathBase<?> path = objectMapper.tablePath();
 
         var syncColName = syncConfig.resolveSyncColumn(objectClass);
         Path<?> syncPath = syncColumnPath(path, syncColName);
@@ -60,8 +65,8 @@ public class SqlSyncOperation extends SqlSearchExecutor implements ObjectSyncOpe
         var syncCmp = comparablePath(syncPath);
         var syncPoint = extractSyncValue(token);
 
-        var attributes = selectColumns(path, options);
-        var selectedPaths = new LinkedHashSet<>(onlyPaths(attributes));
+        var attributes = objectMapper.selectColumns(path, options);
+        var selectedPaths = new LinkedHashSet<>(objectMapper.onlyPaths(attributes));
         selectedPaths.add(syncPath);
         var allCols = selectedPaths.toArray(new Path[] {});
         var latestValue = syncPoint;
@@ -86,7 +91,7 @@ public class SqlSyncOperation extends SqlSearchExecutor implements ObjectSyncOpe
                     var syncVal = row.get(syncPath);
                     latestValue = toTokenValue(syncVal);
 
-                    var obj = buildConnectorObject(row, attributes);
+                    var obj = objectMapper.buildConnectorObject(path, row, attributes);
                     var bld = new SyncDeltaBuilder();
                     bld.setToken(new SyncToken(latestValue));
                     bld.setDeltaType(SyncDeltaType.CREATE_OR_UPDATE);

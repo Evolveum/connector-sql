@@ -20,23 +20,29 @@ import org.identityconnectors.framework.common.objects.OperationOptions;
 import java.util.Set;
 
 /** QueryDSL-based create operation for a writable SQL table. */
-public class SqlCreateOperation extends SqlWriteOperationSupport implements ObjectCreateOperation {
+public class SqlCreateOperation implements ObjectCreateOperation {
+
+    private final SqlBaseContext context;
+    private final SqlObjectClassDefinition objectClass;
+    private final SqlWriteOperationSupport support;
 
     public SqlCreateOperation(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
-        super(context, objectClass);
+        this.context = context;
+        this.objectClass = objectClass;
+        this.support = new SqlWriteOperationSupport(context, objectClass);
     }
 
     @Override
     public ConnectorObject create(Set<Attribute> createAttributes, OperationOptions options) {
-        requireWritable();
-        return inTransaction("Create " + objectClass.name(), connection -> {
-            var table = tablePath();
-            var uidDefinition = uidDefinition();
-            var suppliedUid = suppliedUid(createAttributes);
-            var columnValues = createColumnValues(table, createAttributes);
+        support.requireWritable();
+        return support.inTransaction("Create " + objectClass.name(), connection -> {
+            var table = support.tablePath();
+            var uidDefinition = support.uidDefinition();
+            var suppliedUid = support.suppliedUid(createAttributes);
+            var columnValues = support.createColumnValues(table, createAttributes);
             var insert = new SQLInsertClause(
                     connection.getConnection(), context.getSqlTemplates(), table);
-            applyColumnValues(insert, columnValues);
+            support.applyColumnValues(insert, columnValues);
 
             final org.identityconnectors.framework.common.objects.Uid uid;
             if (suppliedUid != null) {
@@ -48,14 +54,15 @@ public class SqlCreateOperation extends SqlWriteOperationSupport implements Obje
                 uid = suppliedUid;
             } else {
                 if (uidDefinition.connId().isCreateable()) {
-                    throw invalid("Required attribute " + uidDefinition.connId().getName() + " is missing");
+                    throw support.invalid(
+                            "Required attribute " + uidDefinition.connId().getName() + " is missing");
                 }
                 var generatedPath = generatedKeyPath(uidDefinition.sql(), table);
-                uid = generatedUid(
-                        uidDefinition.sql(), generatedKey(insert, generatedPath), table, columnValues);
+                uid = support.generatedUid(uidDefinition.sql(),
+                        support.generatedKey(insert, generatedPath), table, columnValues);
             }
 
-            var created = findByUid(connection, uid, options, false);
+            var created = support.findByUid(connection, uid, options, false);
             if (created == null) {
                 throw new ConnectorException("Created object " + uid + " could not be read back");
             }

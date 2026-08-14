@@ -16,20 +16,26 @@ import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.Uid;
 
 /** QueryDSL-based delete operation for a writable SQL table. */
-public class SqlDeleteOperation extends SqlWriteOperationSupport implements ObjectDeleteOperation {
+public class SqlDeleteOperation implements ObjectDeleteOperation {
+
+    private final SqlBaseContext context;
+    private final SqlObjectClassDefinition objectClass;
+    private final SqlWriteOperationSupport support;
 
     public SqlDeleteOperation(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
-        super(context, objectClass);
+        this.context = context;
+        this.objectClass = objectClass;
+        this.support = new SqlWriteOperationSupport(context, objectClass);
     }
 
     @Override
     public void delete(Uid uid, OperationOptions options) {
-        requireWritable();
-        inTransaction("Delete " + objectClass.name(), connection -> {
-            var table = tablePath();
+        support.requireWritable();
+        support.inTransaction("Delete " + objectClass.name(), connection -> {
+            var table = support.tablePath();
             var delete = new SQLDeleteClause(
                     connection.getConnection(), context.getSqlTemplates(), table);
-            var affected = delete.where(uidPredicate(table, uid)).execute();
+            var affected = delete.where(support.uidPredicate(table, uid)).execute();
             if (affected == 0) {
                 throw new UnknownUidException(uid, objectClass.objectClass());
             }

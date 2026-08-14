@@ -20,33 +20,39 @@ import java.util.Collections;
 import java.util.Set;
 
 /** QueryDSL-based update-delta operation for a writable SQL table. */
-public class SqlUpdateOperation extends SqlWriteOperationSupport implements ObjectUpdateOperation {
+public class SqlUpdateOperation implements ObjectUpdateOperation {
+
+    private final SqlBaseContext context;
+    private final SqlObjectClassDefinition objectClass;
+    private final SqlWriteOperationSupport support;
 
     public SqlUpdateOperation(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
-        super(context, objectClass);
+        this.context = context;
+        this.objectClass = objectClass;
+        this.support = new SqlWriteOperationSupport(context, objectClass);
     }
 
     @Override
     public Set<AttributeDelta> updateDelta(
             Uid uid, Set<AttributeDelta> modifications, OperationOptions options) {
-        requireWritable();
+        support.requireWritable();
         var requested = modifications != null ? Set.copyOf(modifications) : Collections.<AttributeDelta>emptySet();
         if (requested.isEmpty()) {
             return requested;
         }
 
-        return inTransaction("Update " + objectClass.name(), connection -> {
-            var current = requireByUid(connection, uid, options, true);
-            var table = tablePath();
-            var columnValues = updateColumnValues(table, current, requested);
+        return support.inTransaction("Update " + objectClass.name(), connection -> {
+            var current = support.requireByUid(connection, uid, options, true);
+            var table = support.tablePath();
+            var columnValues = support.updateColumnValues(table, current, requested);
             if (columnValues.isEmpty()) {
                 return requested;
             }
 
             var update = new SQLUpdateClause(
                     connection.getConnection(), context.getSqlTemplates(), table);
-            applyColumnValues(update, columnValues);
-            var affected = update.where(uidPredicate(table, uid)).execute();
+            support.applyColumnValues(update, columnValues);
+            var affected = update.where(support.uidPredicate(table, uid)).execute();
             if (affected == 0) {
                 throw new UnknownUidException(uid, objectClass.objectClass());
             }
