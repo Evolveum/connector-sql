@@ -42,7 +42,7 @@ public class SqlUpdateOperation implements ObjectUpdateOperation {
         }
 
         return support.inTransaction("Update " + objectClass.name(), connection -> {
-            var current = support.requireByUid(connection, uid, options, true);
+            var current = support.requireByUid(connection, uid, true);
             var table = support.tablePath();
             var columnValues = support.updateColumnValues(table, current, requested);
             if (columnValues.isEmpty()) {

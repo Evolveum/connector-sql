@@ -114,25 +114,6 @@ public class SqlSearchOperationIntegrationTest {
     }
 
     @Test
-    public void testSearchHonorsRequestedAttributes() {
-        var options = new OperationOptionsBuilder()
-                .setAttributesToGet("email")
-                .build();
-        List<ConnectorObject> results = new ArrayList<>();
-
-        connector.executeQuery(new ObjectClass("app_user"), null, results::add, options);
-
-        assertThat(results).hasSize(2);
-        for (var result : results) {
-            assertThat(result.getUid()).isNotNull();
-            assertThat(result.getName()).isNotNull();
-            assertThat(result.getAttributeByName("email")).isNotNull();
-            assertThat(result.getAttributeByName("username")).isNull();
-            assertThat(result.getAttributeByName("created_at")).isNull();
-        }
-    }
-
-    @Test
     public void testSearchGroups() throws Exception {
         List<ConnectorObject> r = new ArrayList<>();
         connector.executeQuery(new ObjectClass("app_group"), null, r::add, opts());

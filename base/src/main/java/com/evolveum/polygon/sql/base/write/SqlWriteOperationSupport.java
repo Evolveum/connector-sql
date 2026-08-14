@@ -27,7 +27,6 @@ import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.Name;
-import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.Uid;
 
 import java.sql.SQLException;
@@ -188,7 +187,7 @@ final class SqlWriteOperationSupport {
     }
 
     ConnectorObject findByUid(
-            SqlConnection connection, Uid uid, OperationOptions options, boolean includeAllAttributes) {
+            SqlConnection connection, Uid uid, boolean includeAllAttributes) {
         var table = tablePath();
         Map<SqlAttributeDefinition, Collection<Path<?>>> selectedAttributes;
         if (includeAllAttributes) {
@@ -199,7 +198,7 @@ final class SqlWriteOperationSupport {
                 }
             }
         } else {
-            selectedAttributes = objectMapper.selectColumns(table, options);
+            selectedAttributes = objectMapper.selectColumns(table);
         }
 
         var columns = selectedAttributes.values().stream()
@@ -221,8 +220,8 @@ final class SqlWriteOperationSupport {
     }
 
     ConnectorObject requireByUid(
-            SqlConnection connection, Uid uid, OperationOptions options, boolean includeAllAttributes) {
-        var object = findByUid(connection, uid, options, includeAllAttributes);
+            SqlConnection connection, Uid uid, boolean includeAllAttributes) {
+        var object = findByUid(connection, uid, includeAllAttributes);
         if (object == null) {
             throw new UnknownUidException(uid, objectClass.objectClass());
         }

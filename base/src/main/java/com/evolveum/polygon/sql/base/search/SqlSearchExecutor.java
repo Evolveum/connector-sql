@@ -39,7 +39,7 @@ public class SqlSearchExecutor {
 
     public void execute(Filter filter, ResultsHandler resultsHandler, OperationOptions options) {
         var tablePath = objectClass.sql().pathAlias("o");
-        var selectedAttributes = selectColumns(tablePath, options);
+        var selectedAttributes = selectColumns(tablePath);
 
         try (var connection = context.getConnection()) {
             int pageSize = 200;
@@ -82,9 +82,8 @@ public class SqlSearchExecutor {
         return objectMapper.tablePath();
     }
 
-    protected Map<SqlAttributeDefinition, Collection<Path<?>>> selectColumns(
-            Path<?> table, OperationOptions options) {
-        return objectMapper.selectColumns(table, options);
+    protected Map<SqlAttributeDefinition, Collection<Path<?>>> selectColumns(Path<?> table) {
+        return objectMapper.selectColumns(table);
     }
 
     protected ConnectorObject buildConnectorObject(

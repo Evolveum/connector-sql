@@ -14,8 +14,6 @@ import com.evolveum.polygon.sql.base.build.api.SqlTypeSpecification;
 import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
 import com.querydsl.core.types.Path;
 import org.identityconnectors.framework.common.objects.Name;
-import org.identityconnectors.framework.common.objects.OperationOptions;
-import org.identityconnectors.framework.common.objects.OperationOptionsBuilder;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.Connector;
@@ -23,7 +21,6 @@ import org.testng.annotations.BeforeMethod;
 import org.testng.annotations.Test;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
@@ -45,49 +42,12 @@ public class SqlObjectMapperTest {
     }
 
     @Test
-    public void testNoOptionsReturnsDefaultAttributes() {
-        var selected = mapper.selectColumns(mapper.tablePath(), emptyOptions());
+    public void testSelectColumnsReturnsDefaultAttributes() {
+        var selected = mapper.selectColumns(mapper.tablePath());
 
         assertThat(attributeNames(selected))
                 .contains(Uid.NAME, Name.NAME, "display_name")
                 .doesNotContain("secret");
-    }
-
-    @Test
-    public void testRequestedAttributesReplaceDefaults() {
-        var options = new OperationOptionsBuilder()
-                .setAttributesToGet("SECRET")
-                .build();
-
-        var selected = mapper.selectColumns(mapper.tablePath(), options);
-
-        assertThat(attributeNames(selected))
-                .containsExactly(Uid.NAME, Name.NAME, "secret");
-    }
-
-    @Test
-    public void testRequestedAttributesCanBeAddedToDefaults() {
-        var options = new OperationOptionsBuilder()
-                .setAttributesToGet("secret")
-                .setReturnDefaultAttributes(true)
-                .build();
-
-        var selected = mapper.selectColumns(mapper.tablePath(), options);
-
-        assertThat(attributeNames(selected))
-                .contains(Uid.NAME, Name.NAME, "display_name", "secret");
-    }
-
-    @Test
-    public void testDefaultsCanBeDisabledAndDuplicatePathsAreRemoved() {
-        var options = new OperationOptionsBuilder()
-                .setReturnDefaultAttributes(false)
-                .build();
-
-        var selected = mapper.selectColumns(mapper.tablePath(), options);
-
-        assertThat(attributeNames(selected)).containsExactly(Uid.NAME, Name.NAME);
-        assertThat(mapper.onlyPaths(selected)).hasSize(1);
     }
 
     private SqlObjectClassDefinition objectClassDefinition() {
@@ -109,10 +69,6 @@ public class SqlObjectMapperTest {
         return schemaBuilder.build().objectClasses().stream()
                 .findFirst()
                 .orElseThrow();
-    }
-
-    private OperationOptions emptyOptions() {
-        return new OperationOptions(Collections.emptyMap());
     }
 
     private List<String> attributeNames(
