@@ -283,7 +283,7 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
         public List<Object> valuesFromAttribute(Object value) {
             if (value == null) return Collections.emptyList();
             if (value instanceof String s) {
-                var parts = s.split(Pattern.quote(delimiter), additionalColumns.size() + 1);
+                var parts = splitParts(s);
                 var result = new ArrayList<Object>();
                 for (int i = 0; i < parts.length; i++) {
                     var part = parts[i].trim();
@@ -325,14 +325,7 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
                         return result;
                     }
                     // Split composite UID by delimiter.
-                    var uidValue = connIdValue.toString();
-                    var parts = uidValue.split(
-                            Pattern.quote(delimiter), self.additionalColumns.size() + 1);
-                    if (parts.length != self.additionalColumns.size() + 1) {
-                        throw new IllegalArgumentException(
-                                "UID has wrong number of parts: expected " + (self.additionalColumns.size() + 1) +
-                                        ", got " + parts.length);
-                    }
+                    var parts = self.splitParts(connIdValue);
                     BooleanExpression result = null;
                     for (int i = 0; i < parts.length; i++) {
                         SingleColumn col = (i == 0) ? self.mainColumn : self.additionalColumns.get(i - 1);
@@ -363,13 +356,7 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
                 return columns;
             }
 
-            var parts = connIdValue.toString().split(
-                    Pattern.quote(delimiter), additionalColumns.size() + 1);
-            if (parts.length != additionalColumns.size() + 1) {
-                throw new IllegalArgumentException(
-                        "UID has wrong number of parts: expected " + (additionalColumns.size() + 1)
-                                + ", got " + parts.length);
-            }
+            var parts = splitParts(connIdValue);
 
             columns.add(new ColumnValue(mainColumn.dslPath(table), mainColumn.toSqlValue(parts[0])));
             for (int i = 0; i < additionalColumns.size(); i++) {
@@ -381,5 +368,16 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
         }
 
         public Object toSqlValue(Object value) { return mainColumn.toSqlValue(value); }
+
+        private String[] splitParts(Object value) {
+            var parts = value.toString().split(Pattern.quote(delimiter), -1);
+            var expectedParts = additionalColumns.size() + 1;
+            if (parts.length != expectedParts) {
+                throw new IllegalArgumentException(
+                        "UID has wrong number of parts: expected " + expectedParts
+                                + ", got " + parts.length);
+            }
+            return parts;
+        }
     }
 }

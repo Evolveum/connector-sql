@@ -19,6 +19,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Tests for composite primary key UID mapping support — specifically
@@ -424,6 +425,52 @@ public class SqlCompositeUidTest {
                 .isEqualTo(42);
         assertThat(column.columnValues(table, null).getFirst().value())
                 .isNull();
+    }
+
+    @Test
+    public void testCompositeColumnValuesSplitAndConvertEveryPart() {
+        var main = stringToIntegerColumn("id");
+        var extra = stringToIntegerColumn("dept_id");
+        var composite = SqlAttributeMapping.multiColumn(main, List.of(extra), ".");
+        var table = new PathBuilder<>(Object.class, "test_table");
+
+        assertThat(composite.columnValues(table, "10.20"))
+                .extracting(SqlAttributeMapping.ColumnValue::value)
+                .containsExactly(10, 20);
+    }
+
+    @Test
+    public void testCompositeColumnValuesAssignNullToEveryPart() {
+        var main = stringToIntegerColumn("id");
+        var extra = stringToIntegerColumn("dept_id");
+        var composite = SqlAttributeMapping.multiColumn(main, List.of(extra), ".");
+        var table = new PathBuilder<>(Object.class, "test_table");
+
+        assertThat(composite.columnValues(table, null))
+                .extracting(SqlAttributeMapping.ColumnValue::value)
+                .containsExactly(null, null);
+    }
+
+    @Test
+    public void testCompositeColumnValuesRejectWrongPartCounts() {
+        var main = stringToIntegerColumn("id");
+        var extra = stringToIntegerColumn("dept_id");
+        var composite = SqlAttributeMapping.multiColumn(main, List.of(extra), ".");
+        var table = new PathBuilder<>(Object.class, "test_table");
+
+        assertThatThrownBy(() -> composite.columnValues(table, "10"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("expected 2, got 1");
+        assertThatThrownBy(() -> composite.columnValues(table, "10.20.30"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("expected 2, got 3");
+    }
+
+    private SqlAttributeMapping.SingleColumn stringToIntegerColumn(String name) {
+        return SqlAttributeMapping.singleColumn(
+                DefinitionValue.defaultFrom(name),
+                SqlSchemaValueMapping.INTEGER,
+                ValueTypeOverrideMapping.of(String.class, SqlSchemaValueMapping.INTEGER));
     }
 
     // ── 7. Builder pattern: MultiColumn via SqlAttributeBuilderImpl ───────
