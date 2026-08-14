@@ -8,7 +8,10 @@ package com.evolveum.polygon.sql.base.groovy.impl;
 
 import com.evolveum.polygon.conndev.groovy.BaseObjectOperationSupportBuilder;
 import com.evolveum.polygon.conndev.spi.ObjectClassOperation;
+import com.evolveum.polygon.conndev.spi.ObjectCreateOperation;
+import com.evolveum.polygon.conndev.spi.ObjectDeleteOperation;
 import com.evolveum.polygon.conndev.spi.ObjectSyncOperation;
+import com.evolveum.polygon.conndev.spi.ObjectUpdateOperation;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectOperationSupportBuilder;
@@ -93,6 +96,18 @@ public class SqlObjectOperationBuilderImpl extends BaseObjectOperationSupportBui
     @Override
     public SqlDeleteOperationBuilderImpl delete() {
         return delete;
+    }
+
+    public SqlObjectOperationBuilderImpl create(ObjectCreateOperation operation) {
+        return register(ObjectCreateOperation.class, operation);
+    }
+
+    public SqlObjectOperationBuilderImpl update(ObjectUpdateOperation operation) {
+        return register(ObjectUpdateOperation.class, operation);
+    }
+
+    public SqlObjectOperationBuilderImpl delete(ObjectDeleteOperation operation) {
+        return register(ObjectDeleteOperation.class, operation);
     }
 
     public <T extends ObjectClassOperation> SqlObjectOperationBuilderImpl register(

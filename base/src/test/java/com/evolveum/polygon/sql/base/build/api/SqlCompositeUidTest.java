@@ -7,6 +7,7 @@
 package com.evolveum.polygon.sql.base.build.api;
 
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
+import com.evolveum.polygon.conndev.schema.ValueTypeOverrideMapping;
 import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
 import com.querydsl.core.types.Path;
 import com.querydsl.core.types.dsl.PathBuilder;
@@ -408,6 +409,21 @@ public class SqlCompositeUidTest {
         assertThat(result).hasSize(2);
         assertThat(result.getFirst()).isEqualTo("5");
         assertThat(result.get(1)).isEqualTo("100");
+    }
+
+    @Test
+    public void testSingleColumnNullBypassesTypeOverrideConversion() {
+        var stringToInteger = ValueTypeOverrideMapping.of(
+                String.class, SqlSchemaValueMapping.INTEGER);
+        var column = SqlAttributeMapping.singleColumn(
+                DefinitionValue.defaultFrom("numeric_value"),
+                SqlSchemaValueMapping.INTEGER, stringToInteger);
+        var table = new PathBuilder<>(Object.class, "test_table");
+
+        assertThat(column.columnValues(table, "42").getFirst().value())
+                .isEqualTo(42);
+        assertThat(column.columnValues(table, null).getFirst().value())
+                .isNull();
     }
 
     // ── 7. Builder pattern: MultiColumn via SqlAttributeBuilderImpl ───────

@@ -41,12 +41,16 @@ public class SoftDeleteFilterStrategy implements SyncFilterStrategy {
     public BooleanExpression applyTombstoneFilter(
             RelationalPathBase<?> path, ComparablePath<?> syncColumn, Object lastSyncValue) {
         var deleted = new PathBuilder<>(Object.class, deleteMarkerColumn).isNotNull();
-        if (lastSyncValue != null && ((Number) lastSyncValue).longValue() > 0) {
-            @SuppressWarnings("unchecked")
-            ComparablePath<Long> cp = (ComparablePath<Long>) syncColumn;
-            return deleted.and(cp.gt(((Number) lastSyncValue).longValue()));
+        if (lastSyncValue instanceof Comparable<?> comparable) {
+            return deleted.and(greaterThan(syncColumn, comparable));
         }
         return deleted;
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private BooleanExpression greaterThan(
+            ComparablePath<?> path, Comparable<?> value) {
+        return ((ComparablePath) path).gt((Comparable) value);
     }
 
     @Override

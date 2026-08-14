@@ -246,6 +246,9 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
         }
 
         public Object toSqlValue(Object connIdValue) {
+            if (connIdValue == null) {
+                return null;
+            }
             return valueMapping().toWireValue(connIdValue);
         }
 

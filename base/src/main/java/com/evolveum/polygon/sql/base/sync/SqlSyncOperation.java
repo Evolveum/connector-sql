@@ -16,6 +16,7 @@ import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.search.SqlSearchExecutor;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Path;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.ComparablePath;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.sql.RelationalPathBase;
@@ -23,9 +24,16 @@ import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.spi.SyncTokenResultsHandler;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 
 /**
@@ -49,27 +57,23 @@ public class SqlSyncOperation extends SqlSearchExecutor implements ObjectSyncOpe
         var syncColName = syncConfig.resolveSyncColumn(objectClass);
         Path<?> syncPath = syncColumnPath(path, syncColName);
         var syncFilter = syncConfig.filterStrategy().applySyncFilter(path);
-        ComparablePath<?> syncCmp = (ComparablePath<?>) syncPath;
+        var syncCmp = comparablePath(syncPath);
         var syncPoint = extractSyncValue(token);
 
-
-
         var attributes = selectColumns(path, options);
-        var allCols = onlyPaths(attributes).toArray(new Path[] {});
-
-
-        long latestValue = 0L;
+        var selectedPaths = new LinkedHashSet<>(onlyPaths(attributes));
+        selectedPaths.add(syncPath);
+        var allCols = selectedPaths.toArray(new Path[] {});
+        var latestValue = syncPoint;
 
         try (var conn = context.getConnection()) {
-            var jdbcConn = conn.getConnection();
             int pageSize = syncConfig.pageSize();
             int offset = 0;
             while (true) {
                 var query = conn.newQuery().select(allCols).from(path);
                 if (syncPoint != null) {
-                    @SuppressWarnings("unchecked")
-                    ComparablePath<Long> cp = (ComparablePath<Long>) syncCmp;
-                    query.where(cp.gt(((Number) syncPoint).longValue()));
+                    query.where(greaterThan(
+                            syncCmp, toColumnValue(syncPath, syncPoint)));
                 }
                 if (syncFilter != null) {
                     query.where(syncFilter);
@@ -80,8 +84,7 @@ public class SqlSyncOperation extends SqlSearchExecutor implements ObjectSyncOpe
                 var rows = query.fetch();
                 for (Tuple row : rows) {
                     var syncVal = row.get(syncPath);
-                    long val = syncVal == null ? 0L : toLong(syncVal);
-                    latestValue = Math.max(latestValue, val);
+                    latestValue = toTokenValue(syncVal);
 
                     var obj = buildConnectorObject(row, attributes);
                     var bld = new SyncDeltaBuilder();
@@ -116,7 +119,7 @@ public class SqlSyncOperation extends SqlSearchExecutor implements ObjectSyncOpe
         RelationalPathBase<?> path = objectClass.sql().pathAlias("sync");
         var syncColName = syncConfig.resolveSyncColumn(objectClass);
         Path<?> syncPath = syncColumnPath(path, syncColName);
-        ComparablePath<?> syncCmp = (ComparablePath<?>) syncPath;
+        var syncCmp = comparablePath(syncPath);
 
         try (var conn = context.getConnection()) {
             var maxVal = conn.newQuery()
@@ -127,7 +130,7 @@ public class SqlSyncOperation extends SqlSearchExecutor implements ObjectSyncOpe
             if (maxVal == null) {
                 return null;
             }
-            return new SyncToken(((Number) maxVal).longValue());
+            return new SyncToken(toTokenValue(maxVal));
         } catch (Exception e) {
             throw new ConnectorException("getLatestSyncToken failed: " + e.getMessage(), e);
         }
@@ -149,30 +152,86 @@ public class SqlSyncOperation extends SqlSearchExecutor implements ObjectSyncOpe
         return token.getValue();
     }
 
-    private long toLong(Object value) {
-        if (value == null) return 0L;
-        if (value instanceof Number n) return n.longValue();
-        if (value instanceof Timestamp t) return t.getTime();
-        if (value instanceof Date d) return d.getTime();
-        return 0L;
+    private Object toTokenValue(Object value) {
+        if (value instanceof Timestamp timestamp) {
+            return timestamp.getTime();
+        }
+        if (value instanceof Date date) {
+            return date.getTime();
+        }
+        if (value instanceof LocalTime time) {
+            return time.toString();
+        }
+        return value;
+    }
+
+    private Object toColumnValue(Path<?> syncPath, Object tokenValue) {
+        var columnType = syncPath.getType();
+        if (tokenValue == null || columnType.isInstance(tokenValue)) {
+            return tokenValue;
+        }
+        if (tokenValue instanceof Number number) {
+            if (columnType == Byte.class) return number.byteValue();
+            if (columnType == Short.class) return number.shortValue();
+            if (columnType == Integer.class) return number.intValue();
+            if (columnType == Long.class) return number.longValue();
+            if (columnType == Float.class) return number.floatValue();
+            if (columnType == Double.class) return number.doubleValue();
+            if (columnType == BigInteger.class) return new BigInteger(number.toString());
+            if (columnType == BigDecimal.class) return new BigDecimal(number.toString());
+            if (columnType == Timestamp.class) return new Timestamp(number.longValue());
+            if (columnType == Date.class) return new Date(number.longValue());
+            if (columnType == ZonedDateTime.class) {
+                return Instant.ofEpochMilli(number.longValue()).atZone(ZoneId.systemDefault());
+            }
+        }
+        if (columnType == LocalTime.class && tokenValue instanceof String string) {
+            return LocalTime.parse(string);
+        }
+        if (columnType == String.class) {
+            return tokenValue.toString();
+        }
+        throw new ConnectorException(
+                "Sync token value " + tokenValue + " cannot be converted to "
+                        + columnType.getSimpleName());
+    }
+
+    private ComparablePath<?> comparablePath(Path<?> path) {
+        if (!Comparable.class.isAssignableFrom(path.getType())) {
+            throw new ConnectorException(
+                    "Sync column " + path + " is not comparable");
+        }
+        return comparablePathUnchecked(path);
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private ComparablePath<?> comparablePathUnchecked(Path<?> path) {
+        return Expressions.comparablePath(
+                (Class<? extends Comparable>) path.getType(), path.getMetadata());
+    }
+
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private BooleanExpression greaterThan(ComparablePath<?> path, Object value) {
+        if (!(value instanceof Comparable comparable)) {
+            throw new ConnectorException(
+                    "Sync token value " + value + " is not comparable");
+        }
+        return ((ComparablePath) path).gt(comparable);
     }
 
     private void handleTombstones(RelationalPathBase<?> path, Path<?> syncPath,
-                                   long latestValue, SyncResultsHandler handler) {
+                                   Object latestValue, SyncResultsHandler handler) {
         var fs = syncConfig.filterStrategy();
 
         try (var conn = context.getConnection()) {
+            var syncCmp = comparablePath(syncPath);
             var tombstoneFilter = fs.applyTombstoneFilter(
-                    path, (ComparablePath<?>) syncPath, latestValue);
+                    path, syncCmp, toColumnValue(syncPath, latestValue));
             if (tombstoneFilter == null) return;
 
             var uidMapping = objectClass.attributeFromConnIdName(Uid.NAME);
             var columns = new ArrayList<>(uidMapping.sql().selectPaths(path));
             columns.add(syncPath);
-            @SuppressWarnings("unchecked")
-            ComparablePath<?> syncCmp = (ComparablePath<?>) syncPath;
-
-
             List<Tuple> tombstones = conn.newQuery()
                     .select(columns.toArray(new Path[]{}))
                     .from(path)
@@ -183,10 +242,10 @@ public class SqlSyncOperation extends SqlSearchExecutor implements ObjectSyncOpe
             for (Tuple row : tombstones) {
                 var uid = (String) uidMapping.sql().singleValueFromObject(new SqlTuple(path, row));
                 var syncVal = row.get(syncPath);
-                long tombstoneVal = syncVal == null ? latestValue : toLong(syncVal);
+                var tombstoneVal = syncVal == null ? latestValue : toTokenValue(syncVal);
 
                 var bld = new SyncDeltaBuilder();
-                bld.setToken(new SyncToken(tombstoneVal > 0 ? tombstoneVal : latestValue));
+                bld.setToken(new SyncToken(tombstoneVal));
                 bld.setDeltaType(SyncDeltaType.DELETE);
                 bld.setUid(new Uid(uid));
                 bld.setObjectClass(objectClass.objectClass());

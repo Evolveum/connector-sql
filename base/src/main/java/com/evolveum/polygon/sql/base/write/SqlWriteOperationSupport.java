@@ -35,6 +35,7 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -373,12 +374,36 @@ abstract class SqlWriteOperationSupport extends SqlSearchExecutor {
         return null;
     }
 
-    private boolean isDuplicate(SQLException exception) {
-        return "23505".equals(exception.getSQLState())
-                || exception.getErrorCode() == 1
-                || exception.getErrorCode() == 1062
-                || exception.getErrorCode() == 2601
-                || exception.getErrorCode() == 2627;
+    static boolean isDuplicate(SQLException exception) {
+        var sqlState = exception.getSQLState();
+        var errorCode = exception.getErrorCode();
+
+        if ("23505".equals(sqlState)) {
+            return true;
+        }
+        if (errorCode == 1) {
+            // Oracle ORA-00001 uses code 1 with the integrity-constraint SQL state.
+            // SQLite also uses code 1, but for ordinary SQL errors and without this state.
+            return "23000".equals(sqlState);
+        }
+        if (errorCode == 1062 || errorCode == 2601 || errorCode == 2627) {
+            return true;
+        }
+        var sqliteException = exception.getClass().getName().startsWith("org.sqlite.");
+        if (sqliteException && (errorCode == 1555 || errorCode == 2067)) {
+            return true;
+        }
+        if (sqliteException && errorCode == 19) {
+            // Xerial exposes SQLite's base constraint code, so distinguish duplicate
+            // constraints from NOT NULL, CHECK, and foreign-key failures by subtype text.
+            var message = Objects.toString(exception.getMessage(), "")
+                    .toUpperCase(Locale.ROOT);
+            return message.contains("SQLITE_CONSTRAINT_UNIQUE")
+                    || message.contains("SQLITE_CONSTRAINT_PRIMARYKEY")
+                    || message.contains("UNIQUE CONSTRAINT FAILED")
+                    || message.contains("PRIMARY KEY CONSTRAINT FAILED");
+        }
+        return false;
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
