@@ -6,14 +6,8 @@
  */
 package com.evolveum.polygon.sql.base.groovy.impl;
 
-import com.evolveum.polygon.conndev.build.api.CreateOperationBuilder;
-import com.evolveum.polygon.conndev.build.api.DeleteOperationBuilder;
-import com.evolveum.polygon.conndev.build.api.UpdateOperationBuilder;
-import com.evolveum.polygon.conndev.concepts.DefinitionValue;
-import com.evolveum.polygon.conndev.groovy.AbstractCreateOperationBuilder;
-import com.evolveum.polygon.conndev.groovy.AbstractDeleteOperationBuilder;
-import com.evolveum.polygon.conndev.groovy.AbstractUpdateOperationBuilder;
 import com.evolveum.polygon.conndev.groovy.BaseObjectOperationSupportBuilder;
+import com.evolveum.polygon.conndev.spi.ObjectClassOperation;
 import com.evolveum.polygon.conndev.spi.ObjectCreateOperation;
 import com.evolveum.polygon.conndev.spi.ObjectDeleteOperation;
 import com.evolveum.polygon.conndev.spi.ObjectUpdateOperation;
@@ -21,129 +15,109 @@ import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectOperationSupportBuilder;
 
+import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
+
 public class SqlObjectOperationBuilderImpl extends BaseObjectOperationSupportBuilder<
         SqlSearchOperationBuilderImpl,
-        AbstractCreateOperationBuilder,
-        AbstractUpdateOperationBuilder,
-        AbstractDeleteOperationBuilder
+        SqlCreateOperationBuilderImpl,
+        SqlUpdateOperationBuilderImpl,
+        SqlDeleteOperationBuilderImpl
         > implements SqlObjectOperationSupportBuilder {
 
     private final SqlSearchOperationBuilderImpl search;
-    private boolean createDisabled;
-    private boolean updateDisabled;
-    private boolean deleteDisabled;
+    private final SqlCreateOperationBuilderImpl create;
+    private final SqlUpdateOperationBuilderImpl update;
+    private final SqlDeleteOperationBuilderImpl delete;
 
     public SqlObjectOperationBuilderImpl(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
         super(context, objectClass);
         this.search = new SqlSearchOperationBuilderImpl(this, context, objectClass);
+        this.create = new SqlCreateOperationBuilderImpl(context, objectClass);
+        this.update = new SqlUpdateOperationBuilderImpl(context, objectClass);
+        this.delete = new SqlDeleteOperationBuilderImpl(context, objectClass);
 
+        if (Boolean.TRUE.equals(objectClass.getReadOnly())) {
+            disableCreate();
+            disableUpdate();
+            disableDelete();
+        }
     }
 
     public boolean isCreateDisabled() {
-        return createDisabled;
+        return !create.isEnabled();
     }
 
     public boolean isUpdateDisabled() {
-        return updateDisabled;
+        return !update.isEnabled();
     }
 
     public boolean isDeleteDisabled() {
-        return deleteDisabled;
+        return !delete.isEnabled();
     }
 
     @Override
     public SqlObjectOperationSupportBuilder disableCreate() {
-        this.createDisabled = true;
+        create.enabled(detected(false));
         return this;
     }
 
     @Override
     public SqlObjectOperationSupportBuilder disableUpdate() {
-        this.updateDisabled = true;
+        update.enabled(detected(false));
         return this;
     }
 
     @Override
     public SqlObjectOperationSupportBuilder disableDelete() {
-        this.deleteDisabled = true;
+        delete.enabled(detected(false));
         return this;
     }
 
     @Override
-     public SqlSearchOperationBuilderImpl search() {
-         return search;
-     }
+    public SqlSearchOperationBuilderImpl search() {
+        return search;
+    }
 
-     @Override
-     public AbstractCreateOperationBuilder create() {
-         // Not supported
-         return  new AbstractCreateOperationBuilder() {
-             @Override
-             public boolean isEnabled() {
-                 return false;
-             }
+    @Override
+    public SqlCreateOperationBuilderImpl create() {
+        return create;
+    }
 
-             @Override
-             public CreateOperationBuilder enabled(DefinitionValue<Boolean> value) {
-                 return null;
-             }
+    @Override
+    public SqlUpdateOperationBuilderImpl update() {
+        return update;
+    }
 
-             @Override
-             public ObjectCreateOperation build() {
-                 return null;
-             }
-         };
-     }
+    @Override
+    public SqlDeleteOperationBuilderImpl delete() {
+        return delete;
+    }
 
-     @Override
-     public AbstractUpdateOperationBuilder update() {
-         // Not supported
-        return new AbstractUpdateOperationBuilder() {
+    public SqlObjectOperationBuilderImpl create(ObjectCreateOperation operation) {
+        return register(ObjectCreateOperation.class, operation);
+    }
 
-            @Override
-            public ObjectUpdateOperation build() {
-                return null;
-            }
+    public SqlObjectOperationBuilderImpl update(ObjectUpdateOperation operation) {
+        return register(ObjectUpdateOperation.class, operation);
+    }
 
-            @Override
-            public boolean isEnabled() {
-                return false;
-            }
+    public SqlObjectOperationBuilderImpl delete(ObjectDeleteOperation operation) {
+        return register(ObjectDeleteOperation.class, operation);
+    }
 
-            @Override
-            public UpdateOperationBuilder enabled(DefinitionValue<Boolean> value) {
-                return null;
-            }
-        };
-     }
+    @Override
+    public <T extends ObjectClassOperation> SqlObjectOperationBuilderImpl register(
+            Class<T> operationType, T operation) {
+        registerOperation(operationType, operation);
+        return this;
+    }
 
-     @Override
-     public AbstractDeleteOperationBuilder delete() {
-         // Not supported
-        return new AbstractDeleteOperationBuilder() {
-             @Override
-             public boolean isEnabled() {
-                 return false;
-             }
+    @Override
+    public SqlObjectClassDefinition getObjectClass() {
+        return (SqlObjectClassDefinition) super.getObjectClass();
+    }
 
-             @Override
-             public DeleteOperationBuilder enabled(DefinitionValue<Boolean> value) {
-                 return null;
-             }
-
-             @Override
-             public ObjectDeleteOperation build() {
-                 return null;
-             }
-         };
-     }
-
-     @Override
-     public SqlObjectClassDefinition getObjectClass() {
-         return (SqlObjectClassDefinition) super.getObjectClass();
-     }
-
-     public SqlBaseContext getContext() {
-         return (SqlBaseContext) context;
-     }
- }
+    public SqlBaseContext getContext() {
+        return (SqlBaseContext) context;
+    }
+}

@@ -7,8 +7,12 @@
 package com.evolveum.polygon.sql.base.build.api;
 
 import com.evolveum.polygon.conndev.build.api.ObjectOperationSupportBuilder;
+import com.evolveum.polygon.conndev.spi.ObjectClassOperation;
 
 public interface SqlObjectOperationSupportBuilder extends ObjectOperationSupportBuilder {
+
+    <T extends ObjectClassOperation> SqlObjectOperationSupportBuilder register(
+            Class<T> operationType, T operation);
 
     /**
      * Disable the Create operation for this object class.

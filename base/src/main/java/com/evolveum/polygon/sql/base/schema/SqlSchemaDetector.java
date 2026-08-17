@@ -45,10 +45,11 @@ public class SqlSchemaDetector {
 
         try (var wrapper = context.getConnection()) {
             var meta = wrapper.getConnection().getMetaData();
-            var templatesFromRegistry = new SQLTemplatesRegistry().getTemplates(meta);
-            if (templatesFromRegistry == null) {
-                templatesFromRegistry = SQLTemplates.DEFAULT;
-            }
+            var templatesBuilder = new SQLTemplatesRegistry().getBuilder(meta);
+            // Preserve discovered schemas and case-sensitive identifiers in generated SQL.
+            var templatesFromRegistry = templatesBuilder != null
+                    ? templatesBuilder.printSchema().quote().build()
+                    : SQLTemplates.DEFAULT;
 
             // For H2, use H2Templates with no quoting - unqualified column paths avoid table.column issues
             var productName = meta.getDatabaseProductName();

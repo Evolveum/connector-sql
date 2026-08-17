@@ -65,7 +65,16 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
 
     Collection<Path<?>> selectPaths(Path<?> table);
 
+    /**
+     * Converts a ConnId attribute value into the physical column assignments used by SQL DML.
+     * A regular attribute produces one assignment; a composite UID produces one per key column.
+     */
+    List<ColumnValue> columnValues(Path<?> table, Object connIdValue);
+
     DefinitionValue<String> column();
+
+    record ColumnValue(Path<?> path, Object value) {
+    }
 
     interface FilterSupport {
 
@@ -231,7 +240,15 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
             return List.of(dslPath(table));
         }
 
+        @Override
+        public List<ColumnValue> columnValues(Path<?> table, Object connIdValue) {
+            return List.of(new ColumnValue(dslPath(table), toSqlValue(connIdValue)));
+        }
+
         public Object toSqlValue(Object connIdValue) {
+            if (connIdValue == null) {
+                return null;
+            }
             return valueMapping().toWireValue(connIdValue);
         }
 
@@ -266,7 +283,7 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
         public List<Object> valuesFromAttribute(Object value) {
             if (value == null) return Collections.emptyList();
             if (value instanceof String s) {
-                var parts = s.split(Pattern.quote(delimiter), additionalColumns.size() + 1);
+                var parts = splitParts(s);
                 var result = new ArrayList<Object>();
                 for (int i = 0; i < parts.length; i++) {
                     var part = parts[i].trim();
@@ -301,18 +318,14 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
                 @Override
                 public BooleanExpression eq(RelationalPathBase<?> tp, Object connIdValue) {
                     if (connIdValue == null) {
-                        var r = (BooleanExpression) self.mainColumn.dslPath(tp);
-                        for (SingleColumn ac : self.additionalColumns) { r = r.and((BooleanExpression) ac.dslPath(tp)); }
-                        return r.isNull();
+                        var result = self.mainColumn.sqlFilter().eq(tp, null);
+                        for (var additionalColumn : self.additionalColumns) {
+                            result = result.and(additionalColumn.sqlFilter().eq(tp, null));
+                        }
+                        return result;
                     }
                     // Split composite UID by delimiter.
-                    var uidValue = connIdValue.toString();
-                    var parts = uidValue.split(delimiter, self.additionalColumns.size() + 1);
-                    if (parts.length != self.additionalColumns.size() + 1) {
-                        throw new IllegalArgumentException(
-                                "UID has wrong number of parts: expected " + (self.additionalColumns.size() + 1) +
-                                        ", got " + parts.length);
-                    }
+                    var parts = self.splitParts(connIdValue);
                     BooleanExpression result = null;
                     for (int i = 0; i < parts.length; i++) {
                         SingleColumn col = (i == 0) ? self.mainColumn : self.additionalColumns.get(i - 1);
@@ -332,6 +345,39 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
             return paths;
         }
 
+        @Override
+        public List<ColumnValue> columnValues(Path<?> table, Object connIdValue) {
+            var columns = new ArrayList<ColumnValue>();
+            if (connIdValue == null) {
+                columns.add(new ColumnValue(mainColumn.dslPath(table), null));
+                for (var additionalColumn : additionalColumns) {
+                    columns.add(new ColumnValue(additionalColumn.dslPath(table), null));
+                }
+                return columns;
+            }
+
+            var parts = splitParts(connIdValue);
+
+            columns.add(new ColumnValue(mainColumn.dslPath(table), mainColumn.toSqlValue(parts[0])));
+            for (int i = 0; i < additionalColumns.size(); i++) {
+                var additionalColumn = additionalColumns.get(i);
+                columns.add(new ColumnValue(
+                        additionalColumn.dslPath(table), additionalColumn.toSqlValue(parts[i + 1])));
+            }
+            return columns;
+        }
+
         public Object toSqlValue(Object value) { return mainColumn.toSqlValue(value); }
+
+        private String[] splitParts(Object value) {
+            var parts = value.toString().split(Pattern.quote(delimiter), -1);
+            var expectedParts = additionalColumns.size() + 1;
+            if (parts.length != expectedParts) {
+                throw new IllegalArgumentException(
+                        "UID has wrong number of parts: expected " + expectedParts
+                                + ", got " + parts.length);
+            }
+            return parts;
+        }
     }
 }
