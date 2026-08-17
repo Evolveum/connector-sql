@@ -310,7 +310,6 @@ public class SqlCompositeUidTest {
         var result = (SqlAttributeMapping.MultiColumn) mBuilder.build();
         assertThat(result.additionalColumns()).hasSize(2);
     }
-<<<<<<< HEAD
 
     @Test
     public void testBuilderDefaultDelimiter() {

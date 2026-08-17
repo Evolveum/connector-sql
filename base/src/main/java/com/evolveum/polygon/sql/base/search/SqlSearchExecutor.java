@@ -38,6 +38,11 @@ public class SqlSearchExecutor {
     }
 
     public void execute(Filter filter, ResultsHandler resultsHandler, OperationOptions options) {
+        execute(filter, resultsHandler, options, null);
+    }
+
+    public void execute(Filter filter, ResultsHandler resultsHandler, OperationOptions options,
+                        BooleanExpression additionalPredicate) {
         var tablePath = objectClass.sql().pathAlias("o");
         var selectedAttributes = selectColumns(tablePath);
 
@@ -46,6 +51,7 @@ public class SqlSearchExecutor {
             int offset = 0;
             BooleanExpression predicate =
                     SqlFilterTranslator.translate(objectClass, tablePath, filter);
+            predicate = combinePredicate(predicate, additionalPredicate);
             var columns = onlyPaths(selectedAttributes).toArray(new Path[0]);
 
             while (true) {
@@ -76,6 +82,16 @@ public class SqlSearchExecutor {
                 }
             }
         }
+    }
+
+    protected static BooleanExpression combinePredicate(BooleanExpression a, BooleanExpression b) {
+        if (a != null && b != null) {
+            return a.and(b);
+        }
+        if (a != null) {
+            return a;
+        }
+        return b;
     }
 
     protected RelationalPathBase<?> getTablePath() {
