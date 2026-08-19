@@ -9,6 +9,13 @@
 :icons: font
 :source-highlighter: coderay
 
+IMPORTANT: This document is *deprecated* and no longer maintained.
+The SQL Framework documentation has moved to the midPoint documentation
+at link:https://docs.evolveum.com/connectors/sql-framework/[/connectors/sql-framework/]
+(sources: `docs/connectors/sql-framework/` in the documentation repository).
+Some content below is outdated — parts of it reference classes or DSL blocks
+that no longer exist or are not yet implemented.
+
 Complete reference documentation for the Polygon SQL Connector. Covers the Groovy DSL, configuration, sync strategies, filter support, and JDBC compatibility.
 
 [[groovy-schema-dsl]]

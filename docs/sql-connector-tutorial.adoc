@@ -8,7 +8,14 @@
 :sectnumlevels: 4
 :icons: font
 
-This tutorial guides you through building a customized SQL connector using Groovy scripts and a manifest file. You will learn how to map SQL tables to ConnId object classes, define attributes, configure synchronization, and package everything for deployment.
+IMPORTANT: This document is *deprecated* and no longer maintained.
+The SQL Framework documentation has moved to the midPoint documentation
+at link:https://docs.evolveum.com/connectors/sql-framework/[/connectors/sql-framework/]
+(sources: `docs/connectors/sql-framework/` in the documentation repository).
+Some content below is outdated — parts of it reference classes or DSL blocks
+that no longer exist or are not yet implemented.
+
+The original tutorial follows below. It guides you through building a customized SQL connector using Groovy scripts and a manifest file. You will learn how to map SQL tables to ConnId object classes, define attributes, configure synchronization, and package everything for deployment.
 
 [[prerequisites]]
 == Prerequisites
