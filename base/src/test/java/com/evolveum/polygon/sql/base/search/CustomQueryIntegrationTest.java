@@ -200,11 +200,11 @@ public class CustomQueryIntegrationTest
             """;
 
     private static final String CREATE_SCHEMA_SQL = """
-            DROP TABLE IF EXISTS filter_ne;
-            DROP TABLE IF EXISTS multifilter;
-            DROP TABLE IF EXISTS custom_filter;
-            DROP TABLE IF EXISTS builtin_table;
-            DROP TABLE IF EXISTS accounts;
+            DROP TABLE IF EXISTS filter_ne CASCADE;
+            DROP TABLE IF EXISTS multifilter CASCADE;
+            DROP TABLE IF EXISTS custom_filter CASCADE;
+            DROP TABLE IF EXISTS builtin_table CASCADE;
+            DROP TABLE IF EXISTS accounts CASCADE;
 
             CREATE TABLE accounts (
                 id INT PRIMARY KEY AUTO_INCREMENT,

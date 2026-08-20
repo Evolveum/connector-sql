@@ -253,9 +253,9 @@ public class CustomSearchIntegrationTest
     // ── Test DDL + data ──
 
     private static final String CREATE_SCHEMA_SQL = """
-            DROP TABLE IF EXISTS accounts;
-            DROP TABLE IF EXISTS public_users;
-            DROP TABLE IF EXISTS users;
+            DROP TABLE IF EXISTS accounts CASCADE;
+            DROP TABLE IF EXISTS public_users CASCADE;
+            DROP TABLE IF EXISTS users CASCADE;
 
             CREATE TABLE users (
                 id       INT PRIMARY KEY AUTO_INCREMENT,
