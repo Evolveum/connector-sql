@@ -9,6 +9,7 @@ package com.evolveum.polygon.sql.base.search;
 import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
+import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
 import com.evolveum.polygon.sql.base.test.PostgresDatabaseInitializer;
@@ -115,5 +116,54 @@ public class SqlSearchOperationPostgresTest {
         assertThat(search("app_role")).isNotEmpty();
         assertThat(search("project")).isNotEmpty();
         assertThat(search("projectmembership")).isNotEmpty();
+    }
+
+    @Test
+    public void testDevelopmentMetadataUsesPostgresValues() throws Exception {
+        var schemaNames = connector.schema().getObjectClassInfo().stream()
+                .map(ObjectClassInfo::getType)
+                .toList();
+        assertThat(schemaNames).contains(SqlDevelopmentMode.TABLE_OC_NAME);
+
+        var tables = search(SqlDevelopmentMode.TABLE_OC_NAME);
+        var appUser = tableNamed(tables, "app_user");
+        var userAddress = tableNamed(tables, "useraddress");
+
+        assertThat(appUser.getUid().getUidValue()).isEqualTo("postgres.public.app_user");
+        assertThat(attributeValue(appUser, SqlDevelopmentMode.CATALOG_ATTRIBUTE)).isEqualTo("postgres");
+        assertThat(attributeValue(appUser, SqlDevelopmentMode.SCHEMA_ATTRIBUTE)).isEqualTo("public");
+        assertThat(attributeValue(appUser, SqlDevelopmentMode.TABLE_TYPE_ATTRIBUTE)).isEqualTo("TABLE");
+        assertThat((String) attributeValue(appUser, SqlDevelopmentMode.TABLE_CONTENT_ATTRIBUTE))
+                .contains("\"name\" : \"id\"")
+                .contains("\"typeName\" : \"SERIAL\"")
+                .contains("\"primaryKey\" : true")
+                .contains("\"autoIncrement\" : true")
+                .contains("\"defaultValue\" : null");
+        assertThat((String) attributeValue(userAddress, SqlDevelopmentMode.TABLE_CONTENT_ATTRIBUTE))
+                .contains("\"referencedTable\" : \"app_user\"")
+                .contains("\"foreignKeyName\" : \"fk_user_address_user\"");
+    }
+
+    @Test
+    public void testDevelopmentMetadataExportsPostgresView() throws Exception {
+        var view = tableNamed(search(SqlDevelopmentMode.TABLE_OC_NAME), "user_overview");
+
+        assertThat(view.getName().getNameValue()).isEqualTo("user_overview");
+        assertThat(attributeValue(view, SqlDevelopmentMode.SCHEMA_ATTRIBUTE)).isEqualTo("public");
+        assertThat(attributeValue(view, SqlDevelopmentMode.TABLE_TYPE_ATTRIBUTE)).isEqualTo("VIEW");
+        assertThat((String) attributeValue(view, SqlDevelopmentMode.TABLE_CONTENT_ATTRIBUTE))
+                .contains("\"tableType\" : \"VIEW\"")
+                .contains("\"name\" : \"username\"");
+    }
+
+    private static ConnectorObject tableNamed(List<ConnectorObject> tables, String name) {
+        return tables.stream()
+                .filter(table -> table.getName().getNameValue().equals(name))
+                .findFirst()
+                .orElseThrow();
+    }
+
+    private static Object attributeValue(ConnectorObject object, String name) {
+        return AttributeUtil.getSingleValue(object.getAttributeByName(name));
     }
 }
