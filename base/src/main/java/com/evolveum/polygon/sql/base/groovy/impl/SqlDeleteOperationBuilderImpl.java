@@ -14,7 +14,7 @@ import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.write.SqlDeleteOperation;
 
-public final class SqlDeleteOperationBuilderImpl extends AbstractDeleteOperationBuilder {
+public final class SqlDeleteOperationBuilderImpl extends AbstractDeleteOperationBuilder<SqlObjectClassDefinition> {
 
     private final SqlBaseContext context;
     private final SqlObjectClassDefinition objectClass;

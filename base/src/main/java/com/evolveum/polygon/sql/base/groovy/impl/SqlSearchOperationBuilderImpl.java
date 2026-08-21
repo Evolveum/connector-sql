@@ -23,7 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
-public class SqlSearchOperationBuilderImpl extends AbstractSearchOperationBuilder implements SqlSearchOperationBuilder {
+public class SqlSearchOperationBuilderImpl extends AbstractSearchOperationBuilder<SqlObjectClassDefinition> implements SqlSearchOperationBuilder {
 
 
     private final BuiltInBuilder builtIn = new BuiltInBuilder();

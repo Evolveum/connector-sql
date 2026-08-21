@@ -21,7 +21,8 @@ public class SqlObjectOperationBuilderImpl extends BaseObjectOperationSupportBui
         SqlSearchOperationBuilderImpl,
         SqlCreateOperationBuilderImpl,
         SqlUpdateOperationBuilderImpl,
-        SqlDeleteOperationBuilderImpl
+        SqlDeleteOperationBuilderImpl,
+        SqlObjectClassDefinition
         > implements SqlObjectOperationSupportBuilder {
 
     private final SqlSearchOperationBuilderImpl search;
@@ -110,11 +111,6 @@ public class SqlObjectOperationBuilderImpl extends BaseObjectOperationSupportBui
             Class<T> operationType, T operation) {
         registerOperation(operationType, operation);
         return this;
-    }
-
-    @Override
-    public SqlObjectClassDefinition getObjectClass() {
-        return (SqlObjectClassDefinition) super.getObjectClass();
     }
 
     public SqlBaseContext getContext() {

@@ -14,7 +14,7 @@ import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.write.SqlCreateOperation;
 
-public final class SqlCreateOperationBuilderImpl extends AbstractCreateOperationBuilder {
+public final class SqlCreateOperationBuilderImpl extends AbstractCreateOperationBuilder<SqlObjectClassDefinition> {
 
     private final SqlBaseContext context;
     private final SqlObjectClassDefinition objectClass;
