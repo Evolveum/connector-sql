@@ -16,31 +16,19 @@ import com.querydsl.sql.RelationalPathBase;
 import groovy.lang.Closure;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
-import org.identityconnectors.framework.common.objects.ObjectClassInfo;
-import org.identityconnectors.framework.common.objects.SchemaBuilder;
+import org.identityconnectors.framework.common.objects.Schema;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Connector;
 
 import java.util.*;
 
 public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl, SqlObjectClassSchemaBuilderImpl,
-        SqlSchemaBuilder, SqlObjectClassSchemaBuilder> implements SqlSchemaBuilder {
+        SqlSchemaBuilder, SqlObjectClassSchemaBuilder, SqlObjectClassDefinition, SqlSchema> implements SqlSchemaBuilder {
 
     private Boolean onlyExplicitlyListed = false;
-    private final List<ObjectClassInfo> additionalObjectClasses = new ArrayList<>();
 
     public SqlSchemaBuilderImpl(Class<? extends Connector> connectorClass, ContextLookup context) {
         super(connectorClass, context);
-    }
-
-    /**
-     * Adds a ready-made ConnId object class (e.g. the shared conndev dev object classes defined in
-     * {@code ConnDevSchema}, or SQL's own {@code sql} protocol-specific block) to the schema, alongside
-     * the mapped object classes.
-     */
-    public SqlSchemaBuilderImpl defineObjectClass(ObjectClassInfo objectClass) {
-        additionalObjectClasses.add(objectClass);
-        return this;
     }
 
     @Override
@@ -90,30 +78,18 @@ public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl
     }
 
     @Override
-    public SqlSchema build() {
-        if (objectClasses.isEmpty()) {
-            if (!Boolean.TRUE.equals(onlyExplicitlyListed)) {
-                @SuppressWarnings("unchecked")
-                var oc = (SqlObjectClassSchemaBuilderImpl) objectClass("__Dummy");
-                oc.attribute("id").connId().name(Uid.NAME).type(String.class);
-                oc.attribute("name").connId().name(Name.NAME).type(String.class);
-            }
+    protected void initializeDummySchema() {
+        if (Boolean.TRUE.equals(onlyExplicitlyListed)) {
+            return;
         }
+        var oc = objectClass("__Dummy");
+        oc.attribute("id").connId().name(Uid.NAME).type(String.class);
+        oc.attribute("name").connId().name(Name.NAME).type(String.class);
+    }
 
-        var freshSchemaBuilder = new SchemaBuilder(connectorClass);
-        Map<ObjectClass, SqlObjectClassDefinition> sqlObjectClassMap = new HashMap<>();
-
-        for (SqlObjectClassSchemaBuilderImpl obc : objectClasses.values()) {
-            var def = obc.build();
-            freshSchemaBuilder.defineObjectClass(def.connId());
-            sqlObjectClassMap.put(def.objectClass(), def);
-        }
-        for (var info : additionalObjectClasses) {
-            freshSchemaBuilder.defineObjectClass(info);
-        }
-
-        var connIdSchema = freshSchemaBuilder.build();
-        return new SqlSchema(connIdSchema, sqlObjectClassMap);
+    @Override
+    protected SqlSchema newSchema(Schema connIdSchema, Map<ObjectClass, SqlObjectClassDefinition> objectClassMap) {
+        return new SqlSchema(connIdSchema, objectClassMap);
     }
 
     /**
