@@ -32,7 +32,13 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-/** Search handler that exposes raw JDBC table and column metadata in development mode. */
+/**
+ * Search handler that exposes raw JDBC table and column metadata in development mode.
+ *
+ * <p>Unlike {@link SqlObjectClassDevHandler}, which exposes the translated connector model, this
+ * handler preserves the database-oriented structure. It reads the stored discovery snapshot from
+ * {@link SqlBaseContext}; searching this object class does not perform another JDBC schema scan.</p>
+ */
 public class SqlTableDevHandler implements ObjectSearchOperation {
 
     private static final ObjectClass OBJECT_CLASS = new ObjectClass(SqlDevelopmentMode.TABLE_OC_NAME);

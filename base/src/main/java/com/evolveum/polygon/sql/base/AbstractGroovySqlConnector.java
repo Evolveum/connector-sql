@@ -180,6 +180,8 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
             additional.add(SqlDevelopmentMode.tableObjectClassInfo());
         }
 
+        // Detect the database structure once. The same snapshot is translated into the normal
+        // connector schema and, in development mode, exposed as raw conndev_SqlTable metadata.
         List<SqlTableInfo> tables;
         try {
             if (tableFilter.isDiscoveryEnabled()) {
