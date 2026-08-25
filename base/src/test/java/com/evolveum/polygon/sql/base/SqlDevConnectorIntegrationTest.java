@@ -38,7 +38,10 @@ public class SqlDevConnectorIntegrationTest
     protected String schemaSql() {
         return """
                 DROP ALL OBJECTS;
-                CREATE TABLE app_user (id INT PRIMARY KEY AUTO_INCREMENT, username VARCHAR(50) NOT NULL);
+                CREATE TABLE app_user (id INT PRIMARY KEY AUTO_INCREMENT,
+                    username VARCHAR(50) DEFAULT 'anonymous' NOT NULL);
+                COMMENT ON TABLE app_user IS 'Application users';
+                COMMENT ON COLUMN app_user.username IS 'Application login name';
                 CREATE TABLE app_group (id INT PRIMARY KEY AUTO_INCREMENT, name VARCHAR(50));
                 CREATE TABLE membership (id INT PRIMARY KEY AUTO_INCREMENT, user_id INT NOT NULL,
                     CONSTRAINT fk_m_user FOREIGN KEY (user_id) REFERENCES app_user(id));
@@ -89,6 +92,18 @@ public class SqlDevConnectorIntegrationTest
                 .contains("\"primaryKey\" : true")
                 .contains("\"referencedTable\" : \"APP_USER\"")
                 .contains("\"foreignKeyName\" : \"FK_M_USER\"");
+    }
+
+    @Test
+    public void exportsTableAndColumnDescriptionsAndDefaults() throws Exception {
+        var appUser = tableNamed(search(SqlDevelopmentMode.TABLE_OC_NAME, null), "app_user");
+        var content = (String) getAttr(appUser, SqlDevelopmentMode.TABLE_CONTENT_ATTRIBUTE);
+
+        assertThat(getAttr(appUser, SqlDevelopmentMode.REMARKS_ATTRIBUTE)).isEqualTo("Application users");
+        assertThat(content)
+                .contains("\"remarks\" : \"Application users\"")
+                .contains("\"defaultValue\" : \"'anonymous'\"")
+                .contains("\"remarks\" : \"Application login name\"");
     }
 
     @Test

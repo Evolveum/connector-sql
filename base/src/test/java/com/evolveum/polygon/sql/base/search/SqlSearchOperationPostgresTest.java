@@ -133,12 +133,15 @@ public class SqlSearchOperationPostgresTest {
         assertThat(attributeValue(appUser, SqlDevelopmentMode.CATALOG_ATTRIBUTE)).isEqualTo("postgres");
         assertThat(attributeValue(appUser, SqlDevelopmentMode.SCHEMA_ATTRIBUTE)).isEqualTo("public");
         assertThat(attributeValue(appUser, SqlDevelopmentMode.TABLE_TYPE_ATTRIBUTE)).isEqualTo("TABLE");
+        assertThat(attributeValue(appUser, SqlDevelopmentMode.REMARKS_ATTRIBUTE)).isEqualTo("Application users");
         assertThat((String) attributeValue(appUser, SqlDevelopmentMode.TABLE_CONTENT_ATTRIBUTE))
                 .contains("\"name\" : \"id\"")
                 .contains("\"typeName\" : \"SERIAL\"")
                 .contains("\"primaryKey\" : true")
                 .contains("\"autoIncrement\" : true")
-                .contains("\"defaultValue\" : null");
+                .contains("\"defaultValue\" : \"nextval('app_user_id_seq'::regclass)\"")
+                .contains("unknown@example.com")
+                .contains("\"remarks\" : \"Primary email address\"");
         assertThat((String) attributeValue(userAddress, SqlDevelopmentMode.TABLE_CONTENT_ATTRIBUTE))
                 .contains("\"referencedTable\" : \"app_user\"")
                 .contains("\"foreignKeyName\" : \"fk_user_address_user\"");

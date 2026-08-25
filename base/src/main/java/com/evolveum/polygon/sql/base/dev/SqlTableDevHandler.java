@@ -137,6 +137,7 @@ public class SqlTableDevHandler implements ObjectSearchOperation {
         content.put("primaryKey", column.isPrimaryKey());
         content.put("unique", column.isUnique());
         content.put("defaultValue", column.getDefaultValue());
+        content.put("remarks", column.getRemarks());
         content.put("autoIncrement", column.isAutoIncrement());
         content.put("referencedTable", column.getReferencedTable());
         content.put("referencedColumn", column.getReferencedColumn());

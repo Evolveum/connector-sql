@@ -108,6 +108,7 @@ public class SqlSchemaDetector {
                         .name(entry.getKey().table())
                         .tableType(entry.getKey().tableType() != null ? entry.getKey().tableType() : "TABLE")
                         .catalog(entry.getKey().catalog())
+                        .remarks(entry.getKey().remarks())
                         .columns(entry.getValue())
                         .build());
             }
@@ -134,27 +135,33 @@ public class SqlSchemaDetector {
 
             // Build a lookup of actual table schemas from JDBC metadata
             // (needed because user may provide empty schema but actual schema is e.g. "PUBLIC")
-            Map<String, String> tableToSchema = new HashMap<>();
+            Map<String, Table> tablesByName = new HashMap<>();
+            Map<String, Table> tablesByQualifiedName = new HashMap<>();
             try (var rs = conn.getMetaData().getTables(null, null, "%", new String[]{"TABLE", "VIEW"})) {
                 var meta = rs.getMetaData();
                 while (rs.next()) {
                     var schema = resolveColumn(rs, meta, "TABLE_SCHEM");
                     var name = resolveColumn(rs, meta, "TABLE_NAME");
                     if (name != null) {
-                        tableToSchema.put(name, schema);
+                        var table = new Table(
+                                schema,
+                                name,
+                                resolveColumn(rs, meta, "TABLE_TYPE"),
+                                resolveColumn(rs, meta, "TABLE_CAT"),
+                                resolveColumn(rs, meta, "REMARKS"));
+                        tablesByName.put(name, table);
+                        tablesByQualifiedName.put(tableKey(schema, name), table);
                     }
                 }
             }
 
             for (TableRef ref : refs) {
-                var actualSchema = ref.schema();
-                if (actualSchema == null || actualSchema.isEmpty()) {
-                    var resolved = tableToSchema.get(ref.table());
-                    if (resolved != null) {
-                        actualSchema = resolved;
-                    }
+                var table = ref.schema() == null || ref.schema().isEmpty()
+                        ? tablesByName.get(ref.table())
+                        : tablesByQualifiedName.get(tableKey(ref.schema(), ref.table()));
+                if (table == null) {
+                    table = new Table(ref.schema(), ref.table(), "TABLE", null, null);
                 }
-                var table = new Table(actualSchema, ref.table(), "TABLE", null);
                 List<SqlColumnMeta> cols = getColumnMetas(conn, table);
                 if (!cols.isEmpty()) {
                     colMap.put(table, cols);
@@ -166,8 +173,9 @@ public class SqlSchemaDetector {
                 tables.add(SqlTableInfo.builder()
                         .schema(entry.getKey().schema())
                         .name(entry.getKey().table())
-                        .tableType("TABLE")
-                        .catalog(null)
+                        .tableType(entry.getKey().tableType() != null ? entry.getKey().tableType() : "TABLE")
+                        .catalog(entry.getKey().catalog())
+                        .remarks(entry.getKey().remarks())
                         .columns(entry.getValue())
                         .build());
             }
@@ -199,7 +207,8 @@ public class SqlSchemaDetector {
                 if (name != null) {
                     var tableType = resolveColumn(rs, meta, "TABLE_TYPE");
                     var catalog = resolveColumn(rs, meta, "TABLE_CAT");
-                    names.add(new Table(schema, name, tableType, catalog));
+                    var remarks = resolveColumn(rs, meta, "REMARKS");
+                    names.add(new Table(schema, name, tableType, catalog, remarks));
                 }
             }
         }
@@ -259,6 +268,8 @@ public class SqlSchemaDetector {
                     int decimalDigits = resolveColumnDigits(colsRs);
                     var rawNullable = resolveColumn(colsRs, meta, "IS_NULLABLE");
                     var rawAutoInc = resolveColumn(colsRs, meta, "IS_AUTOINCREMENT");
+                    var defaultValue = resolveColumn(colsRs, meta, "COLUMN_DEF");
+                    var remarks = resolveColumn(colsRs, meta, "REMARKS");
 
                     boolean isPk = pkList.contains(colName);
 
@@ -282,7 +293,8 @@ public class SqlSchemaDetector {
                             .primaryKey(isPk)
                             .autoIncrement(isAutoInc(rawAutoInc))
                             .unique(isPk || uniqueCols.contains(colName))
-                            .defaultValue(null)
+                            .defaultValue(defaultValue)
+                            .remarks(remarks)
                             .build());
                 }
             }
@@ -470,5 +482,9 @@ public class SqlSchemaDetector {
         this.tableFilter = tableFilter;
     }
 
-    record Table(String schema, String table, String tableType, String catalog) {}
+    private static String tableKey(String schema, String table) {
+        return (schema != null ? schema : "") + '\0' + table;
+    }
+
+    record Table(String schema, String table, String tableType, String catalog, String remarks) {}
 }
