@@ -30,6 +30,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
     private String scanExcludeTables;
     private String scanExcludeViews;
     private String testConnectionQuery;
+    private String pgDumpPath = "pg_dump";
 
     @ConfigurationProperty(required = true, order = 0)
     public String getJdbcUrl() {
@@ -181,5 +182,18 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
 
     public void setTestConnectionQuery(String testConnectionQuery) {
         this.testConnectionQuery = testConnectionQuery;
+    }
+
+    /**
+     * Executable used to read native PostgreSQL table and view definitions in development mode.
+     * May be an absolute path or a command available on {@code PATH}. A blank value disables it.
+     */
+    @ConfigurationProperty(order = 110)
+    public String getPgDumpPath() {
+        return pgDumpPath;
+    }
+
+    public void setPgDumpPath(String pgDumpPath) {
+        this.pgDumpPath = pgDumpPath;
     }
 }

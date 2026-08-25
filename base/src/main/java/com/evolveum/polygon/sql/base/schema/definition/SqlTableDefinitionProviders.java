@@ -6,20 +6,23 @@
  */
 package com.evolveum.polygon.sql.base.schema.definition;
 
+import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
+
 import java.util.List;
 import java.util.Optional;
 
 /** Registry of database-specific table definition providers. */
 public final class SqlTableDefinitionProviders {
 
-    private static final List<SqlTableDefinitionProvider> PROVIDERS = List.of(
-            new H2SqlTableDefinitionProvider());
-
     private SqlTableDefinitionProviders() {
     }
 
-    public static Optional<SqlTableDefinitionProvider> find(String databaseProductName) {
-        return PROVIDERS.stream()
+    public static Optional<SqlTableDefinitionProvider> find(
+            String databaseProductName, SqlConnectorConfiguration configuration) {
+        return List.of(
+                        new H2SqlTableDefinitionProvider(),
+                        new PostgreSqlTableDefinitionProvider(configuration))
+                .stream()
                 .filter(provider -> provider.supports(databaseProductName))
                 .findFirst();
     }

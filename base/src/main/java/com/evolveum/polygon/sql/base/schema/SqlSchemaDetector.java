@@ -63,7 +63,7 @@ public class SqlSchemaDetector {
             templates = templatesFromRegistry;
             querydslConfig = new Configuration(templates);
             tableDefinitionProvider = context.getDevelopmentMode()
-                    ? SqlTableDefinitionProviders.find(productName).orElse(null)
+                    ? SqlTableDefinitionProviders.find(productName, context.configuration()).orElse(null)
                     : null;
         }
     }

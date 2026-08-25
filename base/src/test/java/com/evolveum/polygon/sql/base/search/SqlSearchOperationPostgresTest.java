@@ -20,6 +20,8 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.util.ArrayList;
@@ -41,6 +43,7 @@ public class SqlSearchOperationPostgresTest {
 
     private PostgresDatabaseInitializer postgres;
     private TestSqlConnector connector;
+    private Path pgDumpStub;
 
     private static class TestSqlConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
         TestSqlConnector() { super(false); }
@@ -72,6 +75,8 @@ public class SqlSearchOperationPostgresTest {
         config.setScanTables(true);
         config.setScanViews(true);
         config.setDevelopmentMode(true);
+        pgDumpStub = createPgDumpStub();
+        config.setPgDumpPath(pgDumpStub.toString());
 
         connector = new TestSqlConnector();
         connector.init(config);
@@ -81,11 +86,79 @@ public class SqlSearchOperationPostgresTest {
     public void tearDown() {
         if (connector != null) { connector.dispose(); connector = null; }
         if (postgres != null) { postgres.close(); postgres = null; }
+        if (pgDumpStub != null) {
+            try {
+                Files.deleteIfExists(pgDumpStub);
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to remove pg_dump test stub", e);
+            } finally {
+                pgDumpStub = null;
+            }
+        }
     }
 
     private static String readResource(String path) throws IOException {
         var is = Thread.currentThread().getContextClassLoader().getResourceAsStream(path);
         return new String(Objects.requireNonNull(is, "Resource not found: " + path).readAllBytes(), StandardCharsets.UTF_8);
+    }
+
+    private static Path createPgDumpStub() throws IOException {
+        var stub = Files.createTempFile("connector-sql-pg-dump-", ".sh");
+        Files.writeString(stub, """
+                #!/bin/sh
+                table=""
+                schema_only=0
+                native_url=0
+                no_password=0
+                for argument in "$@"; do
+                    case "$argument" in
+                        --table=*) table="${argument#--table=}" ;;
+                        --schema-only) schema_only=1 ;;
+                        --dbname=postgresql://*) native_url=1 ;;
+                        --no-password) no_password=1 ;;
+                    esac
+                done
+                if [ "$PGPASSWORD" != "postgres" ] || [ "$schema_only" -ne 1 ] \
+                        || [ "$native_url" -ne 1 ] || [ "$no_password" -ne 1 ] || [ -z "$table" ]; then
+                    echo "Invalid pg_dump invocation" >&2
+                    exit 9
+                fi
+                case "$table" in
+                    *user_overview*)
+                        cat <<'SQL'
+                CREATE VIEW "public"."user_overview" AS
+                 SELECT "app_user"."id",
+                    "app_user"."username",
+                    "app_user"."email",
+                    "app_user"."created_at"
+                   FROM "public"."app_user";
+                SQL
+                        ;;
+                    *app_user*)
+                        cat <<'SQL'
+                CREATE TABLE "public"."app_user" (
+                    "id" integer NOT NULL,
+                    "username" character varying(255) NOT NULL,
+                    "email" character varying(255) DEFAULT 'unknown@example.com'::character varying,
+                    "created_at" timestamp without time zone
+                );
+                ALTER TABLE ONLY "public"."app_user"
+                    ADD CONSTRAINT "app_user_pkey" PRIMARY KEY ("id");
+                SQL
+                        ;;
+                    *app_group*)
+                        echo "Simulated pg_dump failure" >&2
+                        exit 12
+                        ;;
+                    *)
+                        echo "-- native pg_dump definition for $table"
+                        ;;
+                esac
+                """, StandardCharsets.UTF_8);
+        if (!stub.toFile().setExecutable(true)) {
+            throw new IOException("Cannot make pg_dump test stub executable");
+        }
+        return stub;
     }
 
     private OperationOptions opts() {
@@ -127,6 +200,7 @@ public class SqlSearchOperationPostgresTest {
 
         var tables = search(SqlDevelopmentMode.TABLE_OC_NAME);
         var appUser = tableNamed(tables, "app_user");
+        var appGroup = tableNamed(tables, "app_group");
         var userAddress = tableNamed(tables, "useraddress");
 
         assertThat(appUser.getUid().getUidValue()).isEqualTo("postgres.public.app_user");
@@ -134,6 +208,11 @@ public class SqlSearchOperationPostgresTest {
         assertThat(attributeValue(appUser, SqlDevelopmentMode.SCHEMA_ATTRIBUTE)).isEqualTo("public");
         assertThat(attributeValue(appUser, SqlDevelopmentMode.TABLE_TYPE_ATTRIBUTE)).isEqualTo("TABLE");
         assertThat(attributeValue(appUser, SqlDevelopmentMode.REMARKS_ATTRIBUTE)).isEqualTo("Application users");
+        assertThat((String) attributeValue(appUser, SqlDevelopmentMode.DEFINITION_ATTRIBUTE))
+                .contains("CREATE TABLE \"public\".\"app_user\"")
+                .contains("ADD CONSTRAINT \"app_user_pkey\"")
+                .contains("DEFAULT 'unknown@example.com'::character varying");
+        assertThat(appGroup.getAttributeByName(SqlDevelopmentMode.DEFINITION_ATTRIBUTE)).isNull();
         assertThat((String) attributeValue(appUser, SqlDevelopmentMode.TABLE_CONTENT_ATTRIBUTE))
                 .contains("\"name\" : \"id\"")
                 .contains("\"typeName\" : \"SERIAL\"")
@@ -154,6 +233,9 @@ public class SqlSearchOperationPostgresTest {
         assertThat(view.getName().getNameValue()).isEqualTo("user_overview");
         assertThat(attributeValue(view, SqlDevelopmentMode.SCHEMA_ATTRIBUTE)).isEqualTo("public");
         assertThat(attributeValue(view, SqlDevelopmentMode.TABLE_TYPE_ATTRIBUTE)).isEqualTo("VIEW");
+        assertThat((String) attributeValue(view, SqlDevelopmentMode.DEFINITION_ATTRIBUTE))
+                .contains("CREATE VIEW \"public\".\"user_overview\" AS")
+                .contains("FROM \"public\".\"app_user\"");
         assertThat((String) attributeValue(view, SqlDevelopmentMode.TABLE_CONTENT_ATTRIBUTE))
                 .contains("\"tableType\" : \"VIEW\"")
                 .contains("\"name\" : \"username\"");
