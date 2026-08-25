@@ -8,6 +8,8 @@ package com.evolveum.polygon.sql.base.schema;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
+import com.evolveum.polygon.sql.base.schema.definition.SqlTableDefinitionProvider;
+import com.evolveum.polygon.sql.base.schema.definition.SqlTableDefinitionProviders;
 import com.querydsl.sql.Configuration;
 import com.querydsl.sql.H2Templates;
 import com.querydsl.sql.SQLTemplates;
@@ -40,6 +42,8 @@ public class SqlSchemaDetector {
 
     private final SQLTemplates templates;
 
+    private final SqlTableDefinitionProvider tableDefinitionProvider;
+
     public SqlSchemaDetector(SqlBaseContext context) throws SQLException {
         this.context = context;
 
@@ -58,6 +62,9 @@ public class SqlSchemaDetector {
             }
             templates = templatesFromRegistry;
             querydslConfig = new Configuration(templates);
+            tableDefinitionProvider = context.getDevelopmentMode()
+                    ? SqlTableDefinitionProviders.find(productName).orElse(null)
+                    : null;
         }
     }
 
@@ -109,6 +116,7 @@ public class SqlSchemaDetector {
                         .tableType(entry.getKey().tableType() != null ? entry.getKey().tableType() : "TABLE")
                         .catalog(entry.getKey().catalog())
                         .remarks(entry.getKey().remarks())
+                        .definition(readTableDefinition(conn, entry.getKey()))
                         .columns(entry.getValue())
                         .build());
             }
@@ -176,11 +184,25 @@ public class SqlSchemaDetector {
                         .tableType(entry.getKey().tableType() != null ? entry.getKey().tableType() : "TABLE")
                         .catalog(entry.getKey().catalog())
                         .remarks(entry.getKey().remarks())
+                        .definition(readTableDefinition(conn, entry.getKey()))
                         .columns(entry.getValue())
                         .build());
             }
             return tables;
 
+        }
+    }
+
+    /** Definition export is optional and must not prevent normal schema discovery. */
+    private String readTableDefinition(Connection connection, Table table) {
+        if (tableDefinitionProvider == null) {
+            return null;
+        }
+        try {
+            return tableDefinitionProvider.readDefinition(connection, table.catalog(), table.schema(),
+                    table.table(), table.tableType()).orElse(null);
+        } catch (SQLException e) {
+            return null;
         }
     }
 

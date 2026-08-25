@@ -21,6 +21,7 @@ public final class SqlDevelopmentMode {
     public static final String SCHEMA_ATTRIBUTE = "schema";
     public static final String TABLE_TYPE_ATTRIBUTE = "tableType";
     public static final String REMARKS_ATTRIBUTE = "remarks";
+    public static final String DEFINITION_ATTRIBUTE = "definition";
     public static final String TABLE_CONTENT_ATTRIBUTE = "tableContent";
 
     private SqlDevelopmentMode() {
@@ -36,6 +37,7 @@ public final class SqlDevelopmentMode {
         builder.addAttributeInfo(readOnly(SCHEMA_ATTRIBUTE));
         builder.addAttributeInfo(readOnly(TABLE_TYPE_ATTRIBUTE));
         builder.addAttributeInfo(readOnly(REMARKS_ATTRIBUTE));
+        builder.addAttributeInfo(readOnly(DEFINITION_ATTRIBUTE));
         builder.addAttributeInfo(readOnly(TABLE_CONTENT_ATTRIBUTE));
         return builder.build();
     }

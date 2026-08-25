@@ -107,6 +107,20 @@ public class SqlDevConnectorIntegrationTest
     }
 
     @Test
+    public void exportsH2TableDefinitionWithoutDatabaseSetupStatements() throws Exception {
+        var appUser = tableNamed(search(SqlDevelopmentMode.TABLE_OC_NAME, null), "app_user");
+        var definition = (String) getAttr(appUser, SqlDevelopmentMode.DEFINITION_ATTRIBUTE);
+        var content = (String) getAttr(appUser, SqlDevelopmentMode.TABLE_CONTENT_ATTRIBUTE);
+
+        assertThat(definition)
+                .contains("CREATE MEMORY TABLE \"PUBLIC\".\"APP_USER\"")
+                .contains("DEFAULT 'anonymous'")
+                .contains("PRIMARY KEY")
+                .doesNotContain("CREATE USER", "HASH", "SET DB_CLOSE_DELAY");
+        assertThat(content).contains("\"definition\" : \"CREATE MEMORY TABLE");
+    }
+
+    @Test
     public void doesNotExposeTableMetadataOutsideDevelopmentMode() {
         var config = new SqlConnectorConfiguration();
         config.setJdbcUrl(url);
@@ -164,6 +178,9 @@ public class SqlDevConnectorIntegrationTest
         var view = tableNamed(search(SqlDevelopmentMode.TABLE_OC_NAME, null), "app_user_view");
 
         assertThat(getAttr(view, SqlDevelopmentMode.TABLE_TYPE_ATTRIBUTE)).isEqualTo("VIEW");
+        assertThat((String) getAttr(view, SqlDevelopmentMode.DEFINITION_ATTRIBUTE))
+                .contains("CREATE FORCE VIEW \"PUBLIC\".\"APP_USER_VIEW\"")
+                .contains("FROM \"PUBLIC\".\"APP_USER\"");
         assertThat((String) getAttr(view, SqlDevelopmentMode.TABLE_CONTENT_ATTRIBUTE))
                 .contains("\"tableType\" : \"VIEW\"")
                 .contains("\"name\" : \"USERNAME\"");

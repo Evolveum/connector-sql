@@ -75,6 +75,7 @@ public class SqlTableDevHandler implements ObjectSearchOperation {
         addIfPresent(builder, SqlDevelopmentMode.SCHEMA_ATTRIBUTE, table.getSchema());
         addIfPresent(builder, SqlDevelopmentMode.TABLE_TYPE_ATTRIBUTE, table.getTableType());
         addIfPresent(builder, SqlDevelopmentMode.REMARKS_ATTRIBUTE, table.getRemarks());
+        addIfPresent(builder, SqlDevelopmentMode.DEFINITION_ATTRIBUTE, table.getDefinition());
         builder.addAttribute(SqlDevelopmentMode.TABLE_CONTENT_ATTRIBUTE, tableToJson(table));
         return builder.build();
     }
@@ -118,6 +119,7 @@ public class SqlTableDevHandler implements ObjectSearchOperation {
         content.put("name", table.getName());
         content.put("tableType", table.getTableType());
         content.put("remarks", table.getRemarks());
+        content.put("definition", table.getDefinition());
         content.put("columns", table.getColumns().stream().map(SqlTableDevHandler::columnContent).toList());
         try {
             return OBJECT_MAPPER.writeValueAsString(content);
