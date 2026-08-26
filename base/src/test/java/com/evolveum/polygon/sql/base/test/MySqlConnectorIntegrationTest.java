@@ -11,6 +11,7 @@ import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.sql.base.test.contract.ExternalDatabaseTestSupport;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.objects.AttributeUtil;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
@@ -51,7 +52,8 @@ public class MySqlConnectorIntegrationTest {
 
     @BeforeMethod
     public void setUp() throws Exception {
-        database = MySqlDatabaseInitializer.create();
+        database = ExternalDatabaseTestSupport.connect(
+                "MySQL", MySqlDatabaseInitializer::create);
         database.init();
 
         var configuration = new SqlConnectorConfiguration();

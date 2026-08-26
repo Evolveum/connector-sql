@@ -12,6 +12,7 @@ import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.schema.BaseSchemaBuilder;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.querydsl.core.types.PathMetadataFactory;
+import com.querydsl.core.types.Path;
 import com.querydsl.sql.RelationalPathBase;
 import groovy.lang.Closure;
 import org.identityconnectors.framework.common.objects.Name;
@@ -105,7 +106,26 @@ public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl
 
 
         public RelationalPathBase<?> pathAlias(String alias) {
-            return new RelationalPathBase<>(Object.class, PathMetadataFactory.forVariable(alias), schema.value(), table.value());
+            var schemaName = schema.value();
+            if (schemaName == null || schemaName.isBlank() || "null".equalsIgnoreCase(schemaName)) {
+                schemaName = null;
+            }
+            return new DynamicRelationalPath(
+                    Object.class, PathMetadataFactory.forVariable(alias), schemaName, table.value());
+        }
+    }
+
+    /** Dynamic QueryDSL path that can expose a detected generated key to JDBC drivers. */
+    public static final class DynamicRelationalPath extends RelationalPathBase<Object> {
+
+        private DynamicRelationalPath(
+                Class<?> type, com.querydsl.core.types.PathMetadata metadata,
+                String schema, String table) {
+            super(type, metadata, schema, table);
+        }
+
+        public void registerPrimaryKey(Path<?> path) {
+            createPrimaryKey(path);
         }
     }
 }

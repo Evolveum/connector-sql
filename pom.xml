@@ -325,6 +325,54 @@
             </build>
         </profile>
         <profile>
+            <id>available-databases</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+                <property>
+                    <name>available.database.tests</name>
+                </property>
+            </activation>
+            <build>
+                <pluginManagement>
+                    <plugins>
+                        <plugin>
+                            <groupId>org.apache.maven.plugins</groupId>
+                            <artifactId>maven-surefire-plugin</artifactId>
+                            <configuration>
+                                <excludes combine.self="override">
+                                    <exclude>**/__NoDatabaseTestIsExcluded__.java</exclude>
+                                </excludes>
+                            </configuration>
+                        </plugin>
+                    </plugins>
+                </pluginManagement>
+            </build>
+        </profile>
+        <profile>
+            <id>all-databases</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+                <property>
+                    <name>all.database.tests</name>
+                </property>
+            </activation>
+            <build>
+                <pluginManagement>
+                    <plugins>
+                        <plugin>
+                            <groupId>org.apache.maven.plugins</groupId>
+                            <artifactId>maven-surefire-plugin</artifactId>
+                            <configuration>
+                                <excludes combine.self="override">
+                                    <exclude>**/__NoDatabaseTestIsExcluded__.java</exclude>
+                                </excludes>
+                            </configuration>
+                        </plugin>
+                    </plugins>
+                </pluginManagement>
+            </build>
+        </profile>
+        <profile>
             <id>sbom</id>
             <build>
                 <plugins>

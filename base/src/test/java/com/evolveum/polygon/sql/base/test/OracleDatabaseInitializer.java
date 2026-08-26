@@ -34,14 +34,20 @@ import java.util.List;
  */
 public final class OracleDatabaseInitializer implements AutoCloseable {
 
+    public static final String JDBC_URL = setting(
+            "sql.test.oracle.url", "SQL_TEST_ORACLE_URL",
+            "jdbc:oracle:thin:@//localhost:1521/FREEPDB1");
+    public static final String USERNAME = setting(
+            "sql.test.oracle.username", "SQL_TEST_ORACLE_USERNAME", "oracle");
+    public static final String PASSWORD = setting(
+            "sql.test.oracle.password", "SQL_TEST_ORACLE_PASSWORD", "oracle123");
+
     private static final String RESOURCE_SCHEMA = "oracle/basic/schema.sql";
 
     private final Connection conn;
 
     private OracleDatabaseInitializer() throws SQLException {
-        this.conn = DriverManager.getConnection(
-                "jdbc:oracle:thin:@//localhost:1521/FREEPDB1",
-                "oracle", "oracle123");
+        this.conn = DriverManager.getConnection(JDBC_URL, USERNAME, PASSWORD);
         this.conn.setAutoCommit(true);
     }
 
@@ -162,9 +168,9 @@ public final class OracleDatabaseInitializer implements AutoCloseable {
      */
     public SqlBaseContext createContext(boolean scanTables) throws Exception {
         var config = new SqlConnectorConfiguration();
-        config.setJdbcUrl("jdbc:oracle:thin:@//localhost:1521/FREEPDB1");
-        config.setUsername("oracle");
-        config.setPassword(new GuardedString("oracle123".toCharArray()));
+        config.setJdbcUrl(JDBC_URL);
+        config.setUsername(USERNAME);
+        config.setPassword(new GuardedString(PASSWORD.toCharArray()));
         config.setPoolSize(5);
         config.setConnectionTimeout(10000);
         config.setValidateConnectionOnBorrow(true);
@@ -195,5 +201,14 @@ public final class OracleDatabaseInitializer implements AutoCloseable {
             sb.append((char) c);
         }
         return sb.toString();
+    }
+
+    private static String setting(String property, String environment, String defaultValue) {
+        var configured = System.getProperty(property);
+        if (configured != null && !configured.isBlank()) {
+            return configured;
+        }
+        configured = System.getenv(environment);
+        return configured != null && !configured.isBlank() ? configured : defaultValue;
     }
 }

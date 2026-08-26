@@ -11,10 +11,12 @@ import com.evolveum.polygon.sql.base.SqlObjectMapper;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeMapping;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
+import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
 import com.querydsl.core.types.Path;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.sql.RelationalPathBase;
+import com.querydsl.sql.OracleTemplates;
 import com.querydsl.sql.dml.SQLInsertClause;
 import com.querydsl.sql.dml.SQLUpdateClause;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
@@ -256,7 +258,13 @@ final class SqlWriteOperationSupport {
         throw new ConnectorException("Unsupported UID mapping " + mapping.getClass().getName());
     }
 
-    Object generatedKey(SQLInsertClause insert, Path<?> path) {
+    Object generatedKey(SQLInsertClause insert, RelationalPathBase<?> table, Path<?> path) {
+        if (context.getSqlTemplates() instanceof OracleTemplates
+                && table instanceof SqlSchemaBuilderImpl.DynamicRelationalPath dynamicPath) {
+            // Oracle otherwise returns ROWID from RETURN_GENERATED_KEYS. Supplying the detected
+            // primary-key column makes the driver return the generated identity value instead.
+            dynamicPath.registerPrimaryKey(path);
+        }
         return executeWithKey(insert, path);
     }
 

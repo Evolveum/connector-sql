@@ -11,6 +11,7 @@ import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.sql.base.test.contract.ExternalDatabaseTestSupport;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.objects.*;
 import org.testng.annotations.AfterMethod;
@@ -64,7 +65,8 @@ public abstract class OracleConnectorIntegrationTest {
 
     @BeforeMethod
     public void setUp() throws Exception {
-        oracle = OracleDatabaseInitializer.create();
+        oracle = ExternalDatabaseTestSupport.connect(
+                "Oracle", OracleDatabaseInitializer::create);
         oracle.init();
 
         var config = new SqlConnectorConfiguration();

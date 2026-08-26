@@ -13,6 +13,7 @@ import com.evolveum.polygon.sql.base.schema.definition.SqlTableDefinitionProvide
 import com.evolveum.polygon.sql.base.schema.definition.SqlTableDefinitionProviders;
 import com.querydsl.sql.Configuration;
 import com.querydsl.sql.H2Templates;
+import com.querydsl.sql.MySQLTemplates;
 import com.querydsl.sql.SQLTemplates;
 import com.querydsl.sql.SQLTemplatesRegistry;
 
@@ -50,16 +51,27 @@ public class SqlSchemaDetector {
 
         try (var wrapper = context.getConnection()) {
             var meta = wrapper.getConnection().getMetaData();
+            var database = SqlDatabase.fromJdbcProductName(meta.getDatabaseProductName());
             var templatesBuilder = new SQLTemplatesRegistry().getBuilder(meta);
-            // Preserve discovered schemas and case-sensitive identifiers in generated SQL.
-            var templatesFromRegistry = templatesBuilder != null
-                    ? templatesBuilder.printSchema().quote().build()
-                    : SQLTemplates.DEFAULT;
+            SQLTemplates templatesFromRegistry = SQLTemplates.DEFAULT;
+            if (templatesBuilder != null) {
+                // SQLite and the MySQL family report no JDBC schema for ordinary tables.
+                // Printing a missing schema makes QueryDSL generate "null"."table".
+                if (database != SqlDatabase.SQLITE
+                        && database != SqlDatabase.MYSQL
+                        && database != SqlDatabase.MARIADB) {
+                    templatesBuilder.printSchema();
+                }
+                templatesFromRegistry = templatesBuilder.quote().build();
+            }
 
             // For H2, use H2Templates with no quoting - unqualified column paths avoid table.column issues
-            var database = SqlDatabase.fromJdbcProductName(meta.getDatabaseProductName());
             if (database == SqlDatabase.H2) {
                 templatesFromRegistry = new H2Templates(false);
+            } else if (database == SqlDatabase.MARIADB) {
+                // QueryDSL's registry does not recognize every MariaDB driver product name and
+                // can fall back to ANSI double quotes, which MariaDB does not accept by default.
+                templatesFromRegistry = MySQLTemplates.builder().quote().build();
             }
             templates = templatesFromRegistry;
             querydslConfig = new Configuration(templates);
@@ -312,7 +324,9 @@ public class SqlSchemaDetector {
                             .size(columnSize)
                             .javaType(javaType)
                             .valueMapping(valueMapping)
-                            .nullable(isNullable(rawNullable))
+                            // Some drivers (notably SQLite) report an INTEGER PRIMARY KEY as
+                            // nullable even though a primary-key value can never be null.
+                            .nullable(!isPk && isNullable(rawNullable))
                             .primaryKey(isPk)
                             .autoIncrement(isAutoInc(rawAutoInc))
                             .unique(isPk || uniqueCols.contains(colName))
