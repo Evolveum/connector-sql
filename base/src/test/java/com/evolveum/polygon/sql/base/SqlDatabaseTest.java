@@ -20,6 +20,8 @@ public class SqlDatabaseTest {
                 { "h2", SqlDatabase.H2 },
                 { "MariaDB", SqlDatabase.MARIADB },
                 { "mariadb", SqlDatabase.MARIADB },
+                { "MySQL", SqlDatabase.MYSQL },
+                { "mysql", SqlDatabase.MYSQL },
                 { "Oracle", SqlDatabase.ORACLE },
                 { "oracle", SqlDatabase.ORACLE },
                 { "PostgreSQL", SqlDatabase.POSTGRESQL },

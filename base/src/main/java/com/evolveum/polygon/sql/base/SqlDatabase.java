@@ -13,6 +13,7 @@ public enum SqlDatabase {
 
     H2("H2"),
     MARIADB("MariaDB"),
+    MYSQL("MySQL"),
     ORACLE("Oracle"),
     POSTGRESQL("PostgreSQL"),
     UNKNOWN();

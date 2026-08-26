@@ -164,6 +164,7 @@
                         <excludes>
                             <exclude>**/*Oracle*Test.java</exclude>
                             <exclude>**/*MariaDb*Test.java</exclude>
+                            <exclude>**/*MySql*Test.java</exclude>
                         </excludes>
                     </configuration>
                     <dependencies>
@@ -241,7 +242,6 @@
                          <groupId>org.apache.maven.plugins</groupId>
                          <artifactId>maven-surefire-plugin</artifactId>
                          <configuration>
-                             <!-- When Oracle profile is active: include all tests, no exclusions -->
                              <includes>
                                  <include>**/Test*.java</include>
                                  <include>**/*Test.java</include>
@@ -250,6 +250,7 @@
                              </includes>
                              <excludes>
                                  <exclude>**/*MariaDb*Test.java</exclude>
+                                 <exclude>**/*MySql*Test.java</exclude>
                              </excludes>
                          </configuration>
                      </plugin>
@@ -284,6 +285,38 @@
                                 </includes>
                                 <excludes>
                                     <exclude>**/*Oracle*Test.java</exclude>
+                                    <exclude>**/*MySql*Test.java</exclude>
+                                </excludes>
+                            </configuration>
+                        </plugin>
+                    </plugins>
+                </pluginManagement>
+            </build>
+        </profile>
+        <profile>
+            <id>mysql</id>
+            <activation>
+                <activeByDefault>false</activeByDefault>
+                <property>
+                    <name>mysql.tests</name>
+                </property>
+            </activation>
+            <build>
+                <pluginManagement>
+                    <plugins>
+                        <plugin>
+                            <groupId>org.apache.maven.plugins</groupId>
+                            <artifactId>maven-surefire-plugin</artifactId>
+                            <configuration>
+                                <includes>
+                                    <include>**/Test*.java</include>
+                                    <include>**/*Test.java</include>
+                                    <include>**/*Tests.java</include>
+                                    <include>**/*TestCase.java</include>
+                                </includes>
+                                <excludes>
+                                    <exclude>**/*Oracle*Test.java</exclude>
+                                    <exclude>**/*MariaDb*Test.java</exclude>
                                 </excludes>
                             </configuration>
                         </plugin>

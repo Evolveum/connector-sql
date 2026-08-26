@@ -12,12 +12,21 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Optional;
 
-/** Reads native MariaDB table and view definitions with {@code SHOW CREATE}. */
-public final class MariaDbSqlTableDefinitionProvider implements SqlTableDefinitionProvider {
+/** Reads native MySQL and MariaDB table and view definitions with {@code SHOW CREATE}. */
+public final class MySqlFamilyTableDefinitionProvider implements SqlTableDefinitionProvider {
+
+    private final SqlDatabase database;
+
+    public MySqlFamilyTableDefinitionProvider(SqlDatabase database) {
+        if (database != SqlDatabase.MYSQL && database != SqlDatabase.MARIADB) {
+            throw new IllegalArgumentException("Unsupported MySQL-family database: " + database);
+        }
+        this.database = database;
+    }
 
     @Override
     public SqlDatabase database() {
-        return SqlDatabase.MARIADB;
+        return database;
     }
 
     @Override
