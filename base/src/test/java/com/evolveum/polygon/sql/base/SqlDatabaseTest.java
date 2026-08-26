@@ -26,6 +26,8 @@ public class SqlDatabaseTest {
                 { "oracle", SqlDatabase.ORACLE },
                 { "PostgreSQL", SqlDatabase.POSTGRESQL },
                 { "postgresql", SqlDatabase.POSTGRESQL },
+                { "SQLite", SqlDatabase.SQLITE },
+                { "sqlite", SqlDatabase.SQLITE },
                 { "Unsupported database", SqlDatabase.UNKNOWN },
                 { null, SqlDatabase.UNKNOWN }
         };

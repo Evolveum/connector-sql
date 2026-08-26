@@ -25,7 +25,8 @@ public final class SqlTableDefinitionProviders {
                         new MySqlFamilyTableDefinitionProvider(SqlDatabase.MARIADB),
                         new MySqlFamilyTableDefinitionProvider(SqlDatabase.MYSQL),
                         new OracleSqlTableDefinitionProvider(),
-                        new PostgreSqlTableDefinitionProvider(configuration))
+                        new PostgreSqlTableDefinitionProvider(configuration),
+                        new SqliteTableDefinitionProvider())
                 .stream()
                 .filter(provider -> provider.database() == database)
                 .findFirst();

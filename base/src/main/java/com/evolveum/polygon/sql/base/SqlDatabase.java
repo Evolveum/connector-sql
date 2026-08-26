@@ -16,6 +16,7 @@ public enum SqlDatabase {
     MYSQL("MySQL"),
     ORACLE("Oracle"),
     POSTGRESQL("PostgreSQL"),
+    SQLITE("SQLite"),
     UNKNOWN();
 
     private final List<String> jdbcProductNames;
