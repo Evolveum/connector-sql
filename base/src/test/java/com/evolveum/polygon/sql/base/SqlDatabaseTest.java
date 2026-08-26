@@ -18,6 +18,8 @@ public class SqlDatabaseTest {
         return new Object[][] {
                 { "H2", SqlDatabase.H2 },
                 { "h2", SqlDatabase.H2 },
+                { "MariaDB", SqlDatabase.MARIADB },
+                { "mariadb", SqlDatabase.MARIADB },
                 { "Oracle", SqlDatabase.ORACLE },
                 { "oracle", SqlDatabase.ORACLE },
                 { "PostgreSQL", SqlDatabase.POSTGRESQL },
