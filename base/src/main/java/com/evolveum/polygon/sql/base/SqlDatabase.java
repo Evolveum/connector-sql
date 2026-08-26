@@ -12,6 +12,7 @@ import java.util.List;
 public enum SqlDatabase {
 
     H2("H2"),
+    ORACLE("Oracle"),
     POSTGRESQL("PostgreSQL"),
     UNKNOWN();
 

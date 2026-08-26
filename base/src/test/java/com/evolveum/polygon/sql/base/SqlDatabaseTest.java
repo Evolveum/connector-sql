@@ -18,6 +18,8 @@ public class SqlDatabaseTest {
         return new Object[][] {
                 { "H2", SqlDatabase.H2 },
                 { "h2", SqlDatabase.H2 },
+                { "Oracle", SqlDatabase.ORACLE },
+                { "oracle", SqlDatabase.ORACLE },
                 { "PostgreSQL", SqlDatabase.POSTGRESQL },
                 { "postgresql", SqlDatabase.POSTGRESQL },
                 { "Unsupported database", SqlDatabase.UNKNOWN },

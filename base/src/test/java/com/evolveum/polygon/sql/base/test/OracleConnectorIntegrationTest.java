@@ -8,6 +8,7 @@ package com.evolveum.polygon.sql.base.test;
 
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
+import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
 import org.identityconnectors.common.security.GuardedString;
@@ -165,6 +166,45 @@ public abstract class OracleConnectorIntegrationTest {
             connector.executeQuery(new ObjectClass(name), null, r::add, opts());
             assertThat(r).withFailMessage("No results for " + name).isNotEmpty();
         }
+    }
+
+    @Test
+    public void testDevelopmentTableMetadataExport() throws Exception {
+        assertThat(connector.schema().getObjectClassInfo().stream()
+                .map(ObjectClassInfo::getType))
+                .contains(SqlDevelopmentMode.TABLE_OC_NAME);
+
+        List<ConnectorObject> tables = new ArrayList<>();
+        connector.executeQuery(
+                new ObjectClass(SqlDevelopmentMode.TABLE_OC_NAME), null, tables::add, opts());
+
+        var dirAccount = tables.stream()
+                .filter(table -> "DIR_ACCOUNT".equalsIgnoreCase(table.getName().getNameValue()))
+                .findFirst()
+                .orElseThrow();
+        var content = (String) AttributeUtil.getSingleValue(
+                dirAccount.getAttributeByName(SqlDevelopmentMode.TABLE_CONTENT_ATTRIBUTE));
+        var definition = (String) AttributeUtil.getSingleValue(
+                dirAccount.getAttributeByName(SqlDevelopmentMode.DEFINITION_ATTRIBUTE));
+
+        assertThat(AttributeUtil.getSingleValue(
+                dirAccount.getAttributeByName(SqlDevelopmentMode.SCHEMA_ATTRIBUTE)))
+                .isEqualTo("ORACLE");
+        assertThat(AttributeUtil.getSingleValue(
+                dirAccount.getAttributeByName(SqlDevelopmentMode.TABLE_TYPE_ATTRIBUTE)))
+                .isEqualTo("TABLE");
+        assertThat(definition)
+                .contains("CREATE TABLE \"ORACLE\".\"DIR_ACCOUNT\"")
+                .contains("\"ACCOUNT_ID\" VARCHAR2(8)")
+                .contains("DEFAULT SYSTIMESTAMP")
+                .contains("CONSTRAINT \"FK_ACCT_STATUS\" FOREIGN KEY");
+        assertThat(content)
+                .contains("\"name\" : \"ACCOUNT_ID\"")
+                .contains("\"primaryKey\" : true")
+                .contains("CREATE TABLE \\\"ORACLE\\\".\\\"DIR_ACCOUNT\\\"")
+                .contains("\"referencedTable\" : \"DIR_STATUS_REF\"")
+                .contains("\"referencedColumn\" : \"STATUS_CODE\"")
+                .contains("\"foreignKeyName\" : \"FK_ACCT_STATUS\"");
     }
 
     // ── concrete test classes ──

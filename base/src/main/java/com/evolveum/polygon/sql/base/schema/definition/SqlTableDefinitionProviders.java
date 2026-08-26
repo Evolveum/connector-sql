@@ -22,6 +22,7 @@ public final class SqlTableDefinitionProviders {
             SqlDatabase database, SqlConnectorConfiguration configuration) {
         return List.of(
                         new H2SqlTableDefinitionProvider(),
+                        new OracleSqlTableDefinitionProvider(),
                         new PostgreSqlTableDefinitionProvider(configuration))
                 .stream()
                 .filter(provider -> provider.database() == database)
