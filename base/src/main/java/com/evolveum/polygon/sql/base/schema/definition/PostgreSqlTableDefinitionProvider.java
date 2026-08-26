@@ -8,6 +8,7 @@ package com.evolveum.polygon.sql.base.schema.definition;
 
 import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
+import com.evolveum.polygon.sql.base.SqlDatabase;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -33,8 +34,8 @@ public final class PostgreSqlTableDefinitionProvider implements SqlTableDefiniti
     }
 
     @Override
-    public boolean supports(String databaseProductName) {
-        return "PostgreSQL".equalsIgnoreCase(databaseProductName);
+    public SqlDatabase database() {
+        return SqlDatabase.POSTGRESQL;
     }
 
     @Override

@@ -6,6 +6,8 @@
  */
 package com.evolveum.polygon.sql.base.schema.definition;
 
+import com.evolveum.polygon.sql.base.SqlDatabase;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Optional;
@@ -14,8 +16,8 @@ import java.util.Optional;
 public final class H2SqlTableDefinitionProvider implements SqlTableDefinitionProvider {
 
     @Override
-    public boolean supports(String databaseProductName) {
-        return "H2".equalsIgnoreCase(databaseProductName);
+    public SqlDatabase database() {
+        return SqlDatabase.H2;
     }
 
     @Override

@@ -7,6 +7,7 @@
 package com.evolveum.polygon.sql.base.schema.definition;
 
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
+import com.evolveum.polygon.sql.base.SqlDatabase;
 
 import java.util.List;
 import java.util.Optional;
@@ -18,12 +19,12 @@ public final class SqlTableDefinitionProviders {
     }
 
     public static Optional<SqlTableDefinitionProvider> find(
-            String databaseProductName, SqlConnectorConfiguration configuration) {
+            SqlDatabase database, SqlConnectorConfiguration configuration) {
         return List.of(
                         new H2SqlTableDefinitionProvider(),
                         new PostgreSqlTableDefinitionProvider(configuration))
                 .stream()
-                .filter(provider -> provider.supports(databaseProductName))
+                .filter(provider -> provider.database() == database)
                 .findFirst();
     }
 }

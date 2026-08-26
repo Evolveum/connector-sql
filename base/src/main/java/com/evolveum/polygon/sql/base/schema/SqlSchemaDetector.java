@@ -7,6 +7,7 @@
 package com.evolveum.polygon.sql.base.schema;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.sql.base.SqlDatabase;
 import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
 import com.evolveum.polygon.sql.base.schema.definition.SqlTableDefinitionProvider;
 import com.evolveum.polygon.sql.base.schema.definition.SqlTableDefinitionProviders;
@@ -56,14 +57,14 @@ public class SqlSchemaDetector {
                     : SQLTemplates.DEFAULT;
 
             // For H2, use H2Templates with no quoting - unqualified column paths avoid table.column issues
-            var productName = meta.getDatabaseProductName();
-            if (productName != null && productName.toUpperCase().contains("H2")) {
+            var database = SqlDatabase.fromJdbcProductName(meta.getDatabaseProductName());
+            if (database == SqlDatabase.H2) {
                 templatesFromRegistry = new H2Templates(false);
             }
             templates = templatesFromRegistry;
             querydslConfig = new Configuration(templates);
             tableDefinitionProvider = context.getDevelopmentMode()
-                    ? SqlTableDefinitionProviders.find(productName, context.configuration()).orElse(null)
+                    ? SqlTableDefinitionProviders.find(database, context.configuration()).orElse(null)
                     : null;
         }
     }

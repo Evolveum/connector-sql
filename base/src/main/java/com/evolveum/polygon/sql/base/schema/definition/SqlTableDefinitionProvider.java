@@ -6,6 +6,8 @@
  */
 package com.evolveum.polygon.sql.base.schema.definition;
 
+import com.evolveum.polygon.sql.base.SqlDatabase;
+
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Optional;
@@ -13,7 +15,7 @@ import java.util.Optional;
 /** Database-specific reader of a table or view SQL definition. */
 public interface SqlTableDefinitionProvider {
 
-    boolean supports(String databaseProductName);
+    SqlDatabase database();
 
     Optional<String> readDefinition(Connection connection, String catalog, String schema,
             String name, String tableType) throws SQLException;
