@@ -6,6 +6,7 @@
  */
 package com.evolveum.polygon.sql.base.search;
 
+import com.evolveum.polygon.conndev.spi.BatchAwareResultHandler;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.SqlObjectMapper;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
@@ -65,11 +66,17 @@ public class SqlSearchExecutor {
                         query.where(predicate);
                     }
                     var rows = query.fetch();
+                    boolean stopped = false;
                     for (var row : rows) {
                         var object = buildConnectorObject(row, selectedAttributes);
                         if (!resultsHandler.handle(object)) {
-                            return;
+                            stopped = true;
+                            break;
                         }
+                    }
+                    BatchAwareResultHandler.batchFinished(resultsHandler);
+                    if (stopped) {
+                        return;
                     }
 
                     if (rows.isEmpty() || rows.size() < pageSize) {

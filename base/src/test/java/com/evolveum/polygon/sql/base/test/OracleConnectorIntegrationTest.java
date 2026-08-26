@@ -152,11 +152,11 @@ public abstract class OracleConnectorIntegrationTest {
     }
 
     @Test
-    public void testSearchAllObjectClassesWork() throws Exception {
+    public void testSearchAllStandaloneObjectClassesWork() throws Exception {
+        // orgchart_label is embedded in orgchart_node and therefore has no standalone search handler.
         for (String name : List.of(
                 "orgchart_type_ref",
                 "orgchart_node",
-                "orgchart_label",
                 "dir_status_ref",
                 "dir_account",
                 "dir_service",

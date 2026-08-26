@@ -7,6 +7,7 @@
 package com.evolveum.polygon.sql.base;
 
 import com.evolveum.polygon.sql.base.build.api.SqlSchema;
+import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
 import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
@@ -129,6 +130,25 @@ public class SqlSchemaTranslatorTest {
         // auto-increment identity cannot be written
         assertThat(id.connId().isCreateable()).isFalse();
         assertThat(id.connId().isUpdateable()).isFalse();
+    }
+
+    @Test
+    public void testDetectedSchemaEnrichesExistingObjectClass() throws Exception {
+        var builder = new SqlSchemaBuilderImpl(SqlSchemaDetectorIntegrationTest.StubConnector.class, context);
+        builder.objectClass("account").sql().table("ACCOUNT");
+        var table = SqlTableInfo.builder()
+                .schema("ORACLE")
+                .name("ACCOUNT")
+                .addColumn(SqlColumnMeta.builder()
+                        .name("ID")
+                        .typeName("NUMBER")
+                        .primaryKey(true)
+                        .build())
+                .build();
+
+        var schema = translated(new SqlSchemaTranslator(builder, List.of(table)));
+
+        assertThat(schema.objectClass("account").sql().schema().value()).isEqualTo("ORACLE");
     }
 
     @Test

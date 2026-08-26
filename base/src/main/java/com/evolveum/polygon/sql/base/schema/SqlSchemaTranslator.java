@@ -392,7 +392,7 @@ public class SqlSchemaTranslator {
     @SuppressWarnings("unchecked")
     private SqlObjectClassSchemaBuilderImpl correlateBuilder(SqlTableInfo table) {
         var maybeClassName = detected(table.getName());
-        return (SqlObjectClassSchemaBuilderImpl) builder.correlateObjectClass(
+        var objectClass = (SqlObjectClassSchemaBuilderImpl) builder.correlateObjectClass(
                 o -> {
                     var sqlSchema = o.sql().schema();
                     var sqlTable = o.sql().table();
@@ -404,6 +404,12 @@ public class SqlSchemaTranslator {
                 maybeClassName,
                 o -> o.sql().schema(detected(table.getSchema())).table(detected(table.getName()))
         );
+        // Enrich existing explicit definitions as well as newly created ones. Declared values
+        // retain precedence, while omitted schema/table values receive their JDBC metadata value.
+        objectClass.sql()
+                .schema(detected(table.getSchema()))
+                .table(detected(table.getName()));
+        return objectClass;
     }
 
     private List<SchemaMappingAction> collectTableActions(SqlTableInfo table) {
