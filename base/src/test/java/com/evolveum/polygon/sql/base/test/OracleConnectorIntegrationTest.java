@@ -70,9 +70,9 @@ public abstract class OracleConnectorIntegrationTest {
         oracle.init();
 
         var config = new SqlConnectorConfiguration();
-        config.setJdbcUrl("jdbc:oracle:thin:@//localhost:1521/FREEPDB1");
-        config.setUsername("oracle");
-        config.setPassword(new GuardedString("oracle123".toCharArray()));
+        config.setJdbcUrl(OracleDatabaseInitializer.JDBC_URL);
+        config.setUsername(OracleDatabaseInitializer.USERNAME);
+        config.setPassword(new GuardedString(OracleDatabaseInitializer.PASSWORD.toCharArray()));
         config.setPoolSize(5);
         config.setConnectionTimeout(10000);
         config.setValidateConnectionOnBorrow(true);
