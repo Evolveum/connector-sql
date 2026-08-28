@@ -6,10 +6,13 @@
  */
 package com.evolveum.polygon.sql.base.search;
 
+import com.evolveum.polygon.conndev.spi.BatchAwareResultHandler;
 import com.evolveum.polygon.sql.base.test.SqlIntegrationTestBase;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
+import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.testng.annotations.Test;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -74,5 +77,31 @@ public class SqlSearchOperationIntegrationTest
             assertThat(search(name, null))
                     .isNotEmpty().withFailMessage("No results for " + name);
         }
+    }
+
+    @Test
+    public void testSearchFlushesBatchAwareResultHandler() {
+        var objectClass = connector.context().schema().objectClass(new ObjectClass("app_user"));
+        var delivered = new ArrayList<ConnectorObject>();
+        var pending = new ArrayList<ConnectorObject>();
+        var handler = new BatchAwareResultHandler() {
+            @Override
+            public boolean handle(ConnectorObject object) {
+                pending.add(object);
+                return true;
+            }
+
+            @Override
+            public void batchFinished() {
+                delivered.addAll(pending);
+                pending.clear();
+            }
+        };
+
+        new SqlSearchExecutor(connector.context(), objectClass)
+                .execute(null, handler, opts());
+
+        assertThat(delivered).hasSize(2);
+        assertThat(pending).isEmpty();
     }
 }

@@ -18,6 +18,9 @@ import org.identityconnectors.framework.common.objects.filter.Filter;
  * Search handler for the {@code conndev_ObjectClass} object class of the SQL connector. Serializes the
  * framework schema model (conndev {@code BaseSchema}, translated from the detected tables) via the
  * shared {@link ConnDevObjectClassSerializer}. Supports equals filters on {@code __UID__} / {@code __NAME__}.
+ *
+ * <p>This is the connector-oriented view of the schema. {@link SqlTableDevHandler} exposes the raw
+ * JDBC-oriented view, but both views originate from the same schema-discovery snapshot.</p>
  */
 public class SqlObjectClassDevHandler implements ObjectSearchOperation {
 

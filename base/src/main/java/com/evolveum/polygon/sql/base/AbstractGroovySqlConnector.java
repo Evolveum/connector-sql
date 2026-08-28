@@ -18,7 +18,9 @@ import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilder;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
+import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.sql.base.dev.SqlObjectClassDevHandler;
+import com.evolveum.polygon.sql.base.dev.SqlTableDevHandler;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
 import com.evolveum.polygon.sql.base.groovy.impl.SqlOperationSupportBuilderImpl;
@@ -175,8 +177,11 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
             additional.addAll(ConnDevSchema.objectClassInfos(
                     List.of(ConnDevSchema.embeddedBlock(SQL_BLOCK, SQL_BLOCK_TYPE)), List.of()));
             additional.add(sqlObjectClassBlock());
+            additional.add(SqlDevelopmentMode.tableObjectClassInfo());
         }
 
+        // Detect the database structure once. The same snapshot is translated into the normal
+        // connector schema and, in development mode, exposed as raw conndev_SqlTable metadata.
         List<SqlTableInfo> tables;
         try {
             if (tableFilter.isDiscoveryEnabled()) {
@@ -233,12 +238,18 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
             var name = new ObjectClass(ConnDevObjectClass.OBJECT_CLASS_NAME);
             var handler = CompositeObjectClassHandler.of(name,ObjectSearchOperation.class, new SqlObjectClassDevHandler(context));
             handlers.put(name, handler);
+
+            var tableName = new ObjectClass(SqlDevelopmentMode.TABLE_OC_NAME);
+            var tableHandler = CompositeObjectClassHandler.of(
+                    tableName, ObjectSearchOperation.class, new SqlTableDevHandler(context));
+            handlers.put(tableName, tableHandler);
         }
 
         context.handlers(handlers);
     }
 
     private static void populateTableInfo(SqlBaseContext context, List<SqlTableInfo> tables) {
+        context.setDetectedTables(tables);
         var tableMap = new LinkedHashMap<String, SqlTableInfo>();
         for (SqlTableInfo table : tables) {
             // Use lowercase table name as key for case-insensitive lookup

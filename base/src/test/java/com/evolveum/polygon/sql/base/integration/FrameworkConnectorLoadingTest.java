@@ -163,6 +163,7 @@ public class FrameworkConnectorLoadingTest {
         assertThat(props.getProperty("password")).isNotNull();
         assertThat(props.getProperty("poolSize")).isNotNull();
         assertThat(props.getProperty("scanTables")).isNotNull();
+        assertThat(props.getProperty("pgDumpPath")).isNotNull();
     }
 
     @Test

@@ -234,6 +234,7 @@ public abstract class SqlIntegrationTestBase<C extends AbstractGroovySqlConnecto
         config.setScanTables(src.getScanTables());
         config.setScanViews(src.getScanViews());
         config.setDevelopmentMode(src.getDevelopmentMode());
+        config.setPgDumpPath(src.getPgDumpPath());
         return config;
     }
 

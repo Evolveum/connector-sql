@@ -11,9 +11,12 @@ DROP TABLE IF EXISTS app_user CASCADE;
 CREATE TABLE app_user (
     id SERIAL PRIMARY KEY,
     username VARCHAR(255) NOT NULL UNIQUE,
-    email VARCHAR(255) UNIQUE,
+    email VARCHAR(255) DEFAULT 'unknown@example.com' UNIQUE,
     created_at TIMESTAMP
 );
+
+COMMENT ON TABLE app_user IS 'Application users';
+COMMENT ON COLUMN app_user.email IS 'Primary email address';
 
 CREATE TABLE app_group (
     id SERIAL PRIMARY KEY,

@@ -19,6 +19,7 @@ import com.querydsl.sql.SQLTemplates;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,6 +38,7 @@ public class SqlBaseContext implements ConnectorContext, ContextLookup, Retrieva
     private volatile HikariConnectionPool connectionPool;
     private SQLTemplates templates;
     private Map<String, SqlTableInfo> tableInfos;
+    private List<SqlTableInfo> detectedTables = List.of();
 
     public SqlBaseContext(SqlConnectorConfiguration configuration) {
         this.configuration = configuration;
@@ -178,6 +180,15 @@ public class SqlBaseContext implements ConnectorContext, ContextLookup, Retrieva
      */
     void setTableInfos(Map<String, SqlTableInfo> tableInfos) {
         this.tableInfos = tableInfos != null ? Map.copyOf(tableInfos) : null;
+    }
+
+    void setDetectedTables(List<SqlTableInfo> detectedTables) {
+        this.detectedTables = detectedTables != null ? List.copyOf(detectedTables) : List.of();
+    }
+
+    /** Returns every detected table, including equal table names from different schemas. */
+    public List<SqlTableInfo> getDetectedTables() {
+        return detectedTables;
     }
 
     /**

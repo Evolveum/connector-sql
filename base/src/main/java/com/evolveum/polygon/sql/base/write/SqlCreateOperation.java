@@ -59,7 +59,7 @@ public class SqlCreateOperation implements ObjectCreateOperation {
                 }
                 var generatedPath = generatedKeyPath(uidDefinition.sql(), table);
                 uid = support.generatedUid(uidDefinition.sql(),
-                        support.generatedKey(insert, generatedPath), table, columnValues);
+                        support.generatedKey(insert, table, generatedPath), table, columnValues);
             }
 
             var created = support.findByUid(connection, uid, false);

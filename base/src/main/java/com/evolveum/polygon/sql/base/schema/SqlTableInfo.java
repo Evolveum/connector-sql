@@ -20,15 +20,22 @@ public class SqlTableInfo {
     private final String catalog;
     private final String tableType;
     private final String remarks;
+    private final String definition;
     private final List<SqlColumnMeta> columns;
 
     public SqlTableInfo(String name, String schema, String catalog, String tableType,
                         String remarks, List<SqlColumnMeta> columns) {
+        this(name, schema, catalog, tableType, remarks, null, columns);
+    }
+
+    public SqlTableInfo(String name, String schema, String catalog, String tableType,
+                        String remarks, String definition, List<SqlColumnMeta> columns) {
         this.name = name;
         this.schema = schema;
         this.catalog = catalog;
         this.tableType = tableType;
         this.remarks = remarks;
+        this.definition = definition;
         this.columns = columns != null ? new ArrayList<>(columns) : new ArrayList<>();
     }
 
@@ -52,6 +59,10 @@ public class SqlTableInfo {
         return remarks;
     }
 
+    public String getDefinition() {
+        return definition;
+    }
+
     public List<SqlColumnMeta> getColumns() {
         return new ArrayList<>(columns);
     }
@@ -67,6 +78,7 @@ public class SqlTableInfo {
         private String catalog;
         private String tableType;
         private String remarks;
+        private String definition;
         final List<SqlColumnMeta> columns = new ArrayList<>();
 
         public Builder name(String name) {
@@ -94,13 +106,19 @@ public class SqlTableInfo {
             return this;
         }
 
+        public Builder definition(String definition) {
+            this.definition = definition;
+            return this;
+        }
+
         public Builder addColumn(SqlColumnMeta column) {
             columns.add(column);
             return this;
         }
 
         public SqlTableInfo build() {
-            return new SqlTableInfo(name, schema, catalog, tableType, remarks, new ArrayList<>(columns));
+            return new SqlTableInfo(
+                    name, schema, catalog, tableType, remarks, definition, new ArrayList<>(columns));
         }
 
         public Builder columns(Collection<SqlColumnMeta> columns) {

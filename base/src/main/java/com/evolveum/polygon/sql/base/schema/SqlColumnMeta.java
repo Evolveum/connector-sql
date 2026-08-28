@@ -26,6 +26,7 @@ public class SqlColumnMeta {
     final boolean primaryKey;
     final boolean unique;
     final Object defaultValue;
+    final String remarks;
     final boolean autoIncrement;
 
     private String referencedTable;
@@ -37,6 +38,14 @@ public class SqlColumnMeta {
                           java.lang.reflect.Type javaType,
                           boolean nullable, boolean primaryKey, boolean unique,
                           Object defaultValue, boolean autoIncrement) {
+        this(name, typeName, typeCode, size, javaType, nullable, primaryKey, unique,
+                defaultValue, autoIncrement, null);
+    }
+
+    public SqlColumnMeta(String name, String typeName, int typeCode, int size,
+                          java.lang.reflect.Type javaType,
+                          boolean nullable, boolean primaryKey, boolean unique,
+                          Object defaultValue, boolean autoIncrement, String remarks) {
         this.name = name;
         this.typeName = typeName;
         this.typeCode = typeCode;
@@ -46,6 +55,7 @@ public class SqlColumnMeta {
         this.primaryKey = primaryKey;
         this.unique = unique;
         this.defaultValue = defaultValue;
+        this.remarks = remarks;
         this.autoIncrement = autoIncrement;
     }
 
@@ -83,6 +93,10 @@ public class SqlColumnMeta {
 
     public Object getDefaultValue() {
         return defaultValue;
+    }
+
+    public String getRemarks() {
+        return remarks;
     }
 
     public boolean isAutoIncrement() {
@@ -142,6 +156,7 @@ public class SqlColumnMeta {
         private boolean primaryKey;
         private boolean unique;
         private Object defaultValue;
+        private String remarks;
         private boolean autoIncrement;
         private String referencedTable;
         private String referencedColumn;
@@ -158,6 +173,7 @@ public class SqlColumnMeta {
         public Builder primaryKey(boolean primaryKey) { this.primaryKey = primaryKey; return this; }
         public Builder unique(boolean unique) { this.unique = unique; return this; }
         public Builder defaultValue(Object defaultValue) { this.defaultValue = defaultValue; return this; }
+        public Builder remarks(String remarks) { this.remarks = remarks; return this; }
         public Builder autoIncrement(boolean autoIncrement) { this.autoIncrement = autoIncrement; return this; }
         public Builder setForeignKey(String referencedTable, String referencedColumn, String foreignKeyName) {
             this.referencedTable = referencedTable;
@@ -172,7 +188,7 @@ public class SqlColumnMeta {
 
         public SqlColumnMeta build() {
             var col = new SqlColumnMeta(name, typeName, typeCode, size, javaType,
-                    nullable, primaryKey, unique, defaultValue, autoIncrement);
+                    nullable, primaryKey, unique, defaultValue, autoIncrement, remarks);
             if (referencedTable != null) {
                 col.setForeignKey(referencedTable, referencedColumn, foreignKeyName);
             }
