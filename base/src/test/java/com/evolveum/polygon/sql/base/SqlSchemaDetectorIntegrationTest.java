@@ -169,9 +169,11 @@ public class SqlSchemaDetectorIntegrationTest {
     public void testConnIdSchemaTranslation() throws Exception {
         List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
 
-        var connIdSchema = new SqlSchemaTranslator(tables)
-                .translate(StubConnector.class, context)
-                .connIdSchema();
+        var translator = new SqlSchemaTranslator(tables);
+        var builder = translator.translate(StubConnector.class, context);
+        translator.applyRules();
+        builder.applyStructuralRules();
+        var connIdSchema = builder.build().connIdSchema();
         assertThat(connIdSchema).isNotNull();
 
         Map<String, ObjectClassInfo> objClasses = connIdSchema.getObjectClassInfo().stream()
@@ -308,8 +310,11 @@ public class SqlSchemaDetectorIntegrationTest {
         assertThat(tableRefs).hasSize(1);
 
         var tables = detector.discover(new ArrayList<>(tableRefs));
-        var schema = new SqlSchemaTranslator(builder, tables)
-                .translate(StubConnector.class, context);
+        var translator = new SqlSchemaTranslator(builder, tables);
+        translator.translate(StubConnector.class, context);
+        translator.applyRules();
+        builder.applyStructuralRules();
+        var schema = builder.build();
 
         assertThat(schema).isNotNull();
         assertThat(schema.connIdSchema().getObjectClassInfo()).isNotEmpty();

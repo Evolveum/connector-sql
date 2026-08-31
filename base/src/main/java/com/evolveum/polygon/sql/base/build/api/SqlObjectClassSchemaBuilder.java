@@ -77,6 +77,16 @@ public interface SqlObjectClassSchemaBuilder extends ObjectClassSchemaBuilder<Sq
     SqlObjectClassSchemaBuilder readOnly(boolean value);
 
     /**
+     * Sets the read-only flag, merging with any existing value via
+     * {@link DefinitionValue#moreSpecific(DefinitionValue)} — a more specific origin (e.g. an
+     * explicit Groovy declaration) takes precedence over a merely detected one.
+     *
+     * @param value the read-only flag with metadata
+     * @return this builder for chaining
+     */
+    SqlObjectClassSchemaBuilder readOnly(DefinitionValue<Boolean> value);
+
+    /**
      * Returns the current value of the readOnly flag.
      *
      * @return the flag value, or {@code false} if not explicitly set

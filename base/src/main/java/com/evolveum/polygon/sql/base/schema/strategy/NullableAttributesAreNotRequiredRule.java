@@ -6,10 +6,10 @@
  */
 package com.evolveum.polygon.sql.base.schema.strategy;
 
-import com.evolveum.polygon.sql.base.schema.SchemaMappingAction;
-import com.evolveum.polygon.sql.base.schema.SchemaMappingRule;
-import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
-import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
+import com.evolveum.polygon.sql.base.build.api.SqlAttributeBuilder;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilder;
+import com.evolveum.polygon.sql.base.schema.SqlAttributeMappingRule;
+import com.evolveum.polygon.sql.base.schema.SqlMappingAction;
 
 import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
 
@@ -22,16 +22,15 @@ import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
  * </ul>
  * Handler effects: none
  */
-public class NullableAttributesAreNotRequiredRule implements SchemaMappingRule {
+public class NullableAttributesAreNotRequiredRule implements SqlAttributeMappingRule {
 
     @Override
-    public boolean checkIfApplicable(SqlTableInfo table, SqlColumnMeta column) {
-        return column != null;
+    public boolean checkIfApplicable(Context context, SqlObjectClassSchemaBuilder objectClass, SqlAttributeBuilder<SqlAttributeBuilder.Reference> attribute) {
+        return true;
     }
 
     @Override
-    public SchemaMappingAction createAction(SqlTableInfo table, SqlColumnMeta column) {
-        return SchemaMappingAction.attributeSpecific(column,
-                attr -> attr.connId().required(detected(!column.isNullable())));
+    public SqlMappingAction createAction(Context context) {
+        return SqlMappingAction.attribute(attribute -> attribute.connId().required(detected(!context.column().isNullable())));
     }
 }

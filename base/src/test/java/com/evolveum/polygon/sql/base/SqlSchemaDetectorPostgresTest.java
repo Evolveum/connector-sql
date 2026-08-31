@@ -193,9 +193,11 @@ public class SqlSchemaDetectorPostgresTest {
     public void testConnIdSchemaTranslation() throws Exception {
         List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
 
-        var connIdSchema = new SqlSchemaTranslator(tables)
-                .translate(StubConnector.class, context)
-                .connIdSchema();
+        var translator = new SqlSchemaTranslator(tables);
+        var builder = translator.translate(StubConnector.class, context);
+        translator.applyRules();
+        builder.applyStructuralRules();
+        var connIdSchema = builder.build().connIdSchema();
         assertThat(connIdSchema).isNotNull();
 
         Map<String, ObjectClassInfo> objClasses = connIdSchema.getObjectClassInfo().stream()
@@ -257,8 +259,11 @@ public class SqlSchemaDetectorPostgresTest {
     @Test
     public void testViewReadOnlyFlagSet() throws Exception {
         List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
-        var sqlSchema = new SqlSchemaTranslator(tables)
-                .translate(StubConnector.class, context);
+        var translator = new SqlSchemaTranslator(tables);
+        var builder = translator.translate(StubConnector.class, context);
+        translator.applyRules();
+        builder.applyStructuralRules();
+        var sqlSchema = builder.build();
 
         // Check that the view object class is marked as read-only
         var viewDef = sqlSchema.objectClasses().stream()
@@ -289,8 +294,11 @@ public class SqlSchemaDetectorPostgresTest {
     @Test
     public void testViewUidResolution() throws Exception {
         List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
-        var sqlSchema = new SqlSchemaTranslator(tables)
-                .translate(StubConnector.class, context);
+        var translator = new SqlSchemaTranslator(tables);
+        var builder = translator.translate(StubConnector.class, context);
+        translator.applyRules();
+        builder.applyStructuralRules();
+        var sqlSchema = builder.build();
 
         // Check that the view object class has no __UID__ when there are no unique constraints
         // (PostgreSQL views don't have unique indexes, so unique column fallback finds none)

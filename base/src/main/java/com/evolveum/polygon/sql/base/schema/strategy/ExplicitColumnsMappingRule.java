@@ -6,10 +6,11 @@
  */
 package com.evolveum.polygon.sql.base.schema.strategy;
 
+import com.evolveum.polygon.sql.base.build.api.SqlAttributeBuilder;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilder;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
-import com.evolveum.polygon.sql.base.schema.SchemaMappingAction;
-import com.evolveum.polygon.sql.base.schema.SchemaMappingRule;
-import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
+import com.evolveum.polygon.sql.base.schema.SqlAttributeMappingRule;
+import com.evolveum.polygon.sql.base.schema.SqlMappingAction;
 import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
 
 /**
@@ -17,8 +18,14 @@ import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
  * <p>
  * When {@code onlyExplicitlyListed} is enabled at the schema builder level, this strategy
  * restricts detected columns to only those with an explicit attribute definition.
+ * <p>
+ * The actual column exclusion happens in {@code SqlSchemaTranslator#getIncludedColumns}, which
+ * duplicates this same check independently before the column ever reaches attribute-rule
+ * dispatch — this rule's {@code checkIfApplicable} is consulted for every already-included column
+ * but {@link #createAction} never returns an action, so it currently has no observable effect.
+ * Kept for parity with the pre-migration registration; not proposing to remove it here.
  */
-public class ExplicitColumnsMappingRule implements SchemaMappingRule {
+public class ExplicitColumnsMappingRule implements SqlAttributeMappingRule {
 
     private final SqlSchemaBuilderRef schemaBuilderRef;
 
@@ -27,22 +34,18 @@ public class ExplicitColumnsMappingRule implements SchemaMappingRule {
     }
 
     @Override
-    public boolean checkIfApplicable(SqlTableInfo table, SqlColumnMeta column) {
-        if (column == null) {
-            return false;
-        }
+    public boolean checkIfApplicable(SqlAttributeMappingRule.Context context, SqlObjectClassSchemaBuilder objectClass, SqlAttributeBuilder<SqlAttributeBuilder.Reference> attribute) {
         var builder = schemaBuilderRef.get();
         if (builder == null) {
             return false;
         }
-        return builder.isOnlyExplicitlyListed() && !isExplicitColumn(table, column.getName());
+        return builder.isOnlyExplicitlyListed() && !isExplicitColumn(context.table(), context.column().getName());
     }
 
     @Override
-    public SchemaMappingAction createAction(SqlTableInfo table, SqlColumnMeta column) {
-        // Explicit columns strategy doesn't create actions; it filters by returning
-        // null for columns that shouldn't be included. The translator handles this
-        // by checking if the strategy is applicable and skipping the column.
+    public SqlMappingAction createAction(SqlAttributeMappingRule.Context context) {
+        // No effect — see class javadoc. Column exclusion is handled independently by
+        // SqlSchemaTranslator#getIncludedColumns before dispatch ever reaches this rule.
         return null;
     }
 

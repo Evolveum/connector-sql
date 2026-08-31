@@ -6,10 +6,10 @@
  */
 package com.evolveum.polygon.sql.base.schema.strategy;
 
-import com.evolveum.polygon.sql.base.schema.SchemaMappingAction;
-import com.evolveum.polygon.sql.base.schema.SchemaMappingRule;
-import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
-import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
+import com.evolveum.polygon.sql.base.build.api.SqlAttributeBuilder;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilder;
+import com.evolveum.polygon.sql.base.schema.SqlAttributeMappingRule;
+import com.evolveum.polygon.sql.base.schema.SqlMappingAction;
 
 import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
 
@@ -23,14 +23,11 @@ import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
  * </ul>
  * Handler effects: none
  */
-public class LargeTypesNotReturnedByDefaultRule implements SchemaMappingRule {
+public class LargeTypesNotReturnedByDefaultRule implements SqlAttributeMappingRule {
 
     @Override
-    public boolean checkIfApplicable(SqlTableInfo table, SqlColumnMeta column) {
-        if (column == null) {
-            return false;
-        }
-        return isLargeType(column.getTypeName());
+    public boolean checkIfApplicable(Context context, SqlObjectClassSchemaBuilder objectClass, SqlAttributeBuilder<SqlAttributeBuilder.Reference> attribute) {
+        return isLargeType(context.column().getTypeName());
     }
 
     private boolean isLargeType(String typeName) {
@@ -43,9 +40,8 @@ public class LargeTypesNotReturnedByDefaultRule implements SchemaMappingRule {
     }
 
     @Override
-    public SchemaMappingAction.ColumnSpecific createAction(SqlTableInfo table, SqlColumnMeta column) {
-        return SchemaMappingAction.attributeSpecific(column,
-                attribute -> attribute.connId().returnedByDefault(detected(false)));
+    public SqlMappingAction createAction(Context context) {
+        return SqlMappingAction.attribute(attribute -> attribute.connId().returnedByDefault(detected(false)));
     }
 
 }

@@ -46,7 +46,10 @@ public class SqlSchemaTranslatorTest {
     }
 
     private SqlSchema translated(SqlSchemaTranslator translator) {
-        return translator.translate(SqlSchemaDetectorIntegrationTest.StubConnector.class, context);
+        var builder = translator.translate(SqlSchemaDetectorIntegrationTest.StubConnector.class, context);
+        translator.applyRules();
+        builder.applyStructuralRules();
+        return builder.build();
     }
 
     private List<SqlTableInfo> discovered() throws Exception {

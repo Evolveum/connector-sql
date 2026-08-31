@@ -47,8 +47,11 @@ public class SqlDevSchemaExportIntegrationTest {
 
     private ConnectorObject export(String objectClass) throws Exception {
         var tables = new SqlSchemaDetector(context).discover();
-        var schema = new SqlSchemaTranslator(tables)
-                .translate(SqlSchemaDetectorIntegrationTest.StubConnector.class, context);
+        var translator = new SqlSchemaTranslator(tables);
+        var builder = translator.translate(SqlSchemaDetectorIntegrationTest.StubConnector.class, context);
+        translator.applyRules();
+        builder.applyStructuralRules();
+        var schema = builder.build();
         return ConnDevObjectClassSerializer.serialize(schema.objectClass(objectClass));
     }
 

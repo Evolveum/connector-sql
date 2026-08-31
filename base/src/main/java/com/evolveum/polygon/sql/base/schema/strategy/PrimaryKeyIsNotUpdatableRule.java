@@ -6,10 +6,10 @@
  */
 package com.evolveum.polygon.sql.base.schema.strategy;
 
-import com.evolveum.polygon.sql.base.schema.SchemaMappingAction;
-import com.evolveum.polygon.sql.base.schema.SchemaMappingRule;
-import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
-import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
+import com.evolveum.polygon.sql.base.build.api.SqlAttributeBuilder;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilder;
+import com.evolveum.polygon.sql.base.schema.SqlAttributeMappingRule;
+import com.evolveum.polygon.sql.base.schema.SqlMappingAction;
 
 import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
 
@@ -21,19 +21,16 @@ import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
  *   <li>Sets {@code updatable(false)} on PK attribute</li>
  * </ul>
  * Handler effects: none (attribute-level constraint, not object-class-level)
- * <p>
- * Applies only at the column level ({@code column != null}).
  */
-public class PrimaryKeyIsNotUpdatableRule implements SchemaMappingRule {
+public class PrimaryKeyIsNotUpdatableRule implements SqlAttributeMappingRule {
 
     @Override
-    public boolean checkIfApplicable(SqlTableInfo table, SqlColumnMeta column) {
-        return column != null && column.isPrimaryKey();
+    public boolean checkIfApplicable(Context context, SqlObjectClassSchemaBuilder objectClass, SqlAttributeBuilder<SqlAttributeBuilder.Reference> attribute) {
+        return context.column().isPrimaryKey();
     }
 
     @Override
-    public SchemaMappingAction createAction(SqlTableInfo table, SqlColumnMeta column) {
-        return SchemaMappingAction.attributeSpecific(column,
-                attr -> attr.connId().updatable(detected(false)));
+    public SqlMappingAction createAction(Context context) {
+        return SqlMappingAction.attribute(attribute -> attribute.connId().updatable(detected(false)));
     }
 }

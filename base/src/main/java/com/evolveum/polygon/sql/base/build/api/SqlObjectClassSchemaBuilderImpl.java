@@ -65,6 +65,7 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
         return this;
     }
 
+    @Override
     public SqlObjectClassSchemaBuilder readOnly(DefinitionValue<Boolean> value) {
         this.readOnly = this.readOnly.moreSpecific(value);
         return this;

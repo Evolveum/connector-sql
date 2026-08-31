@@ -6,8 +6,10 @@
  */
 package com.evolveum.polygon.sql.base.schema.strategy;
 
-import com.evolveum.polygon.sql.base.schema.SchemaMappingRule;
+import com.evolveum.polygon.sql.base.build.api.SqlAttributeBuilder;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilder;
 import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
+import com.evolveum.polygon.sql.base.schema.SqlResourceMappingRule;
 import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
 import com.evolveum.polygon.sql.base.schema.UidDetectionAction;
 
@@ -17,7 +19,7 @@ import java.util.Locale;
  * Detects UID from a column matching a specific name pattern.
  * Falls back to single-PK detection if no column matches.
  */
-public class ColumnsMatchingPatternAsUidRule implements SchemaMappingRule {
+public class ColumnsMatchingPatternAsUidRule implements SqlResourceMappingRule {
 
     private final String columnNamePattern;
 
@@ -26,8 +28,7 @@ public class ColumnsMatchingPatternAsUidRule implements SchemaMappingRule {
     }
 
     @Override
-    public boolean checkIfApplicable(SqlTableInfo table, SqlColumnMeta column) {
-        if (column != null) return false;
+    public boolean checkIfApplicable(SqlTableInfo table, SqlObjectClassSchemaBuilder objectClass, SqlAttributeBuilder<SqlAttributeBuilder.Reference> attribute) {
         boolean hasMatchByName = table.getColumns().stream()
                 .anyMatch(c -> c.getName().toLowerCase(Locale.ROOT).equals(columnNamePattern));
         if (hasMatchByName) return true;
@@ -36,7 +37,7 @@ public class ColumnsMatchingPatternAsUidRule implements SchemaMappingRule {
     }
 
     @Override
-    public UidDetectionAction createAction(SqlTableInfo table, SqlColumnMeta column) {
+    public UidDetectionAction createAction(SqlTableInfo table) {
         var uid = table.getColumns().stream()
                 .filter(c -> c.getName().toLowerCase(Locale.ROOT).equals(columnNamePattern))
                 .findFirst()
@@ -44,10 +45,9 @@ public class ColumnsMatchingPatternAsUidRule implements SchemaMappingRule {
                         .filter(SqlColumnMeta::isPrimaryKey)
                         .findFirst()
                         .orElse(null));
-        return uid != null ? new NamedColumnUidAction(uid) : null;
-    }
-
-    private record NamedColumnUidAction(SqlColumnMeta column) implements UidDetectionAction {
-
+        if (uid == null) {
+            return null;
+        }
+        return new UidDetectionAction.SingleColumnUidAction(uid);
     }
 }

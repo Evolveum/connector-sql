@@ -6,8 +6,10 @@
  */
 package com.evolveum.polygon.sql.base.schema.strategy;
 
-import com.evolveum.polygon.sql.base.schema.SchemaMappingRule;
+import com.evolveum.polygon.sql.base.build.api.SqlAttributeBuilder;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilder;
 import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
+import com.evolveum.polygon.sql.base.schema.SqlResourceMappingRule;
 import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
 import com.evolveum.polygon.sql.base.schema.UidDetectionAction;
 
@@ -15,23 +17,23 @@ import com.evolveum.polygon.sql.base.schema.UidDetectionAction;
  * Detects UID from a single (non-composite) primary key column.
  * Only applicable when the table has exactly one PK column.
  */
-public class SinglePrimaryKeyIsUidRule implements SchemaMappingRule {
+public class SinglePrimaryKeyIsUidRule implements SqlResourceMappingRule {
 
     @Override
-    public boolean checkIfApplicable(SqlTableInfo table, SqlColumnMeta column) {
-        if (column != null) return false;
+    public boolean checkIfApplicable(SqlTableInfo table, SqlObjectClassSchemaBuilder objectClass, SqlAttributeBuilder<SqlAttributeBuilder.Reference> attribute) {
         long pkCount = table.getColumns().stream().filter(SqlColumnMeta::isPrimaryKey).count();
         return pkCount == 1;
     }
 
     @Override
-    public UidDetectionAction createAction(SqlTableInfo table, SqlColumnMeta column) {
+    public UidDetectionAction createAction(SqlTableInfo table) {
         var pk = table.getColumns().stream()
                 .filter(SqlColumnMeta::isPrimaryKey)
                 .findFirst()
                 .orElse(null);
-        return pk != null ? new SinglePkUidAction(pk) : null;
+        if (pk == null) {
+            return null;
+        }
+        return new UidDetectionAction.SingleColumnUidAction(pk);
     }
-
-    private record SinglePkUidAction(SqlColumnMeta column) implements UidDetectionAction { }
 }

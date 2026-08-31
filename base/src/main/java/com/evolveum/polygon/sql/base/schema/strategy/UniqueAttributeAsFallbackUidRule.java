@@ -6,8 +6,10 @@
  */
 package com.evolveum.polygon.sql.base.schema.strategy;
 
-import com.evolveum.polygon.sql.base.schema.SchemaMappingRule;
+import com.evolveum.polygon.sql.base.build.api.SqlAttributeBuilder;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilder;
 import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
+import com.evolveum.polygon.sql.base.schema.SqlResourceMappingRule;
 import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
 import com.evolveum.polygon.sql.base.schema.UidDetectionAction;
 
@@ -15,11 +17,10 @@ import com.evolveum.polygon.sql.base.schema.UidDetectionAction;
  * Fallback UID detection for tables without a primary key.
  * Uses unique-constrained columns as a last resort (common for views without PK).
  */
-public class UniqueAttributeAsFallbackUidRule implements SchemaMappingRule {
+public class UniqueAttributeAsFallbackUidRule implements SqlResourceMappingRule {
 
     @Override
-    public boolean checkIfApplicable(SqlTableInfo table, SqlColumnMeta column) {
-        if (column != null) return false;
+    public boolean checkIfApplicable(SqlTableInfo table, SqlObjectClassSchemaBuilder objectClass, SqlAttributeBuilder<SqlAttributeBuilder.Reference> attribute) {
         long pkCount = table.getColumns().stream().filter(SqlColumnMeta::isPrimaryKey).count();
         if (pkCount >= 1) return false;
         return table.getColumns().stream()
@@ -27,13 +28,14 @@ public class UniqueAttributeAsFallbackUidRule implements SchemaMappingRule {
     }
 
     @Override
-    public UidDetectionAction createAction(SqlTableInfo table, SqlColumnMeta column) {
+    public UidDetectionAction createAction(SqlTableInfo table) {
         var uid = table.getColumns().stream()
                 .filter(c -> c.isUnique() && !c.isPrimaryKey())
                 .findFirst()
                 .orElse(null);
-        return uid != null ? new FallbackUidAction(uid) : null;
+        if (uid == null) {
+            return null;
+        }
+        return new UidDetectionAction.SingleColumnUidAction(uid);
     }
-
-    private record FallbackUidAction(SqlColumnMeta column) implements UidDetectionAction { }
 }

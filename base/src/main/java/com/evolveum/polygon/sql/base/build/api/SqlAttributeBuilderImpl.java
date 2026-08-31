@@ -34,7 +34,7 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
         return sqlMapping;
     }
 
-    @Override public SqlAttributeDefinition build() { return new SqlAttributeDefinition(this); }
+    @Override protected SqlAttributeDefinition newDefinition() { return new SqlAttributeDefinition(this); }
 
     public class SqlMappingBuilder implements SqlMapping, AttributeProtocolMappingBuilder {
 
@@ -96,8 +96,10 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
             }
 
             if (column.isEmpty() || (valueMapping.isEmpty() && type.isEmpty())) { return null; }
-            var overrideMapping = connId().overrideMappingIfNeeded(this.valueMapping.value());
-            var main = SqlAttributeMapping.singleColumn(column, this.valueMapping.value(), overrideMapping);
+            // Raw, unwrapped: the attribute's final ConnId type isn't decided yet at build() time
+            // (it's decided later, by AttributeTypeResolver). Wrapping to match it happens once
+            // that's final — see SqlAttributeDefinition's constructor / SqlAttributeMapping#withConnIdType.
+            var main = SqlAttributeMapping.singleColumn(column, this.valueMapping.value(), this.valueMapping.value());
             if (additionalColumns.isEmpty()) {
                 return main;
             }

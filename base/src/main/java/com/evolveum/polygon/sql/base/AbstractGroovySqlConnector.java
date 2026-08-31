@@ -15,7 +15,6 @@ import com.evolveum.polygon.conndev.spi.ClassHandlerConnectorBase;
 import com.evolveum.polygon.conndev.spi.CompositeObjectClassHandler;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
-import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilder;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
@@ -197,11 +196,13 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
 
         }
 
-        // Translate into framework schema model; translator collects detected actions for handlers.
+        // Translate into framework schema model. Populates the builder only — rule dispatch and
+        // freezing happen next, explicitly, external to both the translator and the builder.
         var translator = new SqlSchemaTranslator(builder, tables);
-        context.schema(translator
-                .connector(getClass(), context)
-                .translate(additional));
+        translator.connector(getClass(), context).translate(additional);
+        translator.applyRules();
+        builder.applyStructuralRules();
+        context.schema(builder.build());
 
         // Populate table info map for custom query support
         populateTableInfo(context, tables);
@@ -213,22 +214,18 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         initializeObjectClassHandler(handlerLoader);
 
 
-        // Trigger defaults for each and every object class, then apply detected handler effects
+        // Trigger defaults for each and every object class, then re-evaluate resource rules'
+        // handler effect (MappingAction#applyToHandler) against each object class's detected
+        // table — handlers didn't exist yet at schema build() time, so this couldn't happen any
+        // earlier.
         if (context.schema() != null) {
-            var detectedActions = translator.getDetectedActions();
-            for (SqlObjectClassDefinition def : context.schema().objectClasses()) {
+            for (var ocBuilder : builder.allObjectClassBuilders()) {
                 // Skip embedded child tables - they are resolved as attributes on the parent
-                if (def.connId().isEmbedded()) {
+                if (ocBuilder.embedded()) {
                     continue;
                 }
-                handlerBuilder.objectClass(def.name());
-                var actions = detectedActions.get(def.name());
-                if (actions != null) {
-                    var ocHandlerBuilder = handlerBuilder.objectClass(def.name());
-                    for (var action : actions) {
-                        action.applyToHandlers(ocHandlerBuilder);
-                    }
-                }
+                var ocHandlerBuilder = handlerBuilder.objectClass(ocBuilder.name());
+                translator.applyHandlerRulesFor(ocBuilder, ocHandlerBuilder);
             }
         }
 
@@ -319,7 +316,10 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
             var builder = new SqlSchemaBuilderImpl(getClass(), context);
             var loader = new SqlSchemaDefinitionLoader(builder, context.configuration().groovyContext());
             schemaResources(request.filename()).forEach(loader::loadFromResource);
-            return GroovyScriptValidator.validate(loader::parse, builder::build, request.scriptText(), request.operation());
+            return GroovyScriptValidator.validate(loader::parse, () -> {
+                builder.applyStructuralRules();
+                builder.build();
+            }, request.scriptText(), request.operation());
         }
         var handlerBuilder = new SqlOperationSupportBuilderImpl(context);
         var handlerLoader = new SqlHandlerLoader(context, handlerBuilder);

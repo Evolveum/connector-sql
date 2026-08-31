@@ -7,6 +7,7 @@
 package com.evolveum.polygon.sql.base.build.api;
 
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
+import com.evolveum.polygon.conndev.schema.ValueTypeOverrideMapping;
 import com.evolveum.polygon.conndev.spi.AttributeProtocolMapping;
 import com.evolveum.polygon.conndev.spi.ValueMapping;
 import com.evolveum.polygon.sql.base.SqlTuple;
@@ -57,6 +58,20 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
     }
 
     String DEFAULT_DELIMITER = ".";
+
+    /**
+     * Returns a mapping that exposes {@code connIdType} as its ConnId-side type, wrapping the
+     * underlying native SQL conversion with a {@link com.evolveum.polygon.conndev.schema.ValueTypeOverrideMapping}
+     * if needed. Called once the attribute's final ConnId type is known — see
+     * {@code SqlAttributeDefinition}'s constructor, which calls this right after that type is
+     * frozen. Not decided any earlier: at {@code build()} time, the final type may not exist yet
+     * (it's resolved separately, after all rule dispatch), so baking a wrapping decision in then
+     * would risk it being based on a not-yet-final type.
+     *
+     * @param connIdType the attribute's final, frozen ConnId type
+     * @return this mapping, or a wrapped copy if its native ConnId type doesn't already match
+     */
+    SqlAttributeMapping withConnIdType(Class<?> connIdType);
 
     default FilterSupport sqlFilter() {
         if (this instanceof MultiColumn mc) { return mc.sqlFilter(); }
@@ -252,6 +267,14 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
             return valueMapping().toWireValue(connIdValue);
         }
 
+        @Override
+        public SingleColumn withConnIdType(Class<?> connIdType) {
+            if (connIdType.equals(valueMapping.connIdType())) {
+                return this;
+            }
+            return new SingleColumn(column, sqlMapping, ValueTypeOverrideMapping.of(connIdType, valueMapping));
+        }
+
     }
 
     // ── Composite columns (e.g. for composite primary key) ─────────────────
@@ -267,6 +290,14 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
         @Override public Object attributeFromObject(SqlTuple row) { return valuesFromObject(row); }
 
         @Override public Class<?> connIdType() { return String.class; }
+
+        @Override
+        public MultiColumn withConnIdType(Class<?> connIdType) {
+            // A composite key is always exposed as one delimited String — additionalColumns are
+            // already wrapped to String unconditionally at build() time; only mainColumn still
+            // needs it applied once the (always-String, for composite UIDs) final type is known.
+            return new MultiColumn(mainColumn.withConnIdType(connIdType), additionalColumns, delimiter);
+        }
 
         @Override public Object singleValueFromAttribute(Object value) { return value; }
 

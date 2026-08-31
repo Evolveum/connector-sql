@@ -8,7 +8,9 @@ package com.evolveum.polygon.sql.base.schema;
 
 import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
+import com.evolveum.polygon.conndev.schema.BaseSchema;
 import com.evolveum.polygon.sql.base.build.api.*;
+import com.evolveum.polygon.sql.base.groovy.impl.SqlObjectOperationBuilderImpl;
 import com.evolveum.polygon.sql.base.schema.ChildTableRelationship.*;
 import com.evolveum.polygon.sql.base.schema.strategy.*;
 import com.evolveum.polygon.sql.base.schema.strategy.ChildTableRelationshipDetectionRule;
@@ -22,36 +24,33 @@ import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
 
 /**
  * Translates JDBC-detected tables into the conndev {@link BaseSchema} using a unified
- * strategy-based approach. Detection strategies examine table and column metadata,
- * produce {@link SchemaMappingAction} instances that modify both schema definitions and
- * handler configurations.
+ * strategy-based approach. Detection strategies examine table and column metadata and produce a
+ * {@code MappingAction} — see {@link SqlResourceMappingRule}/{@link SqlAttributeMappingRule}. A
+ * rule whose action also affects operation handlers is re-evaluated later by
+ * {@link #applyHandlerRulesFor}.
  *
- * <p>Flow within {@link #translateTable(SqlTableInfo)}:
- * <ol>
- *   <li>Correlate table with existing Groovy-defined object class or create new one</li>
- *   <li>Run table-level detection strategies (view, UID, embedded)</li>
- *   <li>Filter columns (explicit-only when configured)</li>
- *   <li>Create attributes and run column-level detection strategies</li>
- *   <li>Apply UID mapping from table-level strategies</li>
- *   <li>Handle composite PK additional columns</li>
- *   <li>Collect handler actions for post-translation application</li>
- * </ol>
+ * <p>{@link #translate} only populates the builder and returns it unbuilt. The caller must call
+ * {@link #applyRules()} and then {@code build()} itself, in that order.
  *
- * @see SchemaMappingRule
- * @see SchemaMappingAction
+ * @see SqlResourceMappingRule
+ * @see SqlAttributeMappingRule
  * @see SqlSchemaBuilderImpl
  */
 public class SqlSchemaTranslator {
 
     private final SqlSchemaBuilderImpl builder;
     private final List<SqlTableInfo> tables;
-    private final List<SchemaMappingRule> detectionStrategies = new ArrayList<>();
-    private final Map<String, List<SchemaMappingAction>> handlerActions = new LinkedHashMap<>();
+    private final List<SqlResourceMappingRule> resourceRules = new ArrayList<>();
+    private final List<SqlAttributeMappingRule> attributeRules = new ArrayList<>();
 
     private final Map<String, List<ChildTableRelationship>> relationshipMap = new LinkedHashMap<>();
     private final Set<String> embeddedChildTableNames = new LinkedHashSet<>();
     private final Set<String> simpleAttributeChildTableNames = new LinkedHashSet<>();
     private final Set<String> junctionTableNames = new LinkedHashSet<>();
+
+    /** Object classes this translator correlated to a table (see {@link #translateTable}), kept
+     * here rather than on the builder itself, since the correlation is this translator's concern. */
+    private final Map<SqlObjectClassSchemaBuilderImpl, SqlTableInfo> correlatedTables = new LinkedHashMap<>();
 
     private Class<? extends Connector> connectorClass;
     private ContextLookup contextLookup;
@@ -74,20 +73,20 @@ public class SqlSchemaTranslator {
     }
 
     private void registerDefaultStrategies() {
-        // Column-level strategies
-        detectionStrategies.add(new NullableAttributesAreNotRequiredRule());
-        detectionStrategies.add(new LargeTypesNotReturnedByDefaultRule());
-        detectionStrategies.add(new PrimaryKeyIsNotUpdatableRule());
-        detectionStrategies.add(new AutoIncrementColumnIsNotEditableRule());
-        // Table-level strategies
-        detectionStrategies.add(new ViewsShouldBeReadOnly());
-        detectionStrategies.add(new SinglePrimaryKeyIsUidRule());
-        detectionStrategies.add(new CompositePkUidMappingRule());
-        detectionStrategies.add(new UniqueAttributeAsFallbackUidRule());
+        // Column-level rules
+        attributeRules.add(new NullableAttributesAreNotRequiredRule());
+        attributeRules.add(new LargeTypesNotReturnedByDefaultRule());
+        attributeRules.add(new PrimaryKeyIsNotUpdatableRule());
+        attributeRules.add(new AutoIncrementColumnIsNotEditableRule());
         // Explicit columns filter (applied at end when builder flag is set)
-        detectionStrategies.add(new ExplicitColumnsMappingRule(() -> this.builder));
-        // Child table relationship detection (table-level, requires pre-phase)
-        detectionStrategies.add(new ChildTableRelationshipDetectionRule(this));
+        attributeRules.add(new ExplicitColumnsMappingRule(() -> this.builder));
+        // Table-level rules
+        resourceRules.add(new ViewsShouldBeReadOnlyRule());
+        resourceRules.add(new SinglePrimaryKeyIsUidRule());
+        resourceRules.add(new CompositePkUidMappingRule());
+        resourceRules.add(new UniqueAttributeAsFallbackUidRule());
+        // Child table relationship detection (requires pre-phase)
+        resourceRules.add(new ChildTableRelationshipDetectionRule(this));
     }
 
     public SqlSchemaTranslator connector(Class<? extends Connector> connectorClass, ContextLookup contextLookup) {
@@ -96,18 +95,25 @@ public class SqlSchemaTranslator {
         return this;
     }
 
-    public SqlSchemaTranslator addStrategy(SchemaMappingRule strategy) {
-        this.detectionStrategies.add(strategy);
+    public SqlSchemaTranslator addResourceRule(SqlResourceMappingRule rule) {
+        this.resourceRules.add(rule);
         return this;
     }
 
-    public SqlSchema translate(Collection<ObjectClassInfo> additionalObjectClasses) {
-        additionalObjectClasses.forEach(builder::defineObjectClass);
-        return translateInternal();
+    public SqlSchemaTranslator addAttributeRule(SqlAttributeMappingRule rule) {
+        this.attributeRules.add(rule);
+        return this;
     }
 
-    public Map<String, List<SchemaMappingAction>> getDetectedActions() {
-        return Collections.unmodifiableMap(handlerActions);
+    /**
+     * Populates the underlying schema builder from the discovered tables — does not freeze it.
+     * Callers must call {@link #applyRules()} and then {@code build()} themselves.
+     *
+     * @return the populated, not-yet-built schema builder
+     */
+    public SqlSchemaBuilderImpl translate(Collection<ObjectClassInfo> additionalObjectClasses) {
+        additionalObjectClasses.forEach(builder::defineObjectClass);
+        return translateInternal();
     }
 
     public List<ChildTableRelationship> getTableRelationships(String tableName) {
@@ -128,7 +134,7 @@ public class SqlSchemaTranslator {
                                   boolean isConstraintBased) {}
 
     @Deprecated
-    public SqlSchema translate(Class<? extends Connector> connectorClass, ContextLookup contextLookup) {
+    public SqlSchemaBuilderImpl translate(Class<? extends Connector> connectorClass, ContextLookup contextLookup) {
         this.connectorClass = connectorClass;
         this.contextLookup = contextLookup;
         return translateInternal();
@@ -139,12 +145,12 @@ public class SqlSchemaTranslator {
         return this;
     }
 
-    private SqlSchema translateInternal() {
+    private SqlSchemaBuilderImpl translateInternal() {
         detectRelationships();
         for (SqlTableInfo table : tables) {
             translateTable(table);
         }
-        return builder.build();
+        return builder;
     }
 
     /**
@@ -361,32 +367,75 @@ public class SqlSchemaTranslator {
         // Phase 1: Correlate builder
         var objectClass = correlateBuilder(table);
 
-        // Phase 2: Collect table-level actions (including UID strategy actions)
-        List<SchemaMappingAction> tableActions = collectTableActions(table);
-
-        // Phase 3: Create attributes with core setup and column-level strategies
+        // Phase 2: Create attributes with core setup (identity only — rule evaluation and
+        // application is deferred to #applyRules).
         for (SqlColumnMeta column : getIncludedColumns(table)) {
             var attribute = (SqlAttributeBuilderImpl) objectClass.attribute(column.getName());
             setupCoreAttribute(attribute, column);
-            for (SchemaMappingRule strategy : detectionStrategies) {
-                if (strategy.checkIfApplicable(table, column)) {
-                    var action = strategy.createAction(table, column);
-                    if (action instanceof SchemaMappingAction.ColumnSpecific columnSpecific) {
-                        columnSpecific.applyToSchema(objectClass, attribute);
+        }
+
+        // Defer rule dispatch to #applyRules — this table's metadata must still be reachable
+        // then, since it may run long after this table is processed.
+        correlatedTables.put(objectClass, table);
+    }
+
+    /**
+     * Applies {@link #applyRulesFor} to every object class this translator correlated to a table
+     * (see {@link #translateTable}). Must be called before {@code build()}.
+     */
+    public void applyRules() {
+        for (var entry : correlatedTables.entrySet()) {
+            applyRulesFor(entry.getValue(), entry.getKey());
+        }
+    }
+
+    /**
+     * Evaluates and applies this translator's rules against the given table. Handler effects are
+     * not applied here — see {@link #applyHandlerRulesFor}.
+     */
+    public void applyRulesFor(SqlTableInfo table, SqlObjectClassSchemaBuilderImpl objectClass) {
+        // Column-level strategies
+        for (SqlColumnMeta column : getIncludedColumns(table)) {
+            var attribute = (SqlAttributeBuilderImpl) objectClass.attribute(column.getName());
+            var context = new SqlAttributeMappingRule.Context(table, column);
+            for (SqlAttributeMappingRule rule : attributeRules) {
+                if (rule.checkIfApplicable(context, objectClass, attribute)) {
+                    var action = rule.createAction(context);
+                    if (action != null) {
+                        action.applyToAttribute(attribute);
                     }
                 }
             }
         }
 
-        // Phase 4: Apply table-level actions (UID renaming/composite PK handled by UID strategies)
-        for (SchemaMappingAction action : tableActions) {
-            action.applyToSchema(objectClass);
+        // Table-level rules (UID renaming/composite PK handled by UID strategies)
+        for (SqlResourceMappingRule rule : resourceRules) {
+            if (rule.checkIfApplicable(table, objectClass, null)) {
+                var action = rule.createAction(table);
+                if (action != null) {
+                    action.applyToSchema(objectClass);
+                }
+            }
         }
+    }
 
-        // Phase 5: Collect handler actions
-        var className = objectClass.name();
-        handlerActions.computeIfAbsent(className, k -> new ArrayList<>());
-        handlerActions.get(className).addAll(tableActions);
+    /**
+     * Re-evaluates resource-level rules against the given object class's correlated table,
+     * applying any handler effect to the given handler builder. Called once handlers exist.
+     */
+    public void applyHandlerRulesFor(SqlObjectClassSchemaBuilderImpl objectClass, SqlObjectOperationBuilderImpl handlerBuilder) {
+        var table = correlatedTables.get(objectClass);
+        if (table == null) {
+            return;
+        }
+        for (SqlResourceMappingRule rule : resourceRules) {
+            if (rule.checkIfApplicable(table, objectClass, null)) {
+                var action = rule.createAction(table);
+                if (action != null) {
+                    action.applyToHandler(handlerBuilder);
+                }
+            }
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -411,21 +460,6 @@ public class SqlSchemaTranslator {
                 .table(detected(table.getName()));
         return objectClass;
     }
-
-    private List<SchemaMappingAction> collectTableActions(SqlTableInfo table) {
-        List<SchemaMappingAction> actions = new ArrayList<>();
-        for (SchemaMappingRule strategy : detectionStrategies) {
-            if (strategy.checkIfApplicable(table, null)) {
-                var action = strategy.createAction(table, null);
-                if (action != null) {
-                    actions.add(action);
-                }
-            }
-        }
-        return actions;
-    }
-
-
 
     private void setupCoreAttribute(SqlAttributeBuilder.Reference attribute, SqlColumnMeta column) {
         var sql = attribute.sql();
