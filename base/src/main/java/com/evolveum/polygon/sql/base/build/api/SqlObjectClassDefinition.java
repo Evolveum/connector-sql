@@ -8,11 +8,14 @@ package com.evolveum.polygon.sql.base.build.api;
 
 import com.evolveum.polygon.conndev.dev.ConnDevObjectClass;
 import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinition;
+import com.evolveum.polygon.sql.base.schema.SqlChildJoinConfig;
+import com.evolveum.polygon.sql.base.schema.SqlJunctionJoinConfig;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 
@@ -20,15 +23,21 @@ public class SqlObjectClassDefinition extends BaseObjectClassDefinition<SqlAttri
 
     private final SqlSchemaBuilderImpl.SqlObjectClassMapping sql;
     private final Boolean readOnly;
+    private final List<SqlChildJoinConfig> relatedAttributeJoinConfigs;
+    private final List<SqlJunctionJoinConfig> junctionJoinConfigs;
 
     public SqlObjectClassDefinition(ObjectClassInfo connId,
                                     Map<String, SqlAttributeDefinition> nativeAttrs,
                                     Map<String, SqlAttributeDefinition> connIdAttrs,
                                     SqlSchemaBuilderImpl.SqlObjectClassMapping sql,
-                                    Boolean readOnly) {
+                                    Boolean readOnly,
+                                    List<SqlChildJoinConfig> relatedAttributeJoinConfigs,
+                                    List<SqlJunctionJoinConfig> junctionJoinConfigs) {
         super(connId, nativeAttrs, connIdAttrs);
         this.sql = sql;
         this.readOnly = readOnly;
+        this.relatedAttributeJoinConfigs = List.copyOf(relatedAttributeJoinConfigs);
+        this.junctionJoinConfigs = List.copyOf(junctionJoinConfigs);
     }
 
     /**
@@ -49,6 +58,16 @@ public class SqlObjectClassDefinition extends BaseObjectClassDefinition<SqlAttri
      */
     public SqlSchemaBuilderImpl.SqlObjectClassMapping sql() {
         return this.sql;
+    }
+
+    /** Child-table joins exposed as scalar or embedded attributes on this object class. */
+    public List<SqlChildJoinConfig> relatedAttributeJoinConfigs() {
+        return relatedAttributeJoinConfigs;
+    }
+
+    /** Junction-table joins exposed as reference attributes on this object class. */
+    public List<SqlJunctionJoinConfig> junctionJoinConfigs() {
+        return junctionJoinConfigs;
     }
 
     @Override

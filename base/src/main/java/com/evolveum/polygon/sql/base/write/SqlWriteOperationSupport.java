@@ -8,6 +8,7 @@ package com.evolveum.polygon.sql.base.write;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.SqlObjectMapper;
+import com.evolveum.polygon.sql.base.SqlTableAccess;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeMapping;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
@@ -48,11 +49,13 @@ final class SqlWriteOperationSupport {
     private final SqlBaseContext context;
     private final SqlObjectClassDefinition objectClass;
     private final SqlObjectMapper objectMapper;
+    private final SqlRelatedAttributeOperationCoordinator relatedAttributes;
 
     SqlWriteOperationSupport(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
         this.context = context;
         this.objectClass = objectClass;
         this.objectMapper = new SqlObjectMapper(objectClass);
+        this.relatedAttributes = new SqlRelatedAttributeOperationCoordinator(context, objectClass, this);
     }
 
     void requireWritable() {
@@ -116,6 +119,17 @@ final class SqlWriteOperationSupport {
                 var definition = requireAttribute(attribute.getName());
                 var uidDefinition = uidDefinition();
 
+                if (definition.sql() == null) {
+                    if (!relatedAttributes.supports(attribute.getName())) {
+                        throw invalid("Attribute " + attribute.getName()
+                                + " does not have a writable SQL mapping");
+                    }
+                    if (!definition.connId().isCreateable()) {
+                        throw invalid("Attribute " + attribute.getName() + " is not creatable");
+                    }
+                    continue;
+                }
+
                 // The schema builder auto-creates __NAME__ from the UID mapping when no
                 // separate name mapping exists. For generated keys it is only a ConnId
                 // identifier placeholder and must not be inserted into the key column. For
@@ -164,6 +178,13 @@ final class SqlWriteOperationSupport {
             if (definition.emulated() || !definition.connId().isUpdateable()) {
                 throw invalid("Attribute " + modification.getName() + " is not updatable");
             }
+            if (definition.sql() == null) {
+                if (!relatedAttributes.supports(modification.getName())) {
+                    throw invalid("Attribute " + modification.getName()
+                            + " does not have a writable SQL mapping");
+                }
+                continue;
+            }
 
             var before = current.getAttributeByName(modification.getName());
             if (before == null) {
@@ -174,6 +195,46 @@ final class SqlWriteOperationSupport {
                     singleValue(modification.getName(), after.getValue()), table);
         }
         return columnValues;
+    }
+
+    void createRelatedRows(
+            SqlConnection connection, Uid uid, Collection<Attribute> attributes) {
+        relatedAttributes.create(connection, uid, attributes);
+    }
+
+    void updateRelatedRows(
+            SqlConnection connection, Uid uid, Collection<AttributeDelta> modifications) {
+        relatedAttributes.update(connection, uid, modifications);
+    }
+
+    void deleteRelatedRows(SqlConnection connection, Uid uid) {
+        relatedAttributes.delete(connection, uid);
+    }
+
+    Map<String, Object> parentColumnValues(
+            SqlConnection connection, Uid uid, Collection<String> columnNames) {
+        var table = tablePath();
+        var access = new SqlTableAccess(context, objectClass.sql().getTableName(), table);
+        var columns = columnNames.stream()
+                .distinct()
+                .map(access::columnPath)
+                .toArray(Path<?>[]::new);
+        if (columns.length == 0) {
+            return Map.of();
+        }
+        var row = connection.newQuery()
+                .select(columns)
+                .from(table)
+                .where(uidPredicate(table, uid))
+                .fetchOne();
+        if (row == null) {
+            throw new UnknownUidException(uid, objectClass.objectClass());
+        }
+        var result = new LinkedHashMap<String, Object>();
+        for (var column : columnNames) {
+            result.put(column, access.value(row, column));
+        }
+        return result;
     }
 
     BooleanExpression uidPredicate(RelationalPathBase<?> table, Uid uid) {
@@ -316,8 +377,8 @@ final class SqlWriteOperationSupport {
                     .findFirst()
                     .orElse(null);
         }
-        if (definition == null || definition.sql() == null) {
-            throw invalid("Unknown or unmapped attribute " + name);
+        if (definition == null) {
+            throw invalid("Unknown attribute " + name);
         }
         return definition;
     }

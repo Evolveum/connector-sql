@@ -11,34 +11,36 @@ import com.evolveum.polygon.conndev.build.api.AttributeResolverBuilder;
 import com.evolveum.polygon.conndev.schema.BaseAttributeDefinition;
 import com.evolveum.polygon.conndev.spi.AttributeResolver;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.sql.base.SqlTableAccess;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
 import com.evolveum.polygon.sql.base.schema.SqlChildJoinConfig;
-import com.querydsl.core.Tuple;
-import com.querydsl.core.types.PathMetadataFactory;
-import com.querydsl.core.types.dsl.Expressions;
-import com.querydsl.core.types.dsl.StringPath;
-import com.querydsl.sql.RelationalPathBase;
-import com.querydsl.sql.SQLQuery;
+import com.querydsl.core.types.Path;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
-import org.identityconnectors.framework.common.objects.*;
+import org.identityconnectors.framework.common.objects.Attribute;
+import org.identityconnectors.framework.common.objects.AttributeBuilder;
+import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
+import org.identityconnectors.framework.common.objects.EmbeddedObject;
+import org.identityconnectors.framework.common.objects.ObjectClass;
 
-import java.sql.Connection;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-/**
- * Batch attribute resolver that fetches child table data using parameterized queries.
- * Supports both embedded object mode (multiple columns) and simple attribute mode (single column).
- */
+/** Resolves scalar or embedded attributes stored in an owned child table. */
 public class SqlJoinAttributeResolver implements AttributeResolver {
 
     private final SqlBaseContext sqlContext;
     private final SqlChildJoinConfig config;
     private final String attributeName;
 
-    public SqlJoinAttributeResolver(SqlBaseContext ctx, SqlChildJoinConfig config, String attr) {
-        this.sqlContext = ctx;
+    public SqlJoinAttributeResolver(SqlBaseContext context, SqlChildJoinConfig config, String attributeName) {
+        this.sqlContext = context;
         this.config = config;
-        this.attributeName = attr;
+        this.attributeName = attributeName;
     }
 
     @Override
@@ -62,145 +64,101 @@ public class SqlJoinAttributeResolver implements AttributeResolver {
             return;
         }
 
-        var parentMap = collectParentIds(builders);
-        if (parentMap.isEmpty()) {
+        var buildersByUid = SqlRelatedJoinResolverSupport.collectByUid(builders);
+        if (buildersByUid.isEmpty()) {
             return;
         }
 
-        boolean simple = config.valueColumn() != null;
-
-        try (var wrapper = sqlContext.getConnection()) {
-            if (simple) {
-                resolveSimpleAttribute(wrapper, parentMap);
-            } else {
-                resolveEmbeddedObjects(wrapper.getConnection(), parentMap);
+        try (var connection = sqlContext.getConnection()) {
+            var parents = SqlRelatedJoinResolverSupport.indexParents(
+                    sqlContext, connection, config.parentTable(), config.joinKeys(), buildersByUid);
+            if (parents.isEmpty()) {
+                return;
             }
+            var childTable = new SqlTableAccess(sqlContext, config.childTable(), "c");
+            var criteria = parents.keySet().stream()
+                    .map(values -> SqlRelatedJoinResolverSupport.relatedCriteria(
+                            config.joinKeys(), values))
+                    .toList();
+            var values = config.valueColumn() != null
+                    ? resolveScalar(connection, childTable, criteria, parents)
+                    : resolveEmbedded(connection, childTable, criteria, parents);
+            applyResults(values);
         } catch (Exception e) {
             throw new ConnectorException(
-                    "Failed to resolve attribute '" + attributeName +
-                            "' from child table '" + config.childTable() + "'", e);
+                    "Failed to resolve attribute '" + attributeName
+                            + "' from child table '" + config.childTable() + "'", e);
         }
     }
 
-    private Map<String, ConnectorObjectBuilder> collectParentIds(
-            Iterable<ConnectorObjectBuilder> builders) {
-        var map = new LinkedHashMap<String, ConnectorObjectBuilder>();
-        for (var builder : builders) {
-            var obj = builder.build();
-            var uid = obj.getUid();
-            if (uid != null) {
-                map.put(uid.getUidValue(), builder);
+    private Map<ConnectorObjectBuilder, List<Object>> resolveScalar(
+            SqlConnection connection,
+            SqlTableAccess childTable,
+            List<Map<String, Object>> criteria,
+            Map<SqlRelatedJoinResolverSupport.JoinValues, ConnectorObjectBuilder> parents) {
+        var selected = new LinkedHashSet<Path<?>>();
+        selected.add(childTable.columnPath(config.valueColumn()));
+        config.joinKeys().stream()
+                .map(key -> childTable.columnPath(key.childColumn()))
+                .forEach(selected::add);
+
+        var result = new LinkedHashMap<ConnectorObjectBuilder, List<Object>>();
+        var rows = connection.newQuery()
+                .select(selected.toArray(Path<?>[]::new))
+                .from(childTable.path())
+                .where(childTable.matchingAny(criteria))
+                .fetch();
+        for (var row : rows) {
+            var parent = parents.get(SqlRelatedJoinResolverSupport.relatedValues(
+                    childTable, row, config.joinKeys()));
+            var value = childTable.toConnIdValue(
+                    config.valueColumn(), childTable.value(row, config.valueColumn()));
+            if (parent != null && value != null) {
+                result.computeIfAbsent(parent, ignored -> new ArrayList<>()).add(value);
             }
         }
-        return map;
+        return result;
     }
 
-    /**
-     * QueryDSL-based query for simple-attribute mode.
-     * Only SELECTs the value column and join column (optimized).
-     */
-    private void resolveSimpleAttribute(SqlConnection conn,
-                                        Map<String, ConnectorObjectBuilder> parentMap) {
-        var childTable = config.childTable();
-        var childJoinCol = config.childJoinColumn();
-        var valueColumn = config.valueColumn();
-
-        var path = new RelationalPathBase<>(Object.class,
-                PathMetadataFactory.forVariable("c"), "", childTable);
-        StringPath valuePath = Expressions.stringPath(path, valueColumn);
-        StringPath joinPath = Expressions.stringPath(path, childJoinCol);
-
-        var result = new LinkedHashMap<String, List<Object>>();
-        try {
-            SQLQuery<Tuple> query = conn.newQuery()
-                    .select(valuePath, joinPath)
-                    .from(path)
-                    .where(joinPath.in(new ArrayList<>(parentMap.keySet())));
-            for (Tuple row : query.fetch()) {
-                var parentId = row.get(joinPath);
-                if (parentId == null) {
-                    continue;
-                }
-                var value = row.get(valuePath);
+    private Map<ConnectorObjectBuilder, List<Object>> resolveEmbedded(
+            SqlConnection connection,
+            SqlTableAccess childTable,
+            List<Map<String, Object>> criteria,
+            Map<SqlRelatedJoinResolverSupport.JoinValues, ConnectorObjectBuilder> parents) {
+        var selected = childTable.metadata().getColumns().stream()
+                .map(column -> childTable.columnPath(column.getName()))
+                .distinct()
+                .toArray(Path<?>[]::new);
+        var result = new LinkedHashMap<ConnectorObjectBuilder, List<Object>>();
+        var rows = connection.newQuery()
+                .select(selected)
+                .from(childTable.path())
+                .where(childTable.matchingAny(criteria))
+                .fetch();
+        for (var row : rows) {
+            var parent = parents.get(SqlRelatedJoinResolverSupport.relatedValues(
+                    childTable, row, config.joinKeys()));
+            if (parent == null) {
+                continue;
+            }
+            var attributes = new LinkedHashSet<Attribute>();
+            for (var column : childTable.metadata().getColumns()) {
+                var value = childTable.toConnIdValue(
+                        column.getName(), childTable.value(row, column.getName()));
                 if (value != null) {
-                    result.computeIfAbsent(parentId, k -> new ArrayList<>()).add(value);
+                    attributes.add(AttributeBuilder.build(column.getName(), value));
                 }
             }
-        } catch (Exception e) {
-            throw new ConnectorException("Simple attribute query failed for '" + childTable + "'", e);
+            var embedded = new EmbeddedObject(new ObjectClass(config.childTable()), attributes);
+            result.computeIfAbsent(parent, ignored -> new ArrayList<>()).add(embedded);
         }
-
-        applyResults(parentMap, result);
+        return result;
     }
 
-    /**
-     * PreparedStatement-based query for embedded-object mode.
-     * SELECT * is required because we don't know child column names at compile time.
-     * Parameters are bound via placeholders to avoid SQL injection.
-     */
-    private void resolveEmbeddedObjects(Connection conn,
-                                        Map<String, ConnectorObjectBuilder> parentMap) {
-        var childTable = config.childTable();
-        var childJoinCol = config.childJoinColumn();
-
-        List<String> parentIds = new ArrayList<>(parentMap.keySet());
-        var sql = new StringBuilder();
-        sql.append("SELECT * FROM ").append(childTable)
-                .append(" WHERE ").append(childJoinCol).append(" IN (");
-        for (int i = 0; i < parentIds.size(); i++) {
-            if (i > 0) sql.append(',');
-            sql.append('?');
-        }
-        sql.append(')');
-
-        var result = new LinkedHashMap<String, List<Object>>();
-        try {
-            try (var stmt = conn.prepareStatement(sql.toString())) {
-                for (int i = 0; i < parentIds.size(); i++) {
-                    stmt.setString(i + 1, parentIds.get(i));
-                }
-
-                try (var rs = stmt.executeQuery()) {
-                    var rsmd = rs.getMetaData();
-                    int colCount = rsmd.getColumnCount();
-
-                    while (rs.next()) {
-                        var parentId = rs.getString(childJoinCol);
-                        if (parentId == null) {
-                            continue;
-                        }
-
-                        var attrs = new LinkedHashSet<Attribute>();
-                        for (int i = 1; i <= colCount; i++) {
-                            var colName = rsmd.getColumnName(i);
-                            var value = rs.getObject(i);
-                            if (value != null) {
-                                attrs.add(AttributeBuilder.build(colName, value));
-                            }
-                        }
-
-                        var childOcl = new ObjectClass(childTable);
-                        var embedded = new EmbeddedObject(childOcl, attrs);
-                        result.computeIfAbsent(parentId, k -> new ArrayList<>()).add(embedded);
-                    }
-                }
-            }
-        } catch (Exception e) {
-            throw new ConnectorException("Embedded object query failed for '" + childTable + "'", e);
-        }
-
-        applyResults(parentMap, result);
-    }
-
-    private void applyResults(Map<String, ConnectorObjectBuilder> parentMap,
-                              Map<String, List<Object>> parentToValues) {
-        for (var entry : parentToValues.entrySet()) {
-            var builder = parentMap.get(entry.getKey());
-            if (builder != null) {
-                List<Object> values = entry.getValue();
-                if (!values.isEmpty()) {
-                    builder.addAttribute(AttributeBuilder.build(attributeName, values));
-                }
+    private void applyResults(Map<ConnectorObjectBuilder, List<Object>> values) {
+        for (var entry : values.entrySet()) {
+            if (!entry.getValue().isEmpty()) {
+                entry.getKey().addAttribute(AttributeBuilder.build(attributeName, entry.getValue()));
             }
         }
     }
