@@ -45,21 +45,20 @@ public class SqlUpdateOperation implements ObjectUpdateOperation {
             var current = support.requireByUid(connection, uid, true);
             var table = support.tablePath();
             var columnValues = support.updateColumnValues(table, current, requested);
-            if (columnValues.isEmpty()) {
-                return requested;
+            if (!columnValues.isEmpty()) {
+                var update = new SQLUpdateClause(
+                        connection.getConnection(), context.getSqlTemplates(), table);
+                support.applyColumnValues(update, columnValues);
+                var affected = update.where(support.uidPredicate(table, uid)).execute();
+                if (affected == 0) {
+                    throw new UnknownUidException(uid, objectClass.objectClass());
+                }
+                if (affected != 1) {
+                    throw new ConnectorException(
+                            "Update affected " + affected + " rows instead of one");
+                }
             }
-
-            var update = new SQLUpdateClause(
-                    connection.getConnection(), context.getSqlTemplates(), table);
-            support.applyColumnValues(update, columnValues);
-            var affected = update.where(support.uidPredicate(table, uid)).execute();
-            if (affected == 0) {
-                throw new UnknownUidException(uid, objectClass.objectClass());
-            }
-            if (affected != 1) {
-                throw new ConnectorException(
-                        "Update affected " + affected + " rows instead of one");
-            }
+            support.updateRelatedRows(connection, uid, requested);
             return requested;
         });
     }

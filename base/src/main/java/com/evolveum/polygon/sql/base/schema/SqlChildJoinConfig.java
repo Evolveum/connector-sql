@@ -6,21 +6,33 @@
  */
 package com.evolveum.polygon.sql.base.schema;
 
+import java.util.List;
+
+import com.evolveum.polygon.sql.base.schema.ChildTableRelationship.JoinKey;
+
 /**
- * Configuration for an embedded child table join.
+ * Configuration for an attribute stored in an owned child table.
  * For simple attribute joins (FK + one value column), {@code valueColumn} specifies
  * the column to extract as a scalar value instead of building an EmbeddedObject.
  */
 public record SqlChildJoinConfig(
+        String parentTable,
         String childTable,
-        String parentJoinColumn,
-        String childJoinColumn,
+        List<JoinKey> joinKeys,
         boolean multiValued,
         String targetAttributeName,
         String valueColumn
 ) {
-    public SqlChildJoinConfig(String childTable, String parentJoinColumn, String childJoinColumn,
-                              boolean multiValued, String targetAttributeName) {
-        this(childTable, parentJoinColumn, childJoinColumn, multiValued, targetAttributeName, null);
+    public SqlChildJoinConfig {
+        joinKeys = List.copyOf(joinKeys);
+        if (joinKeys.isEmpty()) {
+            throw new IllegalArgumentException("A child-table relationship requires at least one join key");
+        }
+    }
+
+    public SqlChildJoinConfig(
+            String parentTable, String childTable, List<JoinKey> joinKeys,
+            boolean multiValued, String targetAttributeName) {
+        this(parentTable, childTable, joinKeys, multiValued, targetAttributeName, null);
     }
 }

@@ -33,6 +33,8 @@ public class SqlDeleteOperation implements ObjectDeleteOperation {
         support.requireWritable();
         support.inTransaction("Delete " + objectClass.name(), connection -> {
             var table = support.tablePath();
+            // Owned child and junction rows must be removed before their parent FK target.
+            support.deleteRelatedRows(connection, uid);
             var delete = new SQLDeleteClause(
                     connection.getConnection(), context.getSqlTemplates(), table);
             var affected = delete.where(support.uidPredicate(table, uid)).execute();

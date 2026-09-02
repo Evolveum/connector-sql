@@ -103,7 +103,8 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
             attr.connId().type(String.class);
         }
         attr.connId().multiValued(detected(true));
-        ((SqlObjectClassSchemaBuilderImpl) objectClass).addEmbeddedJoinConfig(createSimpleAttributeJoinConfig(rel));
+        ((SqlObjectClassSchemaBuilderImpl) objectClass).addRelatedAttributeJoinConfig(
+                createSimpleAttributeJoinConfig(rel));
     }
 
     private void registerSimpleAttributeResolver(SqlObjectOperationBuilderImpl hBuilder,
@@ -124,7 +125,8 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
         var attr = (SqlAttributeBuilderImpl) objectClass.attribute(attrName);
         attr.complexType(detected(rel.childTable()));
         attr.connId().multiValued(detected(multiValued));
-        ((SqlObjectClassSchemaBuilderImpl) objectClass).addEmbeddedJoinConfig(createSqlJoinConfig(rel));
+        ((SqlObjectClassSchemaBuilderImpl) objectClass).addRelatedAttributeJoinConfig(
+                createSqlJoinConfig(rel));
     }
 
     private void addReferenceAttribute(SqlObjectClassSchemaBuilder objectClass,
@@ -133,6 +135,9 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
         var ref = (SqlAttributeBuilderImpl) ((SqlObjectClassSchemaBuilderImpl) objectClass).reference(detected(targetTable));
         ref.objectClass(targetTable);
         ref.connId().multiValued(detected(true));
+        // Built-in writes currently support owned child rows, not links to independent objects.
+        ref.connId().creatable(detected(false));
+        ref.connId().updatable(detected(false));
         ((SqlObjectClassSchemaBuilderImpl) objectClass).addJunctionJoinConfig(createJunctionConfig(jr));
     }
 
@@ -163,28 +168,26 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
     }
 
     private SqlChildJoinConfig createSqlJoinConfig(ChildTableRelationship rel) {
-        var jk = rel.joinKeys().getFirst();
         return new SqlChildJoinConfig(
-                rel.childTable(), jk.parentColumn(), jk.childColumn(),
+                rel.parentTable(), rel.childTable(), rel.joinKeys(),
                 !rel.type().isSingleValue(), rel.childTable());
     }
 
     private SqlChildJoinConfig createSimpleAttributeJoinConfig(ChildTableRelationship rel) {
-        var jk = rel.joinKeys().getFirst();
         var sar =
                 (ChildTableRelationship.SimpleAttributeRelationship) rel;
         String valueCol = sar.valueColumn() != null ? sar.valueColumn().getName() : null;
         return new SqlChildJoinConfig(
-                rel.childTable(), jk.parentColumn(), jk.childColumn(),
+                rel.parentTable(), rel.childTable(), rel.joinKeys(),
                 true, rel.childTable(), valueCol);
     }
 
     private SqlJunctionJoinConfig createJunctionConfig(ChildTableRelationship.JunctionRelationship jr) {
         return new SqlJunctionJoinConfig(
+                jr.parentTable(),
                 jr.junctionTable(),
-                jr.parentJoinKeys().getFirst().parentColumn(),
-                jr.parentJoinKeys().getFirst().childColumn(),
-                jr.targetJoinKeys().getFirst().childColumn(),
+                jr.parentJoinKeys(),
+                jr.targetJoinKeys(),
                 jr.targetTable()
         );
     }
