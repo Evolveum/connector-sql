@@ -148,28 +148,50 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         initializeSchema(builder);
         initializeSchema(loader);
 
-        SqlSchemaDetector detector;
-        try {
-            detector = new SqlSchemaDetector(context);
-        } catch (SQLException ex) {
-            throw new ConnectionFailedException(ex.getMessage(), ex);
-        }
+        // Detect the database structure once. The same snapshot is translated into the normal
+        // connector schema and, in development mode, exposed as raw conndev_SqlTable metadata.
+        // Skipped entirely when the configuration is incomplete: SqlSchemaDetector's constructor
+        // itself needs a live connection, and there is none to detect anything from.
+        List<SqlTableInfo> tables;
+        if (!allowConnection) {
+            context.setSqlTemplates(SQLTemplates.DEFAULT);
+            tables = new ArrayList<>();
+        } else {
+            var tableFilter = new TableFilter(
+                    Boolean.TRUE.equals(context.configuration().getScanTables()),
+                    Boolean.TRUE.equals(context.configuration().getScanViews()),
+                    context.configuration().getScanTableFilter(),
+                    context.configuration().getScanViewFilter(),
+                    context.configuration().getScanExcludeTables(),
+                    context.configuration().getScanExcludeViews()
+            );
 
-        var tableFilter = new TableFilter(
-                Boolean.TRUE.equals(context.configuration().getScanTables()),
-                Boolean.TRUE.equals(context.configuration().getScanViews()),
-                context.configuration().getScanTableFilter(),
-                context.configuration().getScanViewFilter(),
-                context.configuration().getScanExcludeTables(),
-                context.configuration().getScanExcludeViews()
-        );
-        detector.setTableFilter(tableFilter);
+            SqlSchemaDetector detector;
+            try {
+                detector = new SqlSchemaDetector(context);
+            } catch (SQLException ex) {
+                throw new ConnectionFailedException(ex.getMessage(), ex);
+            }
+            detector.setTableFilter(tableFilter);
 
-        var templates = detector.getSQLTemplates();
-        if (templates == null) {
-            templates = SQLTemplates.DEFAULT;
+            var templates = detector.getSQLTemplates();
+            if (templates == null) {
+                templates = SQLTemplates.DEFAULT;
+            }
+            context.setSqlTemplates(templates);
+
+            try {
+                if (tableFilter.isDiscoveryEnabled()) {
+                    tables = detector.discover();
+                } else if (!builder.tableRefs().isEmpty()) {
+                    tables = detector.discover(builder.tableRefs());
+                } else {
+                    tables = new ArrayList<>();
+                }
+            } catch (SQLException e) {
+                throw new ConnectionFailedException("Schema detection failed: " + e.getMessage(), e);
+            }
         }
-        context.setSqlTemplates(templates);
 
         var additional = new ArrayList<ObjectClassInfo>();
         if (Boolean.TRUE.equals(context.configuration().getDevelopmentMode())) {
@@ -177,23 +199,6 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                     List.of(ConnDevSchema.embeddedBlock(SQL_BLOCK, SQL_BLOCK_TYPE)), List.of()));
             additional.add(sqlObjectClassBlock());
             additional.add(SqlDevelopmentMode.tableObjectClassInfo());
-        }
-
-        // Detect the database structure once. The same snapshot is translated into the normal
-        // connector schema and, in development mode, exposed as raw conndev_SqlTable metadata.
-        List<SqlTableInfo> tables;
-        try {
-            if (tableFilter.isDiscoveryEnabled()) {
-                tables = detector.discover();
-            } else if (!builder.tableRefs().isEmpty()) {
-                tables = detector.discover(builder.tableRefs());
-
-            } else {
-                tables = new ArrayList<>();
-            }
-        } catch (SQLException e) {
-            throw new ConnectionFailedException("Schema detection failed: " + e.getMessage(), e);
-
         }
 
         // Translate into framework schema model. Populates the builder only — rule dispatch and
