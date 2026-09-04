@@ -12,11 +12,14 @@ import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.connection.SqlConnection;
 import com.evolveum.polygon.sql.base.schema.SqlChildJoinConfig;
+import com.querydsl.core.types.Path;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.EmbeddedObject;
 
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -55,7 +58,7 @@ final class SqlChildTableWriteHandler {
             Collection<Attribute> attributes) {
         for (var attribute : attributes) {
             requireSupported(attribute.getName());
-            insertValues(connection, parentValues, attribute.getValue(), false);
+            insertValues(connection, prepareValues(connection, parentValues, attribute.getValue(), true), false);
         }
     }
 
@@ -66,37 +69,54 @@ final class SqlChildTableWriteHandler {
             requireSupported(modification.getName());
             var replacements = modification.getValuesToReplace();
             if (replacements != null) {
+                // Validate and retain non-updatable fields before deleting the existing rows.
+                var assignments = prepareValues(connection, parentValues, replacements, false);
                 table.delete(connection, joinAssignments(parentValues));
-                insertValues(connection, parentValues, replacements, false);
+                insertValues(connection, assignments, false);
                 continue;
             }
+            var additions = prepareValues(connection, parentValues, modification.getValuesToAdd(), false);
             deleteValues(connection, parentValues, modification.getValuesToRemove());
-            insertValues(connection, parentValues, modification.getValuesToAdd(), true);
+            insertValues(connection, additions, true);
         }
     }
 
     void delete(SqlConnection connection, Map<String, Object> parentValues) {
+        requireSupported(config.targetAttributeName());
         table.delete(connection, joinAssignments(parentValues));
     }
 
     private void insertValues(
+            SqlConnection connection, List<Map<String, Object>> values, boolean ignoreExisting) {
+        for (var assignments : values) {
+            if (!ignoreExisting || !table.exists(connection, assignments)) {
+                table.insert(connection, assignments);
+            }
+        }
+    }
+
+    private List<Map<String, Object>> prepareValues(
             SqlConnection connection, Map<String, Object> parentValues,
-            List<Object> values, boolean ignoreExisting) {
+            List<Object> values, boolean creatingParent) {
         if (values == null || values.isEmpty()) {
-            return;
+            return List.of();
         }
         if (!config.multiValued() && values.size() > 1) {
             throw invalid("Attribute " + config.targetAttributeName()
                     + " accepts at most one value");
         }
+        var result = new ArrayList<Map<String, Object>>();
         for (var value : values) {
             var assignments = config.valueColumn() != null
                     ? simpleAssignments(parentValues, value)
                     : embeddedAssignments(parentValues, value);
-            if (!ignoreExisting || !table.exists(connection, assignments)) {
-                table.insert(connection, assignments);
+            if (config.valueColumn() == null) {
+                validateEmbeddedColumns(assignments,
+                        creatingParent ? null : existingRow(connection, assignments));
             }
+            result.add(assignments);
         }
+        return result;
     }
 
     private void deleteValues(
@@ -140,7 +160,7 @@ final class SqlChildTableWriteHandler {
             }
 
             var column = table.column(attribute.getName());
-            if (column == null) {
+            if (column == null || columnAttributes(column.getName()).isEmpty()) {
                 throw invalid("Unknown child-table column " + attribute.getName()
                         + " for " + config.childTable());
             }
@@ -150,13 +170,80 @@ final class SqlChildTableWriteHandler {
 
         for (var join : joinAssignments(parentValues).entrySet()) {
             if (assignments.containsKey(join.getKey())
-                    && !Objects.deepEquals(assignments.get(join.getKey()), join.getValue())) {
+                    && !sameValue(assignments.get(join.getKey()), join.getValue())) {
                 throw invalid("Embedded attribute " + config.targetAttributeName()
                         + " cannot change parent join column " + join.getKey());
             }
             assignments.put(join.getKey(), join.getValue());
         }
         return assignments;
+    }
+
+    private Map<String, Object> existingRow(
+            SqlConnection connection, Map<String, Object> assignments) {
+        var key = new LinkedHashMap<String, Object>();
+        for (var column : table.metadata().getColumns()) {
+            if (column.isPrimaryKey()) {
+                var value = assignments.get(column.getName());
+                if (value == null) {
+                    return null;
+                }
+                key.put(column.getName(), value);
+            }
+        }
+        if (key.isEmpty()) {
+            return null;
+        }
+        var selected = table.metadata().getColumns().stream()
+                .map(column -> table.columnPath(column.getName()))
+                .toArray(Path<?>[]::new);
+        var row = connection.newQuery().select(selected).from(table.path())
+                .where(table.predicate(key)).fetchOne();
+        if (row == null) {
+            return null;
+        }
+        var result = new LinkedHashMap<String, Object>();
+        for (var column : table.metadata().getColumns()) {
+            result.put(column.getName(), table.value(row, column.getName()));
+        }
+        return result;
+    }
+
+    private void validateEmbeddedColumns(
+            Map<String, Object> assignments, Map<String, Object> previous) {
+        for (var column : table.metadata().getColumns()) {
+            var name = column.getName();
+            // Parent keys are supplied by the coordinator, not changed by the embedded value.
+            if (config.joinKeys().stream().anyMatch(key -> key.childColumn().equalsIgnoreCase(name))) {
+                continue;
+            }
+            var definitions = columnAttributes(name);
+            boolean writable = !definitions.isEmpty() && definitions.stream().allMatch(definition ->
+                    !definition.emulated() && (previous == null
+                            ? definition.connId().isCreateable() : definition.connId().isUpdateable()));
+            if (writable) {
+                continue;
+            }
+            if (assignments.containsKey(name)
+                    && (previous == null || !sameValue(assignments.get(name), previous.get(name)))) {
+                throw invalid("Child-table column " + name
+                        + (previous == null ? " is not creatable" : " is not updatable"));
+            }
+            if (previous != null) {
+                // A replacement is physically delete/insert: preserve immutable or unmapped columns.
+                assignments.put(name, previous.get(name));
+            }
+        }
+    }
+
+    private List<SqlAttributeDefinition> columnAttributes(String column) {
+        if (childDefinition == null) {
+            return List.of();
+        }
+        return childDefinition.attributes().stream()
+                .filter(attribute -> attribute.sql() != null && attribute.sql().selectPaths(table.path()).stream()
+                        .anyMatch(path -> path.getMetadata().getName().equalsIgnoreCase(column)))
+                .toList();
     }
 
     private Map<String, Object> joinAssignments(Map<String, Object> parentValues) {
@@ -201,16 +288,26 @@ final class SqlChildTableWriteHandler {
 
     private void put(Map<String, Object> assignments, String column, Object value) {
         if (assignments.containsKey(column)
-                && !Objects.deepEquals(assignments.get(column), value)) {
+                && !sameValue(assignments.get(column), value)) {
             throw invalid("Conflicting values for child-table column " + column);
         }
         assignments.put(column, value);
+    }
+
+    private boolean sameValue(Object first, Object second) {
+        if (first instanceof BigDecimal left && second instanceof BigDecimal right) {
+            return left.compareTo(right) == 0;
+        }
+        return Objects.deepEquals(first, second);
     }
 
     private void requireSupported(String attributeName) {
         if (!supports(attributeName)) {
             throw invalid("Handler for " + config.targetAttributeName()
                     + " cannot process attribute " + attributeName);
+        }
+        if (childDefinition != null && Boolean.TRUE.equals(childDefinition.getReadOnly())) {
+            throw invalid("Object class " + childDefinition.name() + " is read-only");
         }
     }
 
