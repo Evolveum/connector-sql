@@ -21,12 +21,14 @@ import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
 import org.identityconnectors.framework.common.objects.Uid;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /** Shared parent-key and composite-join resolution for related-table attribute resolvers. */
 final class SqlRelatedJoinResolverSupport {
@@ -95,8 +97,9 @@ final class SqlRelatedJoinResolverSupport {
                 continue;
             }
             var builder = buildersByUid.get(uidValues.getFirst().toString());
-            if (builder != null) {
-                result.put(parentValues(table, row, joinKeys), builder);
+            var key = parentValues(table, row, joinKeys);
+            if (builder != null && key.isComplete()) {
+                result.put(key, builder);
             }
         }
         return result;
@@ -120,8 +123,12 @@ final class SqlRelatedJoinResolverSupport {
         }
 
         var criteria = requestedValues.stream()
+                .filter(JoinValues::isComplete)
                 .map(values -> parentCriteria(table, targetJoinKeys, values))
                 .toList();
+        if (criteria.isEmpty()) {
+            return Map.of();
+        }
         var selected = new LinkedHashSet<Path<?>>();
         selected.addAll(uidDefinition.sql().selectPaths(tablePath));
         targetJoinKeys.stream()
@@ -198,7 +205,10 @@ final class SqlRelatedJoinResolverSupport {
                 }
                 joinValues.add(value);
             }
-            result.put(new JoinValues(joinValues), entry.getValue());
+            var key = new JoinValues(joinValues);
+            if (key.isComplete()) {
+                result.put(key, entry.getValue());
+            }
         }
         return result;
     }
@@ -237,7 +247,16 @@ final class SqlRelatedJoinResolverSupport {
 
     record JoinValues(List<Object> values) {
         JoinValues {
-            values = List.copyOf(values);
+            // SQL numeric equality is independent of JDBC number type and decimal scale.
+            values = values.stream()
+                    .map(value -> value instanceof Number
+                            ? new BigDecimal(value.toString()).stripTrailingZeros() : value)
+                    .toList();
+        }
+
+        boolean isComplete() {
+            // NULL never matches another NULL in an SQL equality join.
+            return values.stream().allMatch(Objects::nonNull);
         }
     }
 

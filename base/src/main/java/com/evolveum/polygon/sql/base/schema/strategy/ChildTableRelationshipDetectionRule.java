@@ -76,10 +76,8 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
                     return;
                 }
                 for (ChildTableRelationship rel : translator.getTableRelationships(table.getName())) {
-                    if (rel.type().isEmbedded()) {
-                        registerEmbeddedResolver(handlerBuilder, rel);
-                    } else if (rel.type().isSimpleAttribute()) {
-                        registerSimpleAttributeResolver(handlerBuilder, rel);
+                    if (rel.type().isEmbedded() || rel.type().isSimpleAttribute()) {
+                        registerChildAttributeResolver(handlerBuilder, rel);
                     } else {
                         var jr = (ChildTableRelationship.JunctionRelationship) rel;
                         registerJunctionResolver(handlerBuilder, jr);
@@ -107,14 +105,17 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
                 createSimpleAttributeJoinConfig(rel));
     }
 
-    private void registerSimpleAttributeResolver(SqlObjectOperationBuilderImpl hBuilder,
-                                                 ChildTableRelationship rel) {
-        var config = createSimpleAttributeJoinConfig(rel);
+    private void registerChildAttributeResolver(SqlObjectOperationBuilderImpl hBuilder,
+                                                ChildTableRelationship rel) {
+        // Use the final schema name, including any ConnId rename, for both reads and writes.
+        var config = hBuilder.getObjectClass().relatedAttributeJoinConfigs().stream()
+                .filter(candidate -> candidate.childTable().equalsIgnoreCase(rel.childTable()))
+                .findFirst().orElseThrow();
         var searchBuilder = hBuilder.search();
         var contextLookup = resolveContextLookup(hBuilder);
         var resolver = new SqlJoinAttributeResolver(
                 contextLookup != null ? (SqlBaseContext) contextLookup : null,
-                config, rel.childTable());
+                config, config.targetAttributeName());
         searchBuilder.registerSqlResolver(resolver);
     }
 
@@ -139,17 +140,6 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
         ref.connId().creatable(detected(false));
         ref.connId().updatable(detected(false));
         ((SqlObjectClassSchemaBuilderImpl) objectClass).addJunctionJoinConfig(createJunctionConfig(jr));
-    }
-
-    private void registerEmbeddedResolver(SqlObjectOperationBuilderImpl hBuilder,
-                                          ChildTableRelationship rel) {
-        var config = createSqlJoinConfig(rel);
-        var searchBuilder = hBuilder.search();
-        var contextLookup = resolveContextLookup(hBuilder);
-        var resolver = new SqlJoinAttributeResolver(
-                contextLookup != null ? (SqlBaseContext) contextLookup : null,
-                config, rel.childTable());
-        searchBuilder.registerSqlResolver(resolver);
     }
 
     private void registerJunctionResolver(SqlObjectOperationBuilderImpl hBuilder,

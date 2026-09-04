@@ -119,6 +119,10 @@ public final class SqlTableAccess {
         if (value instanceof String stringValue) {
             return parse(stringValue, mapping.primaryWireType());
         }
+        if (value instanceof Number number
+                && Number.class.isAssignableFrom(mapping.primaryWireType())) {
+            return convertNumber(number, mapping.primaryWireType());
+        }
         return mapping.toWireValue(value);
     }
 
@@ -130,7 +134,7 @@ public final class SqlTableAccess {
         var mapping = column.getValueMapping();
         var wireValue = value;
         if (!mapping.primaryWireType().isInstance(value) && value instanceof Number) {
-            wireValue = parse(value.toString(), mapping.primaryWireType());
+            wireValue = toWireValue(columnName, value);
         }
         return mapping.toConnIdValue(wireValue);
     }
@@ -141,6 +145,8 @@ public final class SqlTableAccess {
         }
         BooleanExpression result = null;
         for (var entry : criteria.entrySet()) {
+            // Keep comparison values at their original precision. A wider parent key may
+            // have no possible match in this column; that is an empty join, not a cast error.
             var current = equal(columnPath(entry.getKey()), entry.getValue());
             result = result == null ? current : result.and(current);
         }
@@ -189,6 +195,28 @@ public final class SqlTableAccess {
             throw new ConnectorException("No detected metadata for related table " + tableName);
         }
         return table;
+    }
+
+    private static Object convertNumber(Number value, Class<?> targetType) {
+        var decimal = new BigDecimal(value.toString());
+        // Foreign keys may use a different numeric JDBC type than their referenced column.
+        // Do not silently truncate a fractional value or overflow a narrower integer type.
+        if (targetType == BigInteger.class) {
+            return decimal.toBigIntegerExact();
+        }
+        if (targetType == Integer.class) {
+            return decimal.intValueExact();
+        }
+        if (targetType == Long.class) {
+            return decimal.longValueExact();
+        }
+        if (targetType == Short.class) {
+            return decimal.shortValueExact();
+        }
+        if (targetType == Byte.class) {
+            return decimal.byteValueExact();
+        }
+        return parse(decimal.toString(), targetType);
     }
 
     private static Object parse(String value, Class<?> targetType) {

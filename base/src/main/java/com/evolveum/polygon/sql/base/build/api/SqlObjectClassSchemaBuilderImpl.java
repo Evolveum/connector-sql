@@ -190,10 +190,20 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
         }
 
         var sql = new SqlSchemaBuilderImpl.SqlObjectClassMapping(schema, table);
+        var resolvedJoinConfigs = relatedAttributeJoinConfigs.stream()
+                .map(config -> {
+                    var attribute = nativeAttrs.get(config.targetAttributeName());
+                    return new SqlChildJoinConfig(
+                            config.parentTable(), config.childTable(), config.joinKeys(),
+                            config.multiValued(),
+                            attribute != null ? attribute.connId().getName() : config.targetAttributeName(),
+                            config.valueColumn());
+                })
+                .toList();
 
         return new SqlObjectClassDefinition(
                 connIdInfo, nativeAttrs, connIdAttrs, sql, readOnly.value(),
-                relatedAttributeJoinConfigs, junctionJoinConfigs);
+                resolvedJoinConfigs, junctionJoinConfigs);
     }
 
     @Override
