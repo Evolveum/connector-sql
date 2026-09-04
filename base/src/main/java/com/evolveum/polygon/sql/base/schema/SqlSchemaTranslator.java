@@ -235,14 +235,18 @@ public class SqlSchemaTranslator {
                                 List<JoinKey> parentKeys = new ArrayList<>();
                                 for (var fk : fkColumns.values()) {
                                     if (fk.targetTable().toUpperCase().equals(otherTarget)) {
-                                        parentKeys.add(new JoinKey("id", fk.childColumn()));
+                                        var referencedColumn = fk.referencedColumn() != null
+                                                ? fk.referencedColumn() : "id";
+                                        parentKeys.add(new JoinKey(referencedColumn, fk.childColumn()));
                                     }
                                 }
 
                                 List<JoinKey> targetKeys = new ArrayList<>();
                                 for (var fk : fkColumns.values()) {
                                     if (fk.targetTable().toUpperCase().equals(targetKey)) {
-                                        targetKeys.add(new JoinKey(fk.childColumn(), "id"));
+                                        var referencedColumn = fk.referencedColumn() != null
+                                                ? fk.referencedColumn() : "id";
+                                        targetKeys.add(new JoinKey(referencedColumn, fk.childColumn()));
                                     }
                                 }
 

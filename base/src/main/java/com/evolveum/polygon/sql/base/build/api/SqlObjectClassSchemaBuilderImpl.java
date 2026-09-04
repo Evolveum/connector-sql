@@ -34,7 +34,7 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
     private Boolean onlyExplicitlyListed = false;
     private DefinitionValue<Boolean> readOnly = DefinitionValue.DEFAULT_FALSE;
     private final Set<String> explicitRemoteNames = new LinkedHashSet<>();
-    private final List<SqlChildJoinConfig> embeddedJoinConfigs = new ArrayList<>();
+    private final List<SqlChildJoinConfig> relatedAttributeJoinConfigs = new ArrayList<>();
     private final List<SqlJunctionJoinConfig> junctionJoinConfigs = new ArrayList<>();
 
     public SqlObjectClassSchemaBuilderImpl(SqlSchemaBuilderImpl restSchemaBuilder, DefinitionValue<String> name) {
@@ -90,24 +90,14 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
         return explicitRemoteNames;
     }
 
-    /** Adds a join config for an embedded child table. */
-    public void addEmbeddedJoinConfig(SqlChildJoinConfig config) {
-        embeddedJoinConfigs.add(config);
+    /** Adds a join config for a scalar or embedded attribute stored in a child table. */
+    public void addRelatedAttributeJoinConfig(SqlChildJoinConfig config) {
+        relatedAttributeJoinConfigs.add(config);
     }
 
     /** Adds a join config for a junction table reference. */
     public void addJunctionJoinConfig(SqlJunctionJoinConfig config) {
         junctionJoinConfigs.add(config);
-    }
-
-    /** Returns the embedded join configurations. */
-    public List<SqlChildJoinConfig> getEmbeddedJoinConfigs() {
-        return Collections.unmodifiableList(embeddedJoinConfigs);
-    }
-
-    /** Returns the junction join configurations. */
-    public List<SqlJunctionJoinConfig> getJunctionJoinConfigs() {
-        return Collections.unmodifiableList(junctionJoinConfigs);
     }
 
     /**
@@ -201,7 +191,9 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
 
         var sql = new SqlSchemaBuilderImpl.SqlObjectClassMapping(schema, table);
 
-        return  new SqlObjectClassDefinition(connIdInfo, nativeAttrs, connIdAttrs, sql, readOnly.value());
+        return new SqlObjectClassDefinition(
+                connIdInfo, nativeAttrs, connIdAttrs, sql, readOnly.value(),
+                relatedAttributeJoinConfigs, junctionJoinConfigs);
     }
 
     @Override

@@ -62,6 +62,8 @@ public class SqlCreateOperation implements ObjectCreateOperation {
                         support.generatedKey(insert, table, generatedPath), table, columnValues);
             }
 
+            support.createRelatedRows(connection, uid, createAttributes);
+
             var created = support.findByUid(connection, uid, false);
             if (created == null) {
                 throw new ConnectorException("Created object " + uid + " could not be read back");
