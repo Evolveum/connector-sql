@@ -5,6 +5,12 @@
  */
 package com.evolveum.polygon.sql.base.test.contract;
 
+import com.evolveum.polygon.conndev.spi.CreateOperationStrategyHandler;
+import com.evolveum.polygon.conndev.spi.DeleteOperationStrategyHandler;
+import com.evolveum.polygon.conndev.spi.ObjectCreateOperation;
+import com.evolveum.polygon.conndev.spi.ObjectDeleteOperation;
+import com.evolveum.polygon.conndev.spi.ObjectUpdateOperation;
+import com.evolveum.polygon.conndev.spi.UpdateOperationStrategyHandler;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
@@ -13,6 +19,7 @@ import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
+import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
 import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
@@ -105,6 +112,73 @@ public abstract class AbstractSqlConnectorContractTest {
             database.close();
             database = null;
         }
+    }
+
+    @Test
+    public final void coordinatesRelatedCrudWithSingleConnectionPool() {
+        var configuration = database.configuration(true);
+        configuration.setPoolSize(1);
+        var singleConnectionConnector = new ContractConnector();
+        try {
+            singleConnectionConnector.init(configuration);
+            singleConnectionConnector.schema();
+            var userClass = objectClass(USER);
+            var username = attributeName(USER, "username");
+            var emails = attributeName(USER, EMAILS);
+            var uid = singleConnectionConnector.create(userClass, Set.of(
+                    AttributeBuilder.build(Name.NAME, "contract-one-connection"),
+                    AttributeBuilder.build(username, "one-connection"),
+                    AttributeBuilder.build(emails, "first@example.com")), OPTIONS);
+            singleConnectionConnector.updateDelta(userClass, uid, Set.of(
+                    AttributeDeltaBuilder.build(username, List.of("one-connection-updated")),
+                    AttributeDeltaBuilder.build(emails, List.of("second@example.com"))), OPTIONS);
+
+            // Independent search uses the ordinary connector; its batching is not a write scope.
+            var updated = get(userClass, uid);
+            assertThat(value(updated, username)).isEqualTo("one-connection-updated");
+            assertThat(values(updated, emails)).containsExactly("second@example.com");
+            singleConnectionConnector.delete(userClass, uid, OPTIONS);
+            assertThat(search(userClass, uidFilter(uid))).isEmpty();
+        } finally {
+            singleConnectionConnector.dispose();
+        }
+    }
+
+    @Test
+    public final void usesSharedCrudCoordinators() {
+        var handler = connector.context().handlerFor(objectClass(USER));
+        assertThat(handler.checkSupported(ObjectCreateOperation.class))
+                .isInstanceOf(CreateOperationStrategyHandler.class);
+        assertThat(handler.checkSupported(ObjectUpdateOperation.class))
+                .isInstanceOf(UpdateOperationStrategyHandler.class);
+        assertThat(handler.checkSupported(ObjectDeleteOperation.class))
+                .isInstanceOf(DeleteOperationStrategyHandler.class);
+    }
+
+    @Test
+    public final void validatesParentForChildOnlyUpdate() {
+        assertThatThrownBy(() -> connector.updateDelta(objectClass(USER), new Uid("999999"), Set.of(
+                AttributeDeltaBuilder.build(attributeName(USER, EMAILS), List.of("missing@example.com"))), OPTIONS))
+                .isInstanceOf(UnknownUidException.class);
+    }
+
+    @Test
+    public final void combinesPrimaryAndChildResultDeltas() {
+        var userClass = objectClass(USER);
+        var username = attributeName(USER, "username");
+        var emails = attributeName(USER, EMAILS);
+        var uid = connector.create(userClass, Set.of(
+                AttributeBuilder.build(Name.NAME, "contract-result-deltas"),
+                AttributeBuilder.build(username, "result-deltas")), OPTIONS);
+        var changes = Set.of(
+                AttributeDeltaBuilder.build(username, List.of("result-deltas-updated")),
+                AttributeDeltaBuilder.build(emails, List.of("result@example.com")));
+
+        assertThat(connector.updateDelta(userClass, uid, changes, OPTIONS))
+                .containsExactlyInAnyOrderElementsOf(changes);
+        var updated = get(userClass, uid);
+        assertThat(value(updated, username)).isEqualTo("result-deltas-updated");
+        assertThat(values(updated, emails)).containsExactly("result@example.com");
     }
 
     @Test

@@ -14,6 +14,7 @@ import com.evolveum.polygon.conndev.spi.ObjectUpdateOperation;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectOperationSupportBuilder;
+import com.evolveum.polygon.sql.base.write.SqlWriteHandlers;
 
 import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
 
@@ -33,9 +34,10 @@ public class SqlObjectOperationBuilderImpl extends BaseObjectOperationSupportBui
     public SqlObjectOperationBuilderImpl(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
         super(context, objectClass);
         this.search = new SqlSearchOperationBuilderImpl(this, context, objectClass);
-        this.create = new SqlCreateOperationBuilderImpl(context, objectClass);
-        this.update = new SqlUpdateOperationBuilderImpl(context, objectClass);
-        this.delete = new SqlDeleteOperationBuilderImpl(context, objectClass);
+        var writes = new SqlWriteHandlers(context, objectClass);
+        this.create = new SqlCreateOperationBuilderImpl(this, writes);
+        this.update = new SqlUpdateOperationBuilderImpl(this, writes);
+        this.delete = new SqlDeleteOperationBuilderImpl(this, writes);
 
         if (Boolean.TRUE.equals(objectClass.getReadOnly())) {
             disableCreate();

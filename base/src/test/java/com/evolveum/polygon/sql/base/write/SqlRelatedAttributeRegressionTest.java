@@ -196,6 +196,74 @@ public class SqlRelatedAttributeRegressionTest {
     }
 
     @Test
+    public void initializesRelatedAttributesUsingCreateNotUpdatePermissions() throws Exception {
+        initialize(PROFILE_SCHEMA, """
+                objectClass('USERS') {
+                    attribute('PROFILES') { connId { updatable false } }
+                }
+                """);
+        var uid = connector.create(USERS, Set.of(AttributeBuilder.build(Name.NAME, "2"),
+                AttributeBuilder.build("PROFILES", profile(AttributeBuilder.build("CITY", "Prague")))), OPTIONS);
+        assertThat(stored("SELECT city FROM profiles WHERE user_id = 2")).isEqualTo("Prague");
+
+        assertThatThrownBy(() -> connector.updateDelta(USERS, uid, Set.of(
+                AttributeDeltaBuilder.build("USERNAME", List.of("must-rollback")),
+                AttributeDeltaBuilder.build("PROFILES", List.of(
+                        profile(AttributeBuilder.build("CITY", "Brno"))))), OPTIONS))
+                .isInstanceOf(InvalidAttributeValueException.class).hasMessageContaining("not updatable");
+        assertThat(stored("SELECT username FROM users WHERE id = 2")).isNull();
+        assertThat(stored("SELECT city FROM profiles WHERE user_id = 2")).isEqualTo("Prague");
+    }
+
+    @Test
+    public void rejectsNonCreatableRelatedAttributeAndRollsBackParent() throws Exception {
+        initialize(PROFILE_SCHEMA, """
+                objectClass('USERS') {
+                    attribute('PROFILES') { connId { creatable false } }
+                }
+                """);
+        assertThatThrownBy(() -> connector.create(USERS, Set.of(
+                AttributeBuilder.build(Name.NAME, "2"),
+                AttributeBuilder.build("PROFILES", profile(AttributeBuilder.build("CITY", "Prague")))), OPTIONS))
+                .isInstanceOf(InvalidAttributeValueException.class).hasMessageContaining("not creatable");
+        assertThat(stored("SELECT COUNT(*) FROM users WHERE id = 2")).isEqualTo("0");
+        replaceProfile(profile(AttributeBuilder.build("CITY", "Brno")));
+        assertThat(stored("SELECT city FROM profiles WHERE user_id = 1")).isEqualTo("Brno");
+    }
+
+    @Test
+    public void resolvesNativeJoinValuesAfterPrimaryUpdate() throws Exception {
+        initialize("""
+                CREATE TABLE users(id BIGINT PRIMARY KEY, username VARCHAR(30) UNIQUE);
+                CREATE TABLE emails(username VARCHAR(30), email VARCHAR(50), PRIMARY KEY(username, email),
+                    FOREIGN KEY(username) REFERENCES users(username));
+                INSERT INTO users VALUES(1, 'alice');
+                """, "");
+
+        connector.updateDelta(USERS, ALICE, Set.of(
+                AttributeDeltaBuilder.build("USERNAME", List.of("renamed")),
+                AttributeDeltaBuilder.build("EMAILS", List.of("new@example.com"))), OPTIONS);
+        assertThat(stored("SELECT username FROM emails WHERE email = 'new@example.com'"))
+                .isEqualTo("renamed");
+    }
+
+    @Test
+    public void acceptsEquivalentDecimalUidForUpdateAndDelete() throws Exception {
+        initialize(PROFILE_SCHEMA.replace("BIGINT", "DECIMAL(12, 2)"), "");
+
+        connector.updateDelta(USERS, ALICE, Set.of(
+                AttributeDeltaBuilder.build("USERNAME", List.of("updated")),
+                AttributeDeltaBuilder.build("PROFILES", List.of(
+                        profile(AttributeBuilder.build("CITY", "Prague"))))), OPTIONS);
+        assertThat(stored("SELECT username FROM users WHERE id = 1")).isEqualTo("updated");
+        assertThat(stored("SELECT city FROM profiles WHERE user_id = 1")).isEqualTo("Prague");
+
+        connector.delete(USERS, ALICE, OPTIONS);
+        assertThat(stored("SELECT COUNT(*) FROM users")).isEqualTo("0");
+        assertThat(stored("SELECT COUNT(*) FROM profiles")).isEqualTo("0");
+    }
+
+    @Test
     public void ignoresIncompleteCompositeParentJoinKeys() throws Exception {
         initialize("""
                 CREATE TABLE users(id BIGINT PRIMARY KEY, tenant INTEGER, username VARCHAR(30),

@@ -6,7 +6,8 @@
  */
 package com.evolveum.polygon.sql.base.write;
 
-import com.evolveum.polygon.conndev.spi.ObjectDeleteOperation;
+import com.evolveum.polygon.conndev.spi.DeleteOperationHandler;
+import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.querydsl.sql.dml.SQLDeleteClause;
@@ -15,37 +16,33 @@ import org.identityconnectors.framework.common.exceptions.UnknownUidException;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.Uid;
 
-/** QueryDSL-based delete operation for a writable SQL table. */
-public class SqlDeleteOperation implements ObjectDeleteOperation {
+/** Deletes the primary row after the shared coordinator has run related-row cleanup. */
+final class SqlDeleteOperation implements DeleteOperationHandler {
 
     private final SqlBaseContext context;
     private final SqlObjectClassDefinition objectClass;
     private final SqlWriteOperationSupport support;
 
-    public SqlDeleteOperation(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
+    SqlDeleteOperation(SqlBaseContext context, SqlObjectClassDefinition objectClass,
+            SqlWriteOperationSupport support) {
         this.context = context;
         this.objectClass = objectClass;
-        this.support = new SqlWriteOperationSupport(context, objectClass);
+        this.support = support;
     }
 
     @Override
-    public void delete(Uid uid, OperationOptions options) {
-        support.requireWritable();
-        support.inTransaction("Delete " + objectClass.name(), connection -> {
-            var table = support.tablePath();
-            // Owned child and junction rows must be removed before their parent FK target.
-            support.deleteRelatedRows(connection, uid);
-            var delete = new SQLDeleteClause(
-                    connection.getConnection(), context.getSqlTemplates(), table);
-            var affected = delete.where(support.uidPredicate(table, uid)).execute();
-            if (affected == 0) {
-                throw new UnknownUidException(uid, objectClass.objectClass());
-            }
-            if (affected != 1) {
-                throw new ConnectorException(
-                        "Delete affected " + affected + " rows instead of one");
-            }
-            return null;
-        });
+    public void delete(Uid uid, OperationOptions options, ContextLookup operationContext) {
+        var connection = operationContext.get(SqlWriteContext.class).connection();
+        var table = support.tablePath();
+        var delete = new SQLDeleteClause(
+                connection.getConnection(), context.getSqlTemplates(), table);
+        var affected = delete.where(support.uidPredicate(table, uid)).execute();
+        if (affected == 0) {
+            throw new UnknownUidException(uid, objectClass.objectClass());
+        }
+        if (affected != 1) {
+            throw new ConnectorException(
+                    "Delete affected " + affected + " rows instead of one");
+        }
     }
 }

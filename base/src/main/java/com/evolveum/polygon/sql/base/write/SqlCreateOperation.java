@@ -6,7 +6,8 @@
  */
 package com.evolveum.polygon.sql.base.write;
 
-import com.evolveum.polygon.conndev.spi.ObjectCreateOperation;
+import com.evolveum.polygon.conndev.spi.CreateOperationHandler;
+import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeMapping;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
@@ -16,60 +17,64 @@ import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.Attribute;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.OperationOptions;
+import org.identityconnectors.framework.common.objects.Uid;
 
+import java.util.Collection;
 import java.util.Set;
 
-/** QueryDSL-based create operation for a writable SQL table. */
-public class SqlCreateOperation implements ObjectCreateOperation {
+/** Creates the primary SQL row within the shared coordinator's transaction. */
+final class SqlCreateOperation implements CreateOperationHandler {
 
     private final SqlBaseContext context;
     private final SqlObjectClassDefinition objectClass;
     private final SqlWriteOperationSupport support;
 
-    public SqlCreateOperation(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
+    SqlCreateOperation(SqlBaseContext context, SqlObjectClassDefinition objectClass,
+            SqlWriteOperationSupport support) {
         this.context = context;
         this.objectClass = objectClass;
-        this.support = new SqlWriteOperationSupport(context, objectClass);
+        this.support = support;
     }
 
     @Override
-    public ConnectorObject create(Set<Attribute> createAttributes, OperationOptions options) {
-        support.requireWritable();
-        return support.inTransaction("Create " + objectClass.name(), connection -> {
-            var table = support.tablePath();
-            var uidDefinition = support.uidDefinition();
-            var suppliedUid = support.suppliedUid(createAttributes);
-            var columnValues = support.createColumnValues(table, createAttributes);
-            var insert = new SQLInsertClause(
-                    connection.getConnection(), context.getSqlTemplates(), table);
-            support.applyColumnValues(insert, columnValues);
+    public Capability<Attribute, CreateOperationHandler> canHandle(
+            Collection<Attribute> attributes, OperationOptions options) {
+        return new Capability<>(this, attributes.stream()
+                .filter(attribute -> !support.isRelatedAttribute(attribute.getName())).toList());
+    }
 
-            final org.identityconnectors.framework.common.objects.Uid uid;
-            if (suppliedUid != null) {
-                var affected = insert.execute();
-                if (affected != 1) {
-                    throw new ConnectorException(
-                            "Create affected " + affected + " rows instead of one");
-                }
-                uid = suppliedUid;
-            } else {
-                if (uidDefinition.connId().isCreateable()) {
-                    throw support.invalid(
-                            "Required attribute " + uidDefinition.connId().getName() + " is missing");
-                }
-                var generatedPath = generatedKeyPath(uidDefinition.sql(), table);
-                uid = support.generatedUid(uidDefinition.sql(),
-                        support.generatedKey(insert, table, generatedPath), table, columnValues);
+    @Override
+    public Result create(Set<Attribute> createAttributes, OperationOptions options, ContextLookup operationContext) {
+        var connection = operationContext.get(SqlWriteContext.class).connection();
+        var table = support.tablePath();
+        var uidDefinition = support.uidDefinition();
+        var suppliedUid = support.suppliedUid(createAttributes);
+        var columnValues = support.createColumnValues(table, createAttributes);
+        var insert = new SQLInsertClause(
+                connection.getConnection(), context.getSqlTemplates(), table);
+        support.applyColumnValues(insert, columnValues);
+
+        final Uid uid;
+        if (suppliedUid != null) {
+            var affected = insert.execute();
+            if (affected != 1) {
+                throw new ConnectorException(
+                        "Create affected " + affected + " rows instead of one");
             }
-
-            support.createRelatedRows(connection, uid, createAttributes);
-
-            var created = support.findByUid(connection, uid, false);
-            if (created == null) {
-                throw new ConnectorException("Created object " + uid + " could not be read back");
+            uid = suppliedUid;
+        } else {
+            if (uidDefinition.connId().isCreateable()) {
+                throw support.invalid(
+                        "Required attribute " + uidDefinition.connId().getName() + " is missing");
             }
-            return created;
-        });
+            var generatedPath = generatedKeyPath(uidDefinition.sql(), table);
+            uid = support.generatedUid(uidDefinition.sql(),
+                    support.generatedKey(insert, table, generatedPath), table, columnValues);
+        }
+        // JDBC may normalize a supplied key (e.g. decimal 2 becomes 2.00).
+        // Give the coordinator the canonical UID before it creates child attributes.
+        var created = support.requireByUid(connection, uid, false);
+        return new Result(objectClass.objectClass(), created.getUid(), created);
     }
 
     private Path<?> generatedKeyPath(SqlAttributeMapping mapping, Path<?> table) {
