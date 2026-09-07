@@ -116,12 +116,15 @@ public final class SqlTableAccess {
         if (mapping.primaryWireType().isInstance(value)) {
             return value;
         }
-        if (value instanceof String stringValue) {
-            return parse(stringValue, mapping.primaryWireType());
-        }
         if (value instanceof Number number
                 && Number.class.isAssignableFrom(mapping.primaryWireType())) {
             return convertNumber(number, mapping.primaryWireType());
+        }
+        if (mapping.connIdType().isInstance(value)) {
+            return mapping.toWireValue(value);
+        }
+        if (value instanceof String stringValue) {
+            return parse(stringValue, mapping.primaryWireType());
         }
         return mapping.toWireValue(value);
     }

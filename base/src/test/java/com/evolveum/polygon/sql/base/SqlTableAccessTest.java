@@ -13,6 +13,7 @@ import org.testng.annotations.Test;
 
 import java.math.BigDecimal;
 import java.math.BigInteger;
+import java.time.LocalTime;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,6 +41,12 @@ public class SqlTableAccessTest {
                 .isInstanceOf(ArithmeticException.class);
         assertThatThrownBy(() -> table(SqlSchemaValueMapping.SMALLINT).toWireValue("id", 32768))
                 .isInstanceOf(ArithmeticException.class);
+    }
+
+    @Test
+    public void convertsTimeUsingItsDeclaredValueMapping() {
+        assertThat(table(SqlSchemaValueMapping.TIME).toWireValue("id", "14:30:45"))
+                .isEqualTo(LocalTime.of(14, 30, 45));
     }
 
     private SqlTableAccess table(SqlSchemaValueMapping mapping) {
