@@ -88,8 +88,8 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
             }
 
             if (this.type.isPresent()) {
-                connId().type(this.type.transform(t -> t.mapping().connIdType()));
-
+                // SQL types define the native mapping, not an explicit ConnId type override.
+                // Let framework type resolution handle UID/Name and declared ConnId types.
                 if (this.valueMapping.isEmpty() || valueMapping.isDetected()) {
                     this.valueMapping = this.valueMapping.moreSpecific(this.type.transform(SqlTypeSpecification::mapping));
                 }
