@@ -11,5 +11,6 @@ public record DatabaseCapabilities(
         boolean supportsSchemas,
         boolean supportsRemarks,
         boolean supportsNativeDefinitions,
-        boolean supportsJdbcDefaults) {
+        boolean supportsJdbcDefaults,
+        boolean supportsNonPrimaryForeignKeyMetadata) {
 }

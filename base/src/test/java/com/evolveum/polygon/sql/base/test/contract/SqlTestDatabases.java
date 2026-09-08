@@ -23,7 +23,7 @@ public final class SqlTestDatabases {
     public static SqlTestDatabase h2() {
         var id = ThreadLocalRandom.current().nextInt(Integer.MAX_VALUE);
         return database(
-                SqlDatabase.H2, false, true, true, true, true,
+                SqlDatabase.H2, false, true, true, true, true, true,
                 "jdbc:h2:mem:contract_" + id + ";DB_CLOSE_DELAY=-1",
                 "sa", "", "database/h2/contract-schema.sql",
                 List.of(), standardDrops(" CASCADE"), List.of(), NOOP_CLOSE);
@@ -34,7 +34,7 @@ public final class SqlTestDatabases {
         return database(
                 SqlDatabase.POSTGRESQL, false, true, true,
                 !System.getProperty("sql.test.postgresql.pgDumpPath", "").isBlank(),
-                true,
+                true, true,
                 postgres.getJdbcUrl(), postgres.getUsername(), "postgres",
                 "database/postgresql/contract-schema.sql",
                 List.of(), standardDrops(" CASCADE"), List.of(), postgres);
@@ -43,7 +43,7 @@ public final class SqlTestDatabases {
     public static SqlTestDatabase sqlite() throws Exception {
         var sqlite = SqliteDatabaseInitializer.create();
         return database(
-                SqlDatabase.SQLITE, false, false, false, true, true,
+                SqlDatabase.SQLITE, false, false, false, true, true, true,
                 sqlite.jdbcUrl() + "?foreign_keys=on", "unused", "",
                 "database/sqlite/contract-schema.sql",
                 List.of("PRAGMA foreign_keys = OFF"), standardDrops(""),
@@ -52,7 +52,7 @@ public final class SqlTestDatabases {
 
     public static SqlTestDatabase oracle() {
         return database(
-                SqlDatabase.ORACLE, true, true, false, true, false,
+                SqlDatabase.ORACLE, true, true, false, true, false, false,
                 setting("sql.test.oracle.url", "SQL_TEST_ORACLE_URL",
                         "jdbc:oracle:thin:@//localhost:1521/FREEPDB1"),
                 setting("sql.test.oracle.username", "SQL_TEST_ORACLE_USERNAME", "oracle"),
@@ -63,7 +63,7 @@ public final class SqlTestDatabases {
 
     public static SqlTestDatabase mariadb() {
         return database(
-                SqlDatabase.MARIADB, true, false, true, true, true,
+                SqlDatabase.MARIADB, true, false, true, true, true, true,
                 setting("sql.test.mariadb.url", "SQL_TEST_MARIADB_URL",
                         "jdbc:mariadb://localhost:3307/connector_sql"),
                 setting("sql.test.mariadb.username", "SQL_TEST_MARIADB_USERNAME", "connector"),
@@ -74,7 +74,7 @@ public final class SqlTestDatabases {
 
     public static SqlTestDatabase mysql() {
         return database(
-                SqlDatabase.MYSQL, true, false, true, true, true,
+                SqlDatabase.MYSQL, true, false, true, true, true, true,
                 setting("sql.test.mysql.url", "SQL_TEST_MYSQL_URL",
                         "jdbc:mysql://localhost:3308/connector_sql?allowPublicKeyRetrieval=true&useSSL=false"),
                 setting("sql.test.mysql.username", "SQL_TEST_MYSQL_USERNAME", "connector"),
@@ -90,6 +90,7 @@ public final class SqlTestDatabases {
             boolean supportsRemarks,
             boolean supportsNativeDefinitions,
             boolean supportsJdbcDefaults,
+            boolean supportsNonPrimaryForeignKeyMetadata,
             String jdbcUrl,
             String username,
             String password,
@@ -102,7 +103,8 @@ public final class SqlTestDatabases {
                 database,
                 new DatabaseCapabilities(
                         external, supportsSchemas, supportsRemarks,
-                        supportsNativeDefinitions, supportsJdbcDefaults),
+                        supportsNativeDefinitions, supportsJdbcDefaults,
+                        supportsNonPrimaryForeignKeyMetadata),
                 jdbcUrl, username, password, resource,
                 beforeDrop, drops, afterDrop, closeAction);
     }
@@ -110,7 +112,13 @@ public final class SqlTestDatabases {
     private static List<String> standardDrops(String tableSuffix) {
         return List.of(
                 "DROP VIEW IF EXISTS contract_user_view",
+                "DROP TABLE IF EXISTS contract_user_phone" + tableSuffix,
+                "DROP TABLE IF EXISTS contract_user_email" + tableSuffix,
+                "DROP TABLE IF EXISTS contract_user_profile" + tableSuffix,
+                "DROP TABLE IF EXISTS contract_user_alias" + tableSuffix,
                 "DROP TABLE IF EXISTS contract_address" + tableSuffix,
+                "DROP TABLE IF EXISTS contract_user_group" + tableSuffix,
+                "DROP TABLE IF EXISTS contract_composite_tag" + tableSuffix,
                 "DROP TABLE IF EXISTS contract_composite" + tableSuffix,
                 "DROP TABLE IF EXISTS contract_external" + tableSuffix,
                 "DROP TABLE IF EXISTS contract_group" + tableSuffix,
@@ -120,7 +128,13 @@ public final class SqlTestDatabases {
     private static List<String> oracleDrops() {
         return List.of(
                 "DROP VIEW contract_user_view",
+                "DROP TABLE contract_user_phone CASCADE CONSTRAINTS PURGE",
+                "DROP TABLE contract_user_email CASCADE CONSTRAINTS PURGE",
+                "DROP TABLE contract_user_profile CASCADE CONSTRAINTS PURGE",
+                "DROP TABLE contract_user_alias CASCADE CONSTRAINTS PURGE",
                 "DROP TABLE contract_address CASCADE CONSTRAINTS PURGE",
+                "DROP TABLE contract_user_group CASCADE CONSTRAINTS PURGE",
+                "DROP TABLE contract_composite_tag CASCADE CONSTRAINTS PURGE",
                 "DROP TABLE contract_composite CASCADE CONSTRAINTS PURGE",
                 "DROP TABLE contract_external CASCADE CONSTRAINTS PURGE",
                 "DROP TABLE contract_group CASCADE CONSTRAINTS PURGE",

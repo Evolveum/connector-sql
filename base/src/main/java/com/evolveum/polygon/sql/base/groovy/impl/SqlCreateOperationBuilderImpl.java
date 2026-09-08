@@ -6,38 +6,37 @@
  */
 package com.evolveum.polygon.sql.base.groovy.impl;
 
-import com.evolveum.polygon.conndev.build.api.CreateOperationBuilder;
-import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.groovy.AbstractCreateOperationBuilder;
-import com.evolveum.polygon.conndev.spi.ObjectCreateOperation;
-import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.conndev.spi.AttributeCreateOperationHandler;
+import com.evolveum.polygon.conndev.spi.CreateOperationHandler;
+import com.evolveum.polygon.conndev.spi.OperationExecutor;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
-import com.evolveum.polygon.sql.base.write.SqlCreateOperation;
+import com.evolveum.polygon.sql.base.write.SqlWriteHandlers;
+
+import java.util.Collection;
+import java.util.List;
 
 public final class SqlCreateOperationBuilderImpl extends AbstractCreateOperationBuilder<SqlObjectClassDefinition> {
 
-    private final SqlBaseContext context;
-    private final SqlObjectClassDefinition objectClass;
-    private DefinitionValue<Boolean> enabled = DefinitionValue.DEFAULT_TRUE;
+    private final SqlWriteHandlers writes;
 
-    SqlCreateOperationBuilderImpl(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
-        this.context = context;
-        this.objectClass = objectClass;
+    SqlCreateOperationBuilderImpl(SqlObjectOperationBuilderImpl parent, SqlWriteHandlers writes) {
+        super(parent);
+        this.writes = writes;
     }
 
     @Override
-    public boolean isEnabled() {
-        return enabled.value();
+    protected OperationExecutor operationExecutor() {
+        return writes.executor("Create");
     }
 
     @Override
-    public CreateOperationBuilder enabled(DefinitionValue<Boolean> value) {
-        enabled = enabled.moreSpecific(value);
-        return this;
+    protected Collection<CreateOperationHandler> collectHandlers() {
+        return List.of(writes.createHandler());
     }
 
     @Override
-    public ObjectCreateOperation build() {
-        return new SqlCreateOperation(context, objectClass);
+    protected Collection<AttributeCreateOperationHandler> attributeHandlers() {
+        return writes.attributeCreateHandlers();
     }
 }

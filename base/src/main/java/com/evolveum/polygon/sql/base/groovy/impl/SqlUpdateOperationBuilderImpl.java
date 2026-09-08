@@ -6,38 +6,30 @@
  */
 package com.evolveum.polygon.sql.base.groovy.impl;
 
-import com.evolveum.polygon.conndev.build.api.UpdateOperationBuilder;
-import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.groovy.AbstractUpdateOperationBuilder;
-import com.evolveum.polygon.conndev.spi.ObjectUpdateOperation;
-import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.conndev.spi.UpdateOperationHandler;
+import com.evolveum.polygon.conndev.spi.OperationExecutor;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
-import com.evolveum.polygon.sql.base.write.SqlUpdateOperation;
+import com.evolveum.polygon.sql.base.write.SqlWriteHandlers;
+
+import java.util.Collection;
 
 public final class SqlUpdateOperationBuilderImpl extends AbstractUpdateOperationBuilder<SqlObjectClassDefinition> {
 
-    private final SqlBaseContext context;
-    private final SqlObjectClassDefinition objectClass;
-    private DefinitionValue<Boolean> enabled = DefinitionValue.DEFAULT_TRUE;
+    private final SqlWriteHandlers writes;
 
-    SqlUpdateOperationBuilderImpl(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
-        this.context = context;
-        this.objectClass = objectClass;
+    SqlUpdateOperationBuilderImpl(SqlObjectOperationBuilderImpl parent, SqlWriteHandlers writes) {
+        super(parent);
+        this.writes = writes;
     }
 
     @Override
-    public boolean isEnabled() {
-        return enabled.value();
+    protected OperationExecutor operationExecutor() {
+        return writes.executor("Update");
     }
 
     @Override
-    public UpdateOperationBuilder enabled(DefinitionValue<Boolean> value) {
-        enabled = enabled.moreSpecific(value);
-        return this;
-    }
-
-    @Override
-    public ObjectUpdateOperation build() {
-        return new SqlUpdateOperation(context, objectClass);
+    protected Collection<UpdateOperationHandler> collectHandlers() {
+        return writes.updateHandlers();
     }
 }

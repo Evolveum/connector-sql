@@ -8,6 +8,7 @@ package com.evolveum.polygon.sql.base.write;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.SqlObjectMapper;
+import com.evolveum.polygon.sql.base.SqlTableAccess;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeMapping;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
@@ -39,20 +40,41 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.TreeSet;
 
 /**
- * Shared mapping, transaction, lookup, and exception support for SQL write operations.
+ * Shared mapping, lookup, and exception support for SQL write handlers.
  */
 final class SqlWriteOperationSupport {
 
     private final SqlBaseContext context;
     private final SqlObjectClassDefinition objectClass;
     private final SqlObjectMapper objectMapper;
+    private final Set<String> relatedAttributes = new TreeSet<>(String.CASE_INSENSITIVE_ORDER);
 
     SqlWriteOperationSupport(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
         this.context = context;
         this.objectClass = objectClass;
         this.objectMapper = new SqlObjectMapper(objectClass);
+        for (var config : objectClass.relatedAttributeJoinConfigs()) {
+            if (!relatedAttributes.add(config.targetAttributeName())) {
+                throw new IllegalArgumentException(
+                        "Multiple child-table handlers target attribute " + config.targetAttributeName());
+            }
+        }
+    }
+
+    boolean isRelatedAttribute(String name) {
+        return relatedAttributes.contains(name);
+    }
+
+    void requireRelatedAttributeWritable(String name, boolean create) {
+        var definition = requireAttribute(name);
+        if (create ? !definition.connId().isCreateable()
+                : definition.emulated() || !definition.connId().isUpdateable()) {
+            throw invalid("Attribute " + name + (create ? " is not creatable" : " is not updatable"));
+        }
     }
 
     void requireWritable() {
@@ -116,6 +138,17 @@ final class SqlWriteOperationSupport {
                 var definition = requireAttribute(attribute.getName());
                 var uidDefinition = uidDefinition();
 
+                if (definition.sql() == null) {
+                    if (!isRelatedAttribute(attribute.getName())) {
+                        throw invalid("Attribute " + attribute.getName()
+                                + " does not have a writable SQL mapping");
+                    }
+                    if (!definition.connId().isCreateable()) {
+                        throw invalid("Attribute " + attribute.getName() + " is not creatable");
+                    }
+                    continue;
+                }
+
                 // The schema builder auto-creates __NAME__ from the UID mapping when no
                 // separate name mapping exists. For generated keys it is only a ConnId
                 // identifier placeholder and must not be inserted into the key column. For
@@ -164,6 +197,13 @@ final class SqlWriteOperationSupport {
             if (definition.emulated() || !definition.connId().isUpdateable()) {
                 throw invalid("Attribute " + modification.getName() + " is not updatable");
             }
+            if (definition.sql() == null) {
+                if (!isRelatedAttribute(modification.getName())) {
+                    throw invalid("Attribute " + modification.getName()
+                            + " does not have a writable SQL mapping");
+                }
+                continue;
+            }
 
             var before = current.getAttributeByName(modification.getName());
             if (before == null) {
@@ -174,6 +214,32 @@ final class SqlWriteOperationSupport {
                     singleValue(modification.getName(), after.getValue()), table);
         }
         return columnValues;
+    }
+
+    Map<String, Object> parentColumnValues(
+            SqlConnection connection, Uid uid, Collection<String> columnNames) {
+        var table = tablePath();
+        var access = new SqlTableAccess(context, objectClass.sql().getTableName(), table);
+        var columns = columnNames.stream()
+                .distinct()
+                .map(access::columnPath)
+                .toArray(Path<?>[]::new);
+        if (columns.length == 0) {
+            return Map.of();
+        }
+        var row = connection.newQuery()
+                .select(columns)
+                .from(table)
+                .where(uidPredicate(table, uid))
+                .fetchOne();
+        if (row == null) {
+            throw new UnknownUidException(uid, objectClass.objectClass());
+        }
+        var result = new LinkedHashMap<String, Object>();
+        for (var column : columnNames) {
+            result.put(column, access.value(row, column));
+        }
+        return result;
     }
 
     BooleanExpression uidPredicate(RelationalPathBase<?> table, Uid uid) {
@@ -276,26 +342,6 @@ final class SqlWriteOperationSupport {
         columnValues.forEach((path, value) -> set(update, path, value));
     }
 
-    <T> T inTransaction(String action, TransactionWork<T> work) {
-        try (var connection = context.getConnection()) {
-            try {
-                connection.setAutoCommit(false);
-                var result = work.execute(connection);
-                connection.commit();
-                return result;
-            } catch (Exception e) {
-                try {
-                    connection.rollback();
-                } catch (SQLException rollbackException) {
-                    e.addSuppressed(rollbackException);
-                }
-                throw translate(action, e);
-            }
-        } catch (RuntimeException e) {
-            throw translate(action, e);
-        }
-    }
-
     InvalidAttributeValueException invalid(String message) {
         return new InvalidAttributeValueException(message);
     }
@@ -316,8 +362,8 @@ final class SqlWriteOperationSupport {
                     .findFirst()
                     .orElse(null);
         }
-        if (definition == null || definition.sql() == null) {
-            throw invalid("Unknown or unmapped attribute " + name);
+        if (definition == null) {
+            throw invalid("Unknown attribute " + name);
         }
         return definition;
     }
@@ -354,8 +400,11 @@ final class SqlWriteOperationSupport {
         return values.getFirst();
     }
 
-    private RuntimeException translate(String action, Throwable failure) {
-        if (failure instanceof ConnectorException connectorException) {
+    RuntimeException translate(String action, Throwable failure) {
+        // The shared executor wraps checked JDBC failures in a plain ConnectorException.
+        // Inspect those causes, but retain already classified ConnId exceptions.
+        if (failure instanceof ConnectorException connectorException
+                && failure.getClass() != ConnectorException.class) {
             return connectorException;
         }
         if (failure instanceof IllegalArgumentException illegalArgumentException) {
@@ -377,7 +426,8 @@ final class SqlWriteOperationSupport {
                 return new ConnectionFailedException(message, failure);
             }
         }
-        return new ConnectorException(action + " failed: " + failure.getMessage(), failure);
+        return failure instanceof ConnectorException connectorException ? connectorException
+                : new ConnectorException(action + " failed: " + failure.getMessage(), failure);
     }
 
     private SQLException findSqlException(Throwable failure) {
@@ -442,10 +492,5 @@ final class SqlWriteOperationSupport {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private static Object executeWithKey(SQLInsertClause insert, Path<?> path) {
         return insert.executeWithKey((Path) path);
-    }
-
-    @FunctionalInterface
-    interface TransactionWork<T> {
-        T execute(SqlConnection connection) throws Exception;
     }
 }

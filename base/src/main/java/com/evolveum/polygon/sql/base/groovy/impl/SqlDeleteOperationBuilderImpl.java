@@ -6,38 +6,36 @@
  */
 package com.evolveum.polygon.sql.base.groovy.impl;
 
-import com.evolveum.polygon.conndev.build.api.DeleteOperationBuilder;
-import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.groovy.AbstractDeleteOperationBuilder;
-import com.evolveum.polygon.conndev.spi.ObjectDeleteOperation;
-import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.conndev.spi.DeleteOperationHandler;
+import com.evolveum.polygon.conndev.spi.OperationExecutor;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
-import com.evolveum.polygon.sql.base.write.SqlDeleteOperation;
+import com.evolveum.polygon.sql.base.write.SqlWriteHandlers;
+
+import java.util.Collection;
+import java.util.List;
 
 public final class SqlDeleteOperationBuilderImpl extends AbstractDeleteOperationBuilder<SqlObjectClassDefinition> {
 
-    private final SqlBaseContext context;
-    private final SqlObjectClassDefinition objectClass;
-    private DefinitionValue<Boolean> enabled = DefinitionValue.DEFAULT_TRUE;
+    private final SqlWriteHandlers writes;
 
-    SqlDeleteOperationBuilderImpl(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
-        this.context = context;
-        this.objectClass = objectClass;
+    SqlDeleteOperationBuilderImpl(SqlObjectOperationBuilderImpl parent, SqlWriteHandlers writes) {
+        super(parent);
+        this.writes = writes;
     }
 
     @Override
-    public boolean isEnabled() {
-        return enabled.value();
+    protected OperationExecutor operationExecutor() {
+        return writes.executor("Delete");
     }
 
     @Override
-    public DeleteOperationBuilder enabled(DefinitionValue<Boolean> value) {
-        enabled = enabled.moreSpecific(value);
-        return this;
+    protected Collection<DeleteOperationHandler> collectHandlers() {
+        return List.of(writes.deleteHandler());
     }
 
     @Override
-    public ObjectDeleteOperation build() {
-        return new SqlDeleteOperation(context, objectClass);
+    protected Collection<DeleteOperationHandler> cleanupHandlers() {
+        return writes.deleteCleanupHandlers();
     }
 }

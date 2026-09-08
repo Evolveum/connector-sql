@@ -11,32 +11,35 @@ import com.evolveum.polygon.conndev.build.api.AttributeResolverBuilder;
 import com.evolveum.polygon.conndev.schema.BaseAttributeDefinition;
 import com.evolveum.polygon.conndev.spi.AttributeResolver;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
-import com.evolveum.polygon.sql.base.connection.SqlConnection;
+import com.evolveum.polygon.sql.base.SqlTableAccess;
 import com.evolveum.polygon.sql.base.schema.SqlJunctionJoinConfig;
-import com.querydsl.core.Tuple;
-import com.querydsl.core.types.PathMetadataFactory;
-import com.querydsl.core.types.dsl.Expressions;
-import com.querydsl.core.types.dsl.StringPath;
-import com.querydsl.sql.RelationalPathBase;
+import com.querydsl.core.types.Path;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
-import org.identityconnectors.framework.common.objects.*;
+import org.identityconnectors.framework.common.objects.AttributeBuilder;
+import org.identityconnectors.framework.common.objects.ConnectorObjectBuilder;
+import org.identityconnectors.framework.common.objects.ConnectorObjectReference;
+import org.identityconnectors.framework.common.objects.ObjectClass;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
-/**
- * Batch attribute resolver that fetches junction table data using parameterized QueryDSL queries.
- * Builds ConnectorObjectReference instances for bidirectional references.
- */
+/** Resolves read-only object references stored in a junction table. */
 public class SqlJunctionAttributeResolver implements AttributeResolver {
 
     private final SqlBaseContext sqlContext;
     private final SqlJunctionJoinConfig config;
     private final String attributeName;
 
-    public SqlJunctionAttributeResolver(SqlBaseContext ctx, SqlJunctionJoinConfig config, String attr) {
-        this.sqlContext = ctx;
+    public SqlJunctionAttributeResolver(
+            SqlBaseContext context, SqlJunctionJoinConfig config, String attributeName) {
+        this.sqlContext = context;
         this.config = config;
-        this.attributeName = attr;
+        this.attributeName = attributeName;
     }
 
     @Override
@@ -60,91 +63,86 @@ public class SqlJunctionAttributeResolver implements AttributeResolver {
             return;
         }
 
-        Map<String, ConnectorObjectBuilder> parentMap = collectParentIds(builders);
-        if (parentMap.isEmpty()) {
+        var buildersByUid = SqlRelatedJoinResolverSupport.collectByUid(builders);
+        if (buildersByUid.isEmpty()) {
             return;
         }
 
-        try (var wrapper = sqlContext.getConnection()) {
-            var result = fetchJunctionReferences(wrapper, parentMap.keySet());
-            applyResults(parentMap, result);
-        } catch (Exception e) {
-            throw new ConnectorException(
-                    "Failed to resolve junction attribute '" + attributeName +
-                            "' from '" + config.junctionTable() + "'", e);
-        }
-    }
-
-    private Map<String, ConnectorObjectBuilder> collectParentIds(
-            Iterable<ConnectorObjectBuilder> builders) {
-        Map<String, ConnectorObjectBuilder> map = new LinkedHashMap<>();
-        for (ConnectorObjectBuilder builder : builders) {
-            var obj = builder.build();
-            var uid = obj.getUid();
-            if (uid != null) {
-                map.put(uid.getUidValue(), builder);
+        try (var connection = sqlContext.getConnection()) {
+            var parents = SqlRelatedJoinResolverSupport.indexParents(
+                    sqlContext, connection, config.parentTable(),
+                    config.parentJoinKeys(), buildersByUid);
+            if (parents.isEmpty()) {
+                return;
             }
-        }
-        return map;
-    }
 
-    /**
-     * QueryDSL-based query for junction table resolution.
-     * SELECTs only the two key columns used for references.
-     */
-    private Map<String, List<ConnectorObjectReference>> fetchJunctionReferences(
-            SqlConnection conn,
-            Set<String> parentIds) {
-        var junctionTable = config.junctionTable();
-        var junctionParentKey = config.junctionParentKey();
-        var junctionTargetKey = config.junctionTargetKey();
-        var targetObjectClass = config.targetObjectClass();
+            var junction = new SqlTableAccess(sqlContext, config.junctionTable(), "j");
+            var parentCriteria = parents.keySet().stream()
+                    .map(values -> SqlRelatedJoinResolverSupport.relatedCriteria(
+                            config.parentJoinKeys(), values))
+                    .toList();
+            var selected = new LinkedHashSet<Path<?>>();
+            config.parentJoinKeys().stream()
+                    .map(key -> junction.columnPath(key.childColumn()))
+                    .forEach(selected::add);
+            config.targetJoinKeys().stream()
+                    .map(key -> junction.columnPath(key.childColumn()))
+                    .forEach(selected::add);
 
-        var path = new RelationalPathBase<>(Object.class,
-                PathMetadataFactory.forVariable("j"), "", junctionTable);
-        StringPath parentKeyPath = Expressions.stringPath(path, junctionParentKey);
-        StringPath targetKeyPath = Expressions.stringPath(path, junctionTargetKey);
-
-        var result = new LinkedHashMap<String, List<ConnectorObjectReference>>();
-        try {
-            var query = conn.newQuery()
-                    .select(parentKeyPath, targetKeyPath)
-                    .from(path)
-                    .where(parentKeyPath.in(new ArrayList<>(parentIds)));
-
-            for (Tuple row : query.fetch()) {
-                var parentId = row.get(parentKeyPath);
-                var targetId = row.get(targetKeyPath);
-                if (parentId == null || targetId == null) {
+            var resolvedRows = new ArrayList<ResolvedJunctionRow>();
+            var targetValues = new LinkedHashSet<SqlRelatedJoinResolverSupport.JoinValues>();
+            var rows = connection.newQuery()
+                    .select(selected.toArray(Path<?>[]::new))
+                    .from(junction.path())
+                    .where(junction.matchingAny(parentCriteria))
+                    .fetch();
+            for (var row : rows) {
+                var parent = parents.get(SqlRelatedJoinResolverSupport.relatedValues(
+                        junction, row, config.parentJoinKeys()));
+                if (parent == null) {
                     continue;
                 }
-
-                var refBuilder = new ConnectorObjectBuilder();
-                refBuilder.setObjectClass(new ObjectClass(targetObjectClass));
-                refBuilder.setUid(targetId);
-                var identification = refBuilder.buildIdentification();
-                var ref = new ConnectorObjectReference(identification);
-
-                result.computeIfAbsent(parentId, k -> new ArrayList<>()).add(ref);
+                var target = SqlRelatedJoinResolverSupport.relatedValues(
+                        junction, row, config.targetJoinKeys());
+                resolvedRows.add(new ResolvedJunctionRow(parent, target));
+                targetValues.add(target);
             }
+
+            var targetUids = SqlRelatedJoinResolverSupport.targetUids(
+                    sqlContext, connection, config.targetObjectClass(),
+                    config.targetJoinKeys(), targetValues);
+            applyResults(resolvedRows, targetUids);
         } catch (Exception e) {
             throw new ConnectorException(
-                    "Junction query failed for table '" + junctionTable + "'", e);
+                    "Failed to resolve junction attribute '" + attributeName
+                            + "' from '" + config.junctionTable() + "'", e);
         }
-
-        return result;
     }
 
-    private void applyResults(Map<String, ConnectorObjectBuilder> parentMap,
-                               Map<String, List<ConnectorObjectReference>> parentToRefs) {
-        for (var entry : parentToRefs.entrySet()) {
-            var builder = parentMap.get(entry.getKey());
-            if (builder != null) {
-                List<ConnectorObjectReference> refs = entry.getValue();
-                if (!refs.isEmpty()) {
-                    builder.addAttribute(AttributeBuilder.build(attributeName, refs));
-                }
+    private void applyResults(
+            List<ResolvedJunctionRow> rows,
+            Map<SqlRelatedJoinResolverSupport.JoinValues, String> targetUids) {
+        var references = new LinkedHashMap<ConnectorObjectBuilder, List<ConnectorObjectReference>>();
+        for (var row : rows) {
+            var targetUid = targetUids.get(row.targetValues());
+            if (targetUid == null) {
+                continue;
+            }
+            var target = new ConnectorObjectBuilder();
+            target.setObjectClass(new ObjectClass(config.targetObjectClass()));
+            target.setUid(targetUid);
+            references.computeIfAbsent(row.parent(), ignored -> new ArrayList<>())
+                    .add(new ConnectorObjectReference(target.buildIdentification()));
+        }
+        for (var entry : references.entrySet()) {
+            if (!entry.getValue().isEmpty()) {
+                entry.getKey().addAttribute(AttributeBuilder.build(attributeName, entry.getValue()));
             }
         }
+    }
+
+    private record ResolvedJunctionRow(
+            ConnectorObjectBuilder parent,
+            SqlRelatedJoinResolverSupport.JoinValues targetValues) {
     }
 }

@@ -62,7 +62,7 @@ public class ChildTableRelationshipTest {
         var rel = new ChildTableRelationship.JunctionRelationship(
                 "users", "user_group_membership",
                 List.of(new ChildTableRelationship.JoinKey("id", "user_id")),
-                List.of(new ChildTableRelationship.JoinKey("group_id", "id")),
+                List.of(new ChildTableRelationship.JoinKey("id", "group_id")),
                 "groups",
                 ChildTableType.JUNCTION_TABLE, false);
         assertThat(rel.type()).isEqualTo(ChildTableType.JUNCTION_TABLE);
@@ -144,10 +144,14 @@ public class ChildTableRelationshipTest {
 
     @Test
     public void sqlChildJoinConfigFields() {
-        var config = new SqlChildJoinConfig("childTable", "parentId", "childParentId", true, "childAttr");
+        var joinKeys = List.of(
+                new ChildTableRelationship.JoinKey("parentId", "childParentId"),
+                new ChildTableRelationship.JoinKey("tenantId", "childTenantId"));
+        var config = new SqlChildJoinConfig(
+                "parentTable", "childTable", joinKeys, true, "childAttr");
+        assertThat(config.parentTable()).isEqualTo("parentTable");
         assertThat(config.childTable()).isEqualTo("childTable");
-        assertThat(config.parentJoinColumn()).isEqualTo("parentId");
-        assertThat(config.childJoinColumn()).isEqualTo("childParentId");
+        assertThat(config.joinKeys()).containsExactlyElementsOf(joinKeys);
         assertThat(config.multiValued()).isTrue();
         assertThat(config.targetAttributeName()).isEqualTo("childAttr");
         assertThat(config.valueColumn()).isNull();
@@ -155,18 +159,23 @@ public class ChildTableRelationshipTest {
 
     @Test
     public void sqlChildJoinConfigWithValueColumn() {
-        var config = new SqlChildJoinConfig("childTable", "parentId", "childParentId", true,
-                "childAttr", "email");
+        var config = new SqlChildJoinConfig(
+                "parentTable", "childTable",
+                List.of(new ChildTableRelationship.JoinKey("parentId", "childParentId")),
+                true, "childAttr", "email");
         assertThat(config.valueColumn()).isEqualTo("email");
     }
 
     @Test
     public void sqlJunctionJoinConfigFields() {
-        var config = new SqlJunctionJoinConfig("membership", "id", "user_id", "group_id", "groups");
+        var parentKeys = List.of(new ChildTableRelationship.JoinKey("id", "user_id"));
+        var targetKeys = List.of(new ChildTableRelationship.JoinKey("id", "group_id"));
+        var config = new SqlJunctionJoinConfig(
+                "users", "membership", parentKeys, targetKeys, "groups");
+        assertThat(config.parentTable()).isEqualTo("users");
         assertThat(config.junctionTable()).isEqualTo("membership");
-        assertThat(config.parentJoinColumn()).isEqualTo("id");
-        assertThat(config.junctionParentKey()).isEqualTo("user_id");
-        assertThat(config.junctionTargetKey()).isEqualTo("group_id");
+        assertThat(config.parentJoinKeys()).containsExactlyElementsOf(parentKeys);
+        assertThat(config.targetJoinKeys()).containsExactlyElementsOf(targetKeys);
         assertThat(config.targetObjectClass()).isEqualTo("groups");
     }
 }
