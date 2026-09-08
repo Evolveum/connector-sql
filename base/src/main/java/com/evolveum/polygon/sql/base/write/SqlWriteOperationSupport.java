@@ -35,7 +35,6 @@ import org.identityconnectors.framework.common.objects.Uid;
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -115,7 +114,7 @@ final class SqlWriteOperationSupport {
         var nameDefinition = objectClass.attributeFromConnIdName(Name.NAME);
         if (uidDefinition.connId().isCreateable()
                 && nameDefinition != null
-                && mapsSameColumns(nameDefinition, uidDefinition)) {
+                && nameDefinition.derivedFromUid()) {
             for (var attribute : attributes) {
                 if (Name.NAME.equals(attribute.getName())) {
                     var value = singleValue(attribute.getName(), attribute.getValue());
@@ -149,12 +148,12 @@ final class SqlWriteOperationSupport {
                     continue;
                 }
 
-                // The schema builder auto-creates __NAME__ from the UID mapping when no
-                // separate name mapping exists. For generated keys it is only a ConnId
-                // identifier placeholder and must not be inserted into the key column. For
-                // natural/composite keys it carries the caller-supplied UID value.
+                // The schema builder auto-creates __NAME__ as a copy of the UID mapping when no
+                // separate name mapping exists (marked derivedFromUid). For generated keys it is
+                // only a ConnId identifier placeholder and must not be inserted into the key
+                // column. For natural/composite keys it carries the caller-supplied UID value.
                 if (Name.NAME.equals(attribute.getName())
-                        && mapsSameColumns(definition, uidDefinition)) {
+                        && definition.derivedFromUid()) {
                     if (uidDefinition.connId().isCreateable()) {
                         addColumnValues(columnValues, uidDefinition,
                                 singleValue(attribute.getName(), attribute.getValue()), table);
@@ -167,7 +166,7 @@ final class SqlWriteOperationSupport {
                     // (non-generated) SQL key, the auto-emulated __NAME__ carries that key value.
                     if (Name.NAME.equals(attribute.getName())
                             && uidDefinition.connId().isCreateable()
-                            && mapsSameColumns(definition, uidDefinition)) {
+                            && definition.derivedFromUid()) {
                         addColumnValues(columnValues, uidDefinition,
                                 singleValue(attribute.getName(), attribute.getValue()), table);
                     }
@@ -366,16 +365,6 @@ final class SqlWriteOperationSupport {
             throw invalid("Unknown attribute " + name);
         }
         return definition;
-    }
-
-    private boolean mapsSameColumns(
-            SqlAttributeDefinition first, SqlAttributeDefinition second) {
-        if (first.sql() == null || second.sql() == null) {
-            return false;
-        }
-        var table = tablePath();
-        return new LinkedHashSet<>(first.sql().selectPaths(table))
-                .equals(new LinkedHashSet<>(second.sql().selectPaths(table)));
     }
 
     private void addColumnValues(Map<Path<?>, Object> columnValues, SqlAttributeDefinition definition,

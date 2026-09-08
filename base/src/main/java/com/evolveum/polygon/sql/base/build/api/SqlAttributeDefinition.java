@@ -16,10 +16,11 @@ public class SqlAttributeDefinition extends BaseAttributeDefinition {
      * Constructs a {@code SqlAttributeDefinition} from the supplied builder, performing type
      * resolution across protocol mappings and building the final {@link org.identityconnectors.framework.common.objects.AttributeInfo}.
      *
-     * <p>{@code super(builder)} resolves and freezes the final ConnId type first; only then is
-     * {@link SqlAttributeMapping#withConnIdType(Class)} applied, so its wire-type-conversion
-     * decision (e.g. Integer column exposed as a String UID) is based on the definitive type,
-     * not whatever {@code connId().type()} happened to hold mid-construction.
+     * <p>The SQL mapping is taken from the protocol mappings resolved by {@code super(builder)}
+     * — built with the attribute's final ConnId type already applied by
+     * {@code SqlMappingBuilder#build()} (pushed there by {@code AttributeTypeCoercionRule}), so
+     * this definition's {@link #sql()} and its entry in the protocol-mappings map are the same
+     * coerced instance (e.g. an Integer column exposed as a String UID).
      *
      * @param builder the {@code SqlAttributeBuilderImpl} providing all metadata for this attribute
      * @throws IllegalStateException    if multiple protocol mappings declare conflicting ConnId types
@@ -27,8 +28,7 @@ public class SqlAttributeDefinition extends BaseAttributeDefinition {
      */
     public SqlAttributeDefinition(SqlAttributeBuilderImpl builder) {
         super(builder);
-        var rawMapping = builder.sql().build();
-        this.sql = rawMapping != null ? rawMapping.withConnIdType(this.connId().getType()) : null;
+        this.sql = mapping(SqlAttributeMapping.class);
     }
 
     /**

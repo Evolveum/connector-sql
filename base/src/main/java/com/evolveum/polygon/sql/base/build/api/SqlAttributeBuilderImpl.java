@@ -47,8 +47,20 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
         private DefinitionValue<SqlValueMapping> valueMapping = DefinitionValue.emptyDefault();
         private final List<SqlAdditionalColumnDef> additionalColumns = new ArrayList<>();
         private SqlAttributeMapping override;
+        private Class<?> connIdTypeOverride;
 
         public SqlMappingBuilder(String name) { this.column = DefinitionValue.defaultFrom(name); }
+
+        /**
+         * Stores the attribute's final ConnId type, pushed by
+         * {@code AttributeTypeCoercionRule} during structural rule dispatch;
+         * {@link #build()} then wraps the native mapping to expose exactly that type
+         * (e.g. an integer key column exposed as a String UID).
+         */
+        @Override
+        public void applyConnIdTypeOverride(Class<?> connIdType) {
+            this.connIdTypeOverride = connIdType;
+        }
 
         @Override public SqlMapping name(String name) {
             var d = DefinitionValue.from(name, SourceLocation.capture());
@@ -84,7 +96,7 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
         @Override
         public SqlAttributeMapping build() {
             if (this.override != null) {
-                return this.override;
+                return connIdTypeOverride != null ? this.override.withConnIdType(connIdTypeOverride) : this.override;
             }
 
             if (this.type.isPresent()) {
@@ -96,24 +108,27 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
             }
 
             if (column.isEmpty() || (valueMapping.isEmpty() && type.isEmpty())) { return null; }
-            // Raw, unwrapped: the attribute's final ConnId type isn't decided yet at build() time
-            // (it's decided later, by AttributeTypeResolver). Wrapping to match it happens once
-            // that's final — see SqlAttributeDefinition's constructor / SqlAttributeMapping#withConnIdType.
+            // The final ConnId type was pushed here by AttributeTypeCoercionRule before
+            // build() runs (see #applyConnIdTypeOverride); if it differs from the native
+            // mapping's type, withConnIdType wraps the conversion accordingly.
             var main = SqlAttributeMapping.singleColumn(column, this.valueMapping.value(), this.valueMapping.value());
+            SqlAttributeMapping result;
             if (additionalColumns.isEmpty()) {
-                return main;
-            }
-            var extra = new ArrayList<SqlAttributeMapping.SingleColumn>();
-            for (var a : additionalColumns) {
-                if (a.mapping == null) {
-                    throw new IllegalStateException("Column mapping is null");
+                result = main;
+            } else {
+                var extra = new ArrayList<SqlAttributeMapping.SingleColumn>();
+                for (var a : additionalColumns) {
+                    if (a.mapping == null) {
+                        throw new IllegalStateException("Column mapping is null");
+                    }
+                    var override = ValueTypeOverrideMapping.of(String.class, a.mapping);
+                    extra.add(SqlAttributeMapping.singleColumn(
+                            DefinitionValue.from(a.column(), SourceLocation.capture()),
+                            a.mapping, override));
                 }
-                var override = ValueTypeOverrideMapping.of(String.class, a.mapping);
-                extra.add(SqlAttributeMapping.singleColumn(
-                        DefinitionValue.from(a.column(), SourceLocation.capture()),
-                        a.mapping, override));
+                result = SqlAttributeMapping.multiColumn(main, extra, SqlAttributeMapping.DEFAULT_DELIMITER);
             }
-            return SqlAttributeMapping.multiColumn(main, extra, SqlAttributeMapping.DEFAULT_DELIMITER);
+            return connIdTypeOverride != null ? result.withConnIdType(connIdTypeOverride) : result;
         }
 
         private SqlMappingBuilder addExtra(String name, SqlValueMapping mapping) {

@@ -66,6 +66,7 @@ public class SqlObjectMapperTest {
         secret.returnedByDefault(false);
         secret.sql().type(SqlSchemaValueMapping.VARCHAR.asTypeSpecification());
 
+        schemaBuilder.applyStructuralRules();
         return schemaBuilder.build().objectClasses().stream()
                 .findFirst()
                 .orElseThrow();

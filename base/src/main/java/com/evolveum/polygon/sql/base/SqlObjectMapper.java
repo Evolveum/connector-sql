@@ -70,8 +70,6 @@ public final class SqlObjectMapper {
                 builder.addAttribute(attr.attributeOf(value));
             }
         }
-        // FIXME: Composite UIDs are already produced by their mapping; derived or
-        // emulated NAME mappings may still need explicit computation here.
         return builder.build();
     }
 

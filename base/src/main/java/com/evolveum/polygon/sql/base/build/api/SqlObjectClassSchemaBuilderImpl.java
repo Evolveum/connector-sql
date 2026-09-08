@@ -17,7 +17,6 @@ import com.evolveum.polygon.sql.base.schema.SqlJunctionJoinConfig;
 import com.evolveum.polygon.sql.base.yaml.model.YamlSqlBlock;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
-import org.identityconnectors.framework.common.objects.Uid;
 import tools.jackson.databind.JsonNode;
 
 import java.util.*;
@@ -165,29 +164,32 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
         }
     }
 
+    /**
+     * The SQL half of the "NAME defaults to a copy of UID" rule (see
+     * {@code NameDefaultsToUidRule}): the default {@code __NAME__} attribute copies the UID's
+     * SQL column mapping, so it always reads the key column. For read-only object classes the
+     * copy is not creatable/updatable — the value is derived from the key, never written back
+     * as its own column.
+     */
+    @Override
+    public SqlAttributeBuilderImpl deriveDefaultNameFromUid(SqlAttributeBuilderImpl uidAttribute) {
+        var mapping = uidAttribute.sql().build();
+        if (mapping == null) {
+            return null;
+        }
+        var nameAttribute = reference(DefinitionValue.defaultFrom(Name.NAME));
+        nameAttribute.sql().override(mapping);
+        if (Boolean.TRUE.equals(readOnly.value())) {
+            nameAttribute.connId().creatable(DefinitionValue.detected(false));
+            nameAttribute.connId().updatable(DefinitionValue.detected(false));
+        }
+        return nameAttribute;
+    }
+
     @Override
     protected SqlObjectClassDefinition buildImpl(ObjectClassInfo connIdInfo,
                                                  Map<String, SqlAttributeDefinition> nativeAttrs,
                                                  Map<String, SqlAttributeDefinition> connIdAttrs) {
-
-        if (!connIdAttrs.containsKey(Name.NAME)) {
-            var uidAttribute = connIdAttrs.get(Uid.NAME);
-            if (uidAttribute != null && uidAttribute.sql() instanceof SqlAttributeMapping mapping) {
-                var attributeBuilder = newAttribute(DefinitionValue.defaultFrom(Name.NAME));
-
-                // FIXME: Currently breaks with built-in attribute resolvers
-                // attributeBuilder.emulated(DefinitionValue.detected(true));
-
-                attributeBuilder.sql().override(mapping);
-                if (Boolean.TRUE.equals(readOnly.value())) {
-                    attributeBuilder.connId().creatable(DefinitionValue.detected(false));
-                    attributeBuilder.connId().updatable(DefinitionValue.detected(false));
-                }
-                var attribute = attributeBuilder.build();
-                nativeAttrs.put(Name.NAME, attribute);
-                connIdAttrs.put(Name.NAME, attribute);
-            }
-        }
 
         var sql = new SqlSchemaBuilderImpl.SqlObjectClassMapping(schema, table);
         var resolvedJoinConfigs = relatedAttributeJoinConfigs.stream()
