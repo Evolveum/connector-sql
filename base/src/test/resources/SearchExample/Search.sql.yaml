@@ -1,0 +1,9 @@
+objectClasses:
+  User:
+    search:
+      # attributeResolver and custom are also supported here, same as in SCIMREST
+      sql:
+        builtIn:
+          enabled: true # Framework default
+          emptyFilterSupported: true # Framework default
+          anyFilterSupported: true # Framework default

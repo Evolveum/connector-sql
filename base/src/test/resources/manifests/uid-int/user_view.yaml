@@ -1,0 +1,42 @@
+# Schema with an explicitly typed INT __UID__ (reproduces the int-not-converted-to-string report)
+objectClasses:
+  user_view:
+    sql:
+      table: user_view
+      schema: public
+    readOnly: true
+    onlyExplicitlyListed: true
+
+    attributes:
+      id:
+        connId:
+          name: UID
+        sql:
+          type: INT
+          primaryKey: true
+
+      username:
+        connId:
+          name: NAME
+        sql:
+          type: VARCHAR(255)
+
+      city:
+        sql:
+          type: VARCHAR(255)
+
+      country:
+        sql:
+          type: VARCHAR(255)
+
+      created_at:
+        sql:
+          type: TIMESTAMP(6)
+
+      email:
+        sql:
+          type: VARCHAR(255)
+
+      street:
+        sql:
+          type: VARCHAR(255)

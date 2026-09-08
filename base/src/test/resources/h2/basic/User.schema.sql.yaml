@@ -1,0 +1,72 @@
+# Object class names are by default same as tables name
+objectClasses:
+  User:
+    sql:
+      # Allows to override / use different table name than object class name
+      table: User
+    # Attributes names are by default same as table names
+    attributes:
+      id:
+        connId:
+          # Derived from SQL schema by being non-composite primary key
+          name: UID
+        sql:
+          type: INT
+          primaryKey: true
+          autoIncrement: true
+
+      username:
+        sql:
+          type: VARCHAR(255)
+          notNull: true
+          unique: true
+      email:
+        sql:
+          type: VARCHAR(255)
+          unique: true
+      created_at:
+        sql:
+          type: TIMESTAMP
+
+      address:
+        # Attribute name is derived because UserAddress is embedded in User and contains User as a prefix
+        complexType: UserAddress
+        multiValued: true
+        sql:
+          # Probably Join here could be described
+          joinOn: |
+            attribute("id").eq(other.attribute("user_id"))
+
+  UserAddress:
+    # Address is embedded, because it does has non-null foreign key to user with delete cascade
+    embedded: true
+    sql:
+      table: UserAddress
+
+    attributes:
+      id:
+        sql:
+          type: INT
+          primaryKey: true
+          autoIncrement: true
+      user_id:
+        sql:
+          type: INT
+          notNull: true
+          # Simple declaration of foreign key
+          foreignKey:
+            User:
+              references: id
+              onDelete: CASCADE
+      street:
+        sql:
+          type: VARCHAR(255)
+      city:
+        sql:
+          type: VARCHAR(255)
+      country:
+        sql:
+          type: VARCHAR(255)
+      primary_flag:
+        sql:
+          type: BOOLEAN

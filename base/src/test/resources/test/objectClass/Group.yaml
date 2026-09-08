@@ -1,0 +1,17 @@
+objectClasses:
+  Group:
+    sql:
+      table: app_group
+
+    attributes:
+      id:
+        connId:
+          name: UID
+        sql:
+          type: INT
+          primaryKey: true
+          autoIncrement: true
+
+      name:
+        sql:
+          type: VARCHAR(50)

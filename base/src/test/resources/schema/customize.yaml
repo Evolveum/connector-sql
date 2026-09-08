@@ -1,0 +1,38 @@
+# Schema definition for SqlSchemaCustomizationIntegrationTest
+# Maps SQL tables to custom ConnId object class names with remapped attributes
+# Uses the unified builder DSL
+
+# Maps table "app_user" → ConnId object class "Person"
+objectClasses:
+  Person:
+    sql:
+      table: app_user
+
+    attributes:
+      user_id:
+        connId:
+          name: __UID__
+      user_name:
+        connId:
+          name: __NAME__
+
+      # Override attribute mapped from "user_email" SQL column
+      user_email:
+        connId:
+          name: emailAddress
+
+      # Custom attribute "loginCount" (not on the SQL table, name serves as both)
+      loginCount:
+
+  # Maps table "app_group" → ConnId object class "Team"
+  Team:
+    sql:
+      table: app_group
+
+    attributes:
+      group_id:
+        connId:
+          name: __UID__
+      group_name:
+        connId:
+          name: __NAME__

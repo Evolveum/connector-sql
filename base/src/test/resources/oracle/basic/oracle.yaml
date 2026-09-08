@@ -1,0 +1,300 @@
+# Oracle schema definition for connector integration tests
+# All 13 tables: orgchart (3 tables) + directory (10 tables)
+
+# ============================================
+# ORGCHART SCHEMA
+# ============================================
+
+objectClasses:
+  orgchart_type_ref:
+    sql:
+      table: ORGCHART_TYPE_REF
+    attributes:
+      TYPE_REF_ID:
+        connId:
+          name: __UID__
+        sql:
+          primaryKey: true
+          type: NUMBER(10)
+      TYPE_CODE:
+        sql:
+          type: VARCHAR2(20)
+      DISPLAY_NAME:
+        connId:
+          name: __NAME__
+        sql:
+          type: VARCHAR2(255)
+
+  orgchart_node:
+    sql:
+      table: ORGCHART_NODE
+    attributes:
+      UNIT_ID:
+        connId:
+          name: __UID__
+        sql:
+          primaryKey: true
+          type: NUMBER(10)
+      UNIT_CODE:
+        connId:
+          name: __NAME__
+        sql:
+          type: VARCHAR2(100)
+      PARENT_UNIT_ID:
+        sql:
+          type: NUMBER(10)
+      TYPE_REF_ID:
+        sql:
+          type: NUMBER(10)
+      HIERARCHY_LEVEL:
+        sql:
+          type: NUMBER(3)
+      DISPLAY_ORDER:
+        sql:
+          type: NUMBER(10)
+      CREATED_DATE:
+        sql:
+          type: TIMESTAMP(6)
+      UPDATED_DATE:
+        sql:
+          type: TIMESTAMP(6)
+
+  orgchart_label:
+    sql:
+      table: ORGCHART_LABEL
+    attributes:
+      UNIT_ID:
+        connId:
+          name: __UID__
+        sql:
+          type: NUMBER(10)
+      LANGUAGE:
+        connId:
+          name: __NAME__
+        sql:
+          type: VARCHAR2(10)
+      LABEL_TEXT:
+        sql:
+          type: VARCHAR2(500)
+
+# ============================================
+# DIRECTORY SCHEMA
+# ============================================
+
+  dir_status_ref:
+    sql:
+      table: DIR_STATUS_REF
+    attributes:
+      STATUS_CODE:
+        connId:
+          name: __UID__
+        sql:
+          primaryKey: true
+          type: VARCHAR2(1)
+      STATUS_MEANING:
+        connId:
+          name: __NAME__
+        sql:
+          type: VARCHAR2(100)
+
+  dir_archetype_ref:
+    sql:
+      table: DIR_ARCHETYPE_REF
+    attributes:
+      ARCHETYPE_CODE:
+        connId:
+          name: __UID__
+        sql:
+          primaryKey: true
+          type: VARCHAR2(1)
+      ARCHETYPE_DESCRIPTION:
+        connId:
+          name: __NAME__
+        sql:
+          type: VARCHAR2(255)
+
+  dir_staff_origin_ref:
+    sql:
+      table: DIR_STAFF_ORIGIN_REF
+    attributes:
+      ORIGIN_CODE:
+        connId:
+          name: __UID__
+        sql:
+          primaryKey: true
+          type: VARCHAR2(20)
+      ORIGIN_MEANING:
+        connId:
+          name: __NAME__
+        sql:
+          type: VARCHAR2(255)
+
+  dir_institution_ref:
+    sql:
+      table: DIR_INSTITUTION_REF
+    attributes:
+      ORIGIN_CODE:
+        connId:
+          name: __UID__
+        sql:
+          primaryKey: true
+          type: VARCHAR2(20)
+      INSTITUTION_NAME:
+        connId:
+          name: __NAME__
+        sql:
+          type: VARCHAR2(255)
+
+  dir_auth_domain:
+    sql:
+      table: DIR_AUTH_DOMAIN
+    attributes:
+      DOMAIN_ID:
+        connId:
+          name: __UID__
+        sql:
+          primaryKey: true
+          type: NUMBER(10)
+      DOMAIN_NAME:
+        connId:
+          name: __NAME__
+        sql:
+          type: VARCHAR2(100)
+
+  dir_account:
+    sql:
+      table: DIR_ACCOUNT
+    attributes:
+      ACCOUNT_ID:
+        connId:
+          name: __UID__
+        sql:
+          primaryKey: true
+          type: VARCHAR2(8)
+      FAMILY_NAME:
+        connId:
+          name: __NAME__
+        sql:
+          type: VARCHAR2(400)
+      GIVEN_NAME:
+        sql:
+          type: VARCHAR2(400)
+      EMAIL_ADDRESS:
+        sql:
+          type: VARCHAR2(320)
+      STATUS_CODE:
+        sql:
+          type: VARCHAR2(1)
+      ARCHETYPE_CODE:
+        sql:
+          type: VARCHAR2(1)
+      DOMAIN_ID:
+        sql:
+          type: NUMBER(10)
+      EXTERNAL_PERSON_ID:
+        sql:
+          type: VARCHAR2(8)
+      INTERNAL_ID:
+        sql:
+          type: VARCHAR2(60)
+      CREATED_AT:
+        sql:
+          type: TIMESTAMP(6)
+      UPDATED_AT:
+        sql:
+          type: TIMESTAMP(6)
+
+  dir_service:
+    sql:
+      table: DIR_SERVICE
+    attributes:
+      SERVICE_ID:
+        connId:
+          name: __UID__
+        sql:
+          primaryKey: true
+          type: VARCHAR2(64)
+      SERVICE_FULL_NAME:
+        connId:
+          name: __NAME__
+        sql:
+          type: VARCHAR2(255)
+      IS_PRIVILEGED:
+        sql:
+          type: VARCHAR2(1)
+      DOMAIN_ID:
+        sql:
+          type: NUMBER(10)
+      DIRECTORATEGENERAL:
+        sql:
+          type: VARCHAR2(10)
+      APP_NAME:
+        sql:
+          type: VARCHAR2(256)
+      ENDPOINT_TIME:
+        sql:
+          type: NUMBER(19)
+
+  dir_membership:
+    sql:
+      table: DIR_MEMBERSHIP
+    attributes:
+      ACCOUNT_ID:
+        connId:
+          name: __UID__
+        sql:
+          type: VARCHAR2(8)
+      SERVICE_ID:
+        connId:
+          name: __NAME__
+        sql:
+          type: VARCHAR2(64)
+      MEMBERSHIP_EXPIRY:
+        sql:
+          type: TIMESTAMP(6)
+      UPDATED_AT:
+        sql:
+          type: TIMESTAMP(6)
+
+  dir_xf_entitlement:
+    sql:
+      table: DIR_XF_ENTITLEMENT
+    attributes:
+      ACCOUNT_ID:
+        connId:
+          name: __UID__
+        sql:
+          primaryKey: true
+          type: VARCHAR2(8)
+      IS_ENTITLED:
+        sql:
+          type: VARCHAR2(1)
+      ENDPOINT_TIME:
+        sql:
+          type: NUMBER(19)
+
+  dir_job_watermark:
+    sql:
+      table: DIR_JOB_WATERMARK
+    attributes:
+      JOB_NAME:
+        connId:
+          name: __UID__
+        sql:
+          primaryKey: true
+          type: VARCHAR2(30)
+      LAST_CONFIRMED:
+        sql:
+          type: TIMESTAMP(6)
+      OPERATOR:
+        sql:
+          type: VARCHAR2(50)
+      NOTE:
+        sql:
+          type: VARCHAR2(500)
+      PROCESSED_ROWS:
+        sql:
+          type: NUMBER(10)
+      UPDATED_AT:
+        sql:
+          type: TIMESTAMP(6)

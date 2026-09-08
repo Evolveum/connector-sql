@@ -1,0 +1,18 @@
+objectClasses:
+  User:
+    sql:
+      table: app_user
+
+    attributes:
+      id:
+        connId:
+          name: UID
+        sql:
+          type: INT
+          primaryKey: true
+          autoIncrement: true
+
+      username:
+        sql:
+          type: VARCHAR(50)
+          notNull: true

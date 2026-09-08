@@ -1,0 +1,4 @@
+objectClasses:
+  Employee:
+    create:
+      enabled: false
