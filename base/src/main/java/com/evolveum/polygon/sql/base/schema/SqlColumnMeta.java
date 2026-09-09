@@ -29,6 +29,8 @@ public class SqlColumnMeta {
     final String remarks;
     final boolean autoIncrement;
 
+    private String referencedCatalog;
+    private String referencedSchema;
     private String referencedTable;
     private String referencedColumn;
     private String foreignKeyName;
@@ -103,6 +105,14 @@ public class SqlColumnMeta {
         return autoIncrement;
     }
 
+    public String getReferencedCatalog() {
+        return referencedCatalog;
+    }
+
+    public String getReferencedSchema() {
+        return referencedSchema;
+    }
+
     public String getReferencedTable() {
         return referencedTable;
     }
@@ -117,6 +127,14 @@ public class SqlColumnMeta {
 
     /** Marks this column as part of a foreign key pointing to {@code referencedTable.referencedColumn}. */
     public void setForeignKey(String referencedTable, String referencedColumn, String foreignKeyName) {
+        setForeignKey(null, null, referencedTable, referencedColumn, foreignKeyName);
+    }
+
+    /** Retains the full JDBC target identity so inferred joins cannot confuse same-named tables. */
+    public void setForeignKey(String referencedCatalog, String referencedSchema, String referencedTable,
+                              String referencedColumn, String foreignKeyName) {
+        this.referencedCatalog = referencedCatalog;
+        this.referencedSchema = referencedSchema;
         this.referencedTable = referencedTable;
         this.referencedColumn = referencedColumn;
         this.foreignKeyName = foreignKeyName;

@@ -205,7 +205,10 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         // freezing happen next, explicitly, external to both the translator and the builder.
         var translator = new SqlSchemaTranslator(builder, tables);
         translator.connector(getClass(), context).translate(additional);
-        translator.applyRules();
+        // Join validation requires discovered tables; an incomplete setup has only local definitions.
+        if (allowConnection) {
+            translator.applyRules();
+        }
         builder.applyStructuralRules();
         context.schema(builder.build());
 

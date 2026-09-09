@@ -9,7 +9,10 @@ package com.evolveum.polygon.sql.base;
 import com.evolveum.polygon.conndev.dev.ConnDevObjectClass;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.sql.base.test.TestConnectors;
+import org.identityconnectors.framework.common.objects.AttributeInfo;
+import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
+import org.identityconnectors.framework.common.objects.Uid;
 import org.testng.annotations.Test;
 
 import java.util.List;
@@ -53,5 +56,28 @@ public class AbstractGroovySqlConnectorIncompleteConfigTest {
                 .collect(Collectors.toList());
 
         assertThat(types).contains(ConnDevObjectClass.OBJECT_CLASS_NAME, SqlDevelopmentMode.TABLE_OC_NAME);
+    }
+
+    @Test
+    public void schemaWithJoinsAndMissingCredentialsUsesLocalDefinitions() {
+        var connector = TestConnectors.of(null, loader -> loader.load("""
+                objectClass('Organization') {
+                    sql {
+                        table 'organization'
+                        join { table 'organization_i18n'; prefixAttributes 'en_' }
+                    }
+                    attribute('id') { connId { name '__UID__'; type String } }
+                    attribute('en_title') { connId { type String } }
+                }
+                """));
+        connector.init(new SqlConnectorConfiguration());
+        try {
+            var info = connector.schema().findObjectClassInfo("Organization");
+            assertThat(info).isNotNull();
+            assertThat(info.getAttributeInfo()).extracting(AttributeInfo::getName)
+                    .containsExactlyInAnyOrder(Uid.NAME, Name.NAME, "en_title");
+        } finally {
+            connector.dispose();
+        }
     }
 }

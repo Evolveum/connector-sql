@@ -53,6 +53,7 @@ public class SqlSchemaTranslator {
     /** Object classes this translator correlated to a table (see {@link #translateTable}), kept
      * here rather than on the builder itself, since the correlation is this translator's concern. */
     private final Map<SqlObjectClassSchemaBuilderImpl, SqlTableInfo> correlatedTables = new LinkedHashMap<>();
+    private final Map<SqlObjectClassSchemaBuilderImpl, Set<String>> explicitJoinedAttributes = new HashMap<>();
 
     private Class<? extends Connector> connectorClass;
     private ContextLookup contextLookup;
@@ -148,6 +149,14 @@ public class SqlSchemaTranslator {
     }
 
     private SqlSchemaBuilderImpl translateInternal() {
+        if (Boolean.TRUE.equals(builder.getOnlyExplicitlyListed())) {
+            // Snapshot before discovery adds attributes to the builders' remote-name sets.
+            for (var objectClass : builder.allObjectClassBuilders()) {
+                if (objectClass.hasObjectJoins()) {
+                    explicitJoinedAttributes.put(objectClass, Set.copyOf(objectClass.getExplicitRemoteNames()));
+                }
+            }
+        }
         detectRelationships();
         for (SqlTableInfo table : tables) {
             translateTable(table);
@@ -411,6 +420,7 @@ public class SqlSchemaTranslator {
         }
         var usedNames = root.getColumns().stream().map(column -> column.getName().toLowerCase(Locale.ROOT))
                 .collect(Collectors.toCollection(HashSet::new));
+        var explicitNames = explicitJoinedAttributes.getOrDefault(objectClass, Set.of());
         int index = 0;
         for (var joinBuilder : objectClass.objectJoinBuilders()) {
             var join = joinBuilder.resolve(root, tables, ++index);
@@ -420,6 +430,9 @@ public class SqlSchemaTranslator {
                     continue;
                 }
                 var name = joinBuilder.attributeName(column.getName());
+                if (!explicitNames.isEmpty() && !explicitNames.contains(name)) {
+                    continue;
+                }
                 if (!usedNames.add(name.toLowerCase(Locale.ROOT))
                         || Uid.NAME.equalsIgnoreCase(name) || Name.NAME.equalsIgnoreCase(name)) {
                     throw new IllegalArgumentException("Duplicate/reserved joined attribute " + name);

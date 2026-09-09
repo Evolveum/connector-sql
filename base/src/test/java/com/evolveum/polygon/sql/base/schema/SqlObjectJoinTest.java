@@ -114,7 +114,7 @@ public class SqlObjectJoinTest {
 
         var ambiguous = tables();
         ambiguous.getLast().getColumns().stream().filter(column -> column.getName().equals("row_id"))
-                .forEach(column -> column.setForeignKey("organization", "id", "fk_other"));
+                .forEach(column -> column.setForeignKey(null, "public", "organization", "id", "fk_other"));
         assertThatThrownBy(() -> schema(inferred, ambiguous)).hasMessageContaining("unambiguous foreign key");
     }
 
@@ -142,6 +142,29 @@ public class SqlObjectJoinTest {
                 .isEqualTo("o.org_id = j1.id");
     }
 
+    @DataProvider
+    public Object[][] mismatchedForeignKeyTargets() {
+        return new Object[][] {
+                { null, "archive" },
+                { "other_database", "public" },
+                { null, null }
+        };
+    }
+
+    @Test(dataProvider = "mismatchedForeignKeyTargets")
+    public void requiresExplicitOnWhenForeignKeyTargetIsDifferentOrUnknown(String catalog, String schema) {
+        var tables = tables();
+        tables.getLast().getColumns().stream().filter(column -> column.getName().equals("org_id"))
+                .forEach(column -> column.setForeignKey(catalog, schema, "organization", "id", "fk_org"));
+        var join = new SqlJoinBuilder();
+        join.table("organization_i18n");
+        assertThatThrownBy(() -> join.resolve(tables.getFirst(), tables, 1))
+                .hasMessageContaining("unambiguous foreign key");
+        join.table("organization");
+        assertThatThrownBy(() -> join.resolve(tables.getLast(), tables, 1))
+                .hasMessageContaining("unambiguous foreign key");
+    }
+
     @Test
     public void requiresExplicitDirectionForSelfJoins() {
         assertThatThrownBy(() -> schema("sql { table 'organization'; join { table 'organization'; prefixAttributes 'copy_' } }", tables()))
@@ -155,8 +178,43 @@ public class SqlObjectJoinTest {
         assertThat(definition.sql().joins().getFirst().condition().toString()).isEqualTo("o.id = j1.id");
     }
 
+    @Test
+    public void includesOnlyExplicitlyListedJoinedAttributes() {
+        var definition = schema("""
+                sql { table 'organization'; join { table 'organization_i18n'; prefixAttributes 'en_' } }
+                attribute('id') { connId { name '__UID__' } }
+                attribute('en_title') { connId { name 'englishTitle' } }
+                """, tables(), true);
+        assertThat(definition.attributes()).extracting(attribute -> attribute.connId().getName())
+                .containsExactlyInAnyOrder(Uid.NAME, Name.NAME, "englishTitle");
+        var title = (SqlAttributeMapping.SingleColumn) definition.attributeFromConnIdName("englishTitle").sql();
+        assertThat(title.dslPath(definition.sql().pathAlias("o")).toString()).isEqualTo("j1.title");
+    }
+
+    @Test
+    public void discoversJoinedAttributesWhenNoAttributeListIsDeclared() {
+        var definition = schema("""
+                sql { table 'organization'; join { table 'organization_i18n'; prefixAttributes 'en_' } }
+                """, tables(), true);
+        assertThat(definition.attributes()).extracting(attribute -> attribute.connId().getName())
+                .containsExactlyInAnyOrder(Uid.NAME, Name.NAME, "title", "en_row_id", "en_org_id", "en_lang", "en_title");
+    }
+
+    @Test
+    public void rejectsMissingRootAfterDiscovery() {
+        assertThatThrownBy(() -> schema("""
+                sql { table 'missing'; join { table 'organization_i18n'; prefixAttributes 'en_' } }
+                attribute('id') { connId { name '__UID__'; type String } }
+                """, List.of())).hasMessageContaining("Root table was not detected");
+    }
+
     private SqlObjectClassDefinition schema(String body, List<SqlTableInfo> tables) {
+        return schema(body, tables, false);
+    }
+
+    private SqlObjectClassDefinition schema(String body, List<SqlTableInfo> tables, boolean explicitlyListed) {
         var builder = builder();
+        builder.onlyExplicitlyListed(explicitlyListed);
         var loader = new SqlSchemaDefinitionLoader(builder, new SqlConnectorConfiguration().groovyContext());
         loader.load("objectClass('Organization') { schema 'public'; " + body + " }");
         var translator = new SqlSchemaTranslator(builder, tables);
@@ -174,7 +232,7 @@ public class SqlObjectJoinTest {
 
     private List<SqlTableInfo> tables() {
         var foreignKey = column("org_id", SqlSchemaValueMapping.INTEGER, false);
-        foreignKey.setForeignKey("organization", "id", "fk_org");
+        foreignKey.setForeignKey(null, "public", "organization", "id", "fk_org");
         return List.of(
                 SqlTableInfo.builder().name("organization").schema("public").tableType("TABLE")
                         .columns(List.of(column("id", SqlSchemaValueMapping.INTEGER, true),

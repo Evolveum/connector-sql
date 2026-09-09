@@ -97,9 +97,9 @@ public final class SqlJoinBuilder {
     }
 
     private static void inferOn(SqlTableInfo root, SqlTableInfo target, SqlJoinPredicateBuilder predicate) {
-        // Column metadata does not retain the referenced schema: cross-schema joins need explicit ON.
-        if (!Objects.equals(root.getSchema(), target.getSchema())) {
-            throw new IllegalArgumentException("Cross-schema join requires explicit on");
+        if (!Objects.equals(root.getSchema(), target.getSchema())
+                || !Objects.equals(root.getCatalog(), target.getCatalog())) {
+            throw new IllegalArgumentException("Cross-schema/catalog join requires explicit on");
         }
         if (root.getName().equalsIgnoreCase(target.getName())) {
             throw new IllegalArgumentException("Self-join requires explicit on to select its direction");
@@ -121,6 +121,8 @@ public final class SqlJoinBuilder {
         Map<String, List<Key>> constraints = new LinkedHashMap<>();
         for (SqlColumnMeta column : from.getColumns()) {
             if (column.getForeignKeyName() != null && column.getReferencedColumn() != null
+                    && Objects.equals(to.getCatalog(), column.getReferencedCatalog())
+                    && Objects.equals(to.getSchema(), column.getReferencedSchema())
                     && to.getName().equalsIgnoreCase(column.getReferencedTable())) {
                 constraints.computeIfAbsent(column.getForeignKeyName(), ignored -> new ArrayList<>())
                         .add(fromLeft ? new Key(column.getName(), column.getReferencedColumn())

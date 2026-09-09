@@ -8,6 +8,7 @@ package com.evolveum.polygon.sql.base.test.contract;
 import com.evolveum.polygon.conndev.spi.*;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
+import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilder;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
@@ -502,6 +503,42 @@ public abstract class AbstractSqlConnectorContractTest {
     }
 
     @Test
+    public final void exposesOnlyExplicitlyListedAttributesOfFlatJoins() {
+        setJoinedPhones("work", "home");
+        var schema = connector.context().getTableInfos().get(USER).getSchema();
+        var joined = joinedConnector("""
+                objectClass('FlatSelected') {
+                    sql {
+                        schema '%s'
+                        table '%s'
+                        join {
+                            table '%s'
+                            prefixAttributes 'work_'
+                            where { q -> q.column('phone_type').eq('work') }
+                        }
+                    }
+                    attribute('%s') { connId { name '__UID__' } }
+                    attribute('work_%s') { connId { name 'workPhone' } }
+                }
+                """.formatted(schema != null ? schema : "", objectClass(USER).getObjectClassValue(),
+                objectClass(PHONES).getObjectClassValue(),
+                attributeInfo(objectClassInfo(USER), Uid.NAME).getNativeName(),
+                attributeInfo(objectClassInfo(PHONES), "phone_number").getNativeName()), true, true);
+        try {
+            var flat = new ObjectClass("FlatSelected");
+            assertThat(joined.schema().findObjectClassInfo(flat.getObjectClassValue()).getAttributeInfo())
+                    .extracting(AttributeInfo::getName).containsExactlyInAnyOrder(Uid.NAME, Name.NAME, "workPhone");
+            var rows = search(joined, flat, null);
+            assertThat(rows).extracting(row -> row.getUid().getUidValue(), row -> value(row, "workPhone"))
+                    .containsExactlyInAnyOrder(tuple("1", "111"), tuple("2", null));
+            assertThat(search(joined, flat, FilterBuilder.equalTo(AttributeBuilder.build("workPhone", "111"))))
+                    .extracting(row -> row.getUid().getUidValue()).containsExactly("1");
+        } finally {
+            joined.dispose();
+        }
+    }
+
+    @Test
     public final void pagesFlatJoinsAndHonorsHandlerStop() throws Exception {
         try (var connection = connector.context().getConnection();
              var insert = connection.getConnection().prepareStatement(
@@ -538,7 +575,11 @@ public abstract class AbstractSqlConnectorContractTest {
     }
 
     private JoinedConnector joinedConnector(String script, boolean discovery) {
-        var joined = new JoinedConnector(script);
+        return joinedConnector(script, discovery, false);
+    }
+
+    private JoinedConnector joinedConnector(String script, boolean discovery, boolean onlyExplicitlyListed) {
+        var joined = new JoinedConnector(script, onlyExplicitlyListed);
         var config = database.configuration(false);
         config.setPoolSize(1);
         config.setScanTables(discovery);
@@ -577,14 +618,19 @@ public abstract class AbstractSqlConnectorContractTest {
 
     private static final class JoinedConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
         private final String script;
+        private final boolean onlyExplicitlyListed;
 
-        private JoinedConnector(String script) {
+        private JoinedConnector(String script, boolean onlyExplicitlyListed) {
             super(false);
             this.script = script;
+            this.onlyExplicitlyListed = onlyExplicitlyListed;
         }
 
         @Override
         protected void initializeObjectClassHandler(SqlHandlerLoader builder) { }
+
+        @Override
+        protected void initializeSchema(SqlSchemaBuilder builder) { builder.onlyExplicitlyListed(onlyExplicitlyListed); }
 
         @Override
         protected void initializeSchema(SqlSchemaDefinitionLoader loader) { loader.load(script); }
