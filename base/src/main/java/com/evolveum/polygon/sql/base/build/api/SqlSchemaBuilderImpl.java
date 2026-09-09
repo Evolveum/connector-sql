@@ -10,6 +10,7 @@ import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.build.api.RelationshipBuilder;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.schema.BaseSchemaBuilder;
+import com.evolveum.polygon.sql.base.schema.SqlObjectJoin;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.querydsl.core.types.Path;
 import com.querydsl.core.types.PathMetadata;
@@ -65,6 +66,12 @@ public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl
             if (table != null && !table.isEmpty()) {
                 refs.add(new SqlSchemaDetector.TableRef(schema, table));
             }
+            for (var join : obc.objectJoinBuilders()) {
+                if (join.table() != null) {
+                    refs.add(new SqlSchemaDetector.TableRef(
+                            join.schema() != null ? join.schema() : schema, join.table()));
+                }
+            }
         }
         return refs;
     }
@@ -99,7 +106,16 @@ public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl
      */
     public static record SqlObjectClassMapping(
             DefinitionValue<String> schema,
-            DefinitionValue<String> table) {
+            DefinitionValue<String> table,
+            List<SqlObjectJoin> joins) {
+
+        public SqlObjectClassMapping {
+            joins = List.copyOf(joins);
+        }
+
+        public SqlObjectClassMapping(DefinitionValue<String> schema, DefinitionValue<String> table) {
+            this(schema, table, List.of());
+        }
 
         public String getTableName() {
             return table.value();

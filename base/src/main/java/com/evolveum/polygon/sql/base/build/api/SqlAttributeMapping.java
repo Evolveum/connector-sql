@@ -102,7 +102,13 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
     }
 
     record SingleColumn(DefinitionValue<String> column, SqlValueMapping sqlMapping,
-                        ValueMapping<Object, Object> valueMapping) implements SqlAttributeMapping {
+                        ValueMapping<Object, Object> valueMapping,
+                        RelationalPathBase<?> sourceTable) implements SqlAttributeMapping {
+
+        public SingleColumn(DefinitionValue<String> column, SqlValueMapping sqlMapping,
+                            ValueMapping<Object, Object> valueMapping) {
+            this(column, sqlMapping, valueMapping, null);
+        }
 
         /**
          * Extracts the column value from the SQL row.
@@ -145,6 +151,9 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
         }
 
         public Path<?> dslPath(Path<?> parent) {
+            if (sourceTable != null) {
+                parent = sourceTable;
+            }
             if (sqlMapping instanceof SqlValueMapping.SingleColumn single) {
                 return single.pathFor(parent, column.value());
             }
@@ -169,7 +178,7 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
                 public BooleanExpression predicateFor(RelationalPathBase<?> tablePath, AttributeFilter filter) {
                     if (filter instanceof EqualsFilter) {
                         var connIdValue = filter.getAttribute().getValue();
-                        return eq(tablePath, connIdValue.isEmpty() ? null : connIdValue.getFirst());
+                        return eq(tablePath, connIdValue == null || connIdValue.isEmpty() ? null : connIdValue.getFirst());
                     }
                     if (filter instanceof SingleValueAttributeFilter singleValue) {
                         return predicateFor(tablePath, singleValue);
@@ -272,7 +281,8 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
             if (connIdType.equals(valueMapping.connIdType())) {
                 return this;
             }
-            return new SingleColumn(column, sqlMapping, ValueTypeOverrideMapping.of(connIdType, valueMapping));
+            return new SingleColumn(column, sqlMapping,
+                    ValueTypeOverrideMapping.of(connIdType, valueMapping), sourceTable);
         }
 
     }

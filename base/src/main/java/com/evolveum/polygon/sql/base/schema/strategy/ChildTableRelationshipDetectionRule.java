@@ -33,6 +33,10 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
 
     @Override
     public boolean checkIfApplicable(SqlTableInfo table, SqlObjectClassSchemaBuilder objectClass, SqlAttributeBuilder<SqlAttributeBuilder.Reference> attribute) {
+        // Explicit flat joins replace automatic embedded/reference projections for this object only.
+        if (objectClass instanceof SqlObjectClassSchemaBuilderImpl sql && sql.hasObjectJoins()) {
+            return false;
+        }
         var tableName = table.getName();
         var rels = translator.getTableRelationships(tableName);
         boolean hasChildRels = rels.stream().anyMatch(r -> r.type().isEmbedded());

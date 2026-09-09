@@ -13,6 +13,9 @@ import com.evolveum.polygon.sql.base.build.api.SqlAttributeDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.Path;
+import com.querydsl.core.types.Order;
+import com.querydsl.core.types.OrderSpecifier;
+import com.querydsl.core.types.dsl.Wildcard;
 import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.sql.RelationalPathBase;
 import com.querydsl.sql.SQLQuery;
@@ -20,6 +23,7 @@ import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.ResultsHandler;
+import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 
 import java.util.Collection;
@@ -55,6 +59,22 @@ public class SqlSearchExecutor {
             predicate = combinePredicate(predicate, additionalPredicate);
             var columns = onlyPaths(selectedAttributes).toArray(new Path[0]);
 
+            var uidPaths = objectClass.attributeFromConnIdName(Uid.NAME).sql()
+                    .selectPaths(tablePath).toArray(Path<?>[]::new);
+            if (!objectClass.sql().joins().isEmpty()) {
+                // Validate the requested result before delivering any objects.
+                // Views need this check too: JDBC cannot prove uniqueness of their join columns.
+                var duplicates = connection.newQuery().select(uidPaths).from(tablePath);
+                applyJoins(duplicates);
+                if (predicate != null) {
+                    duplicates.where(predicate);
+                }
+                if (!duplicates.groupBy(uidPaths).having(Wildcard.count.gt(1)).limit(1).fetch().isEmpty()) {
+                    throw new ConnectorException("Joined object " + objectClass.name()
+                            + " has multiple matching rows for one UID; joins must be single-valued");
+                }
+            }
+
             while (true) {
                 try {
                     SQLQuery<Tuple> query = connection.newQuery()
@@ -62,6 +82,12 @@ public class SqlSearchExecutor {
                             .from(tablePath)
                             .limit(pageSize)
                             .offset(offset);
+                    applyJoins(query);
+                    if (!objectClass.sql().joins().isEmpty()) {
+                        for (var uidPath : uidPaths) {
+                            query.orderBy(ascending(uidPath));
+                        }
+                    }
                     if (predicate != null) {
                         query.where(predicate);
                     }
@@ -89,6 +115,17 @@ public class SqlSearchExecutor {
                 }
             }
         }
+    }
+
+    private void applyJoins(SQLQuery<?> query) {
+        for (var join : objectClass.sql().joins()) {
+            query.leftJoin(join.path()).on(join.condition());
+        }
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static OrderSpecifier<?> ascending(Path<?> path) {
+        return new OrderSpecifier(Order.ASC, path);
     }
 
     protected static BooleanExpression combinePredicate(BooleanExpression a, BooleanExpression b) {

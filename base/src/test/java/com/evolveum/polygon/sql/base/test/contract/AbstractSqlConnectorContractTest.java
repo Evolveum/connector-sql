@@ -11,6 +11,7 @@ import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
@@ -21,6 +22,7 @@ import org.identityconnectors.framework.common.objects.filter.FilterBuilder;
 import org.testng.annotations.AfterClass;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -33,6 +35,7 @@ import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 /**
  * Common behavior contract executed against every supported real database configuration.
@@ -192,6 +195,399 @@ public abstract class AbstractSqlConnectorContractTest {
         assertThat(attributeInfo(composite, "tenant_id").isRequired()).isTrue();
         assertThat(attributeInfo(composite, "record_id").isRequired()).isTrue();
         assertThat(attributeInfo(composite, COMPOSITE_TAGS).isMultiValued()).isTrue();
+    }
+
+    @Test
+    public final void readsFlatJoinsWithSeparateAliasesAndFiltersButNoWrites() {
+        setJoinedPhones("work", "home");
+        var script = """
+                objectClass('FlatUser') {
+                    sql {
+                        table '%s'
+                        join {
+                            table '%s'
+                            prefixAttributes 'work_'
+                            skipAttributes 'user_id'
+                            where { q -> q.column('phone_type').eq('work') }
+                        }
+                        join {
+                            table '%s'
+                            prefixAttributes 'home_'
+                            skipAttributes 'user_id'
+                            where { q -> q.column('phone_type').eq('home') }
+                        }
+                    }
+                }
+                """.formatted(objectClass(USER).getObjectClassValue(),
+                objectClass(PHONES).getObjectClassValue(), objectClass(PHONES).getObjectClassValue());
+        var joined = joinedConnector(script);
+        try {
+            var flat = new ObjectClass("FlatUser");
+            var info = joined.schema().findObjectClassInfo("FlatUser");
+            var work = attributeInfo(info, "work_phone_number").getName();
+            var home = attributeInfo(info, "home_phone_number").getName();
+            assertThat(info.getAttributeInfo()).noneMatch(attribute ->
+                    attribute.isCreateable() || attribute.isUpdateable());
+            assertThat(info.getAttributeInfo()).noneMatch(attribute ->
+                    attribute.getName().equalsIgnoreCase("work_user_id")
+                            || attribute.getName().equalsIgnoreCase(PHONES));
+            assertThat(attributeInfo(info, "work_phone_number").isRequired()).isFalse();
+            var rows = search(joined, flat, null);
+            assertThat(rows).hasSize(2);
+            var alice = rows.stream().filter(row -> "1".equals(row.getUid().getUidValue())).findFirst().orElseThrow();
+            assertThat(value(alice, work)).isEqualTo("111");
+            assertThat(value(alice, home)).isEqualTo("222");
+            var bob = rows.stream().filter(row -> "2".equals(row.getUid().getUidValue())).findFirst().orElseThrow();
+            assertThat(value(bob, work)).isNull();
+            assertThat(value(bob, home)).isNull();
+            assertThat(search(joined, flat, FilterBuilder.and(uidFilter(new Uid("1")),
+                    FilterBuilder.equalTo(AttributeBuilder.build(home, "222")))))
+                    .hasSize(1);
+            assertThat(search(joined, flat, FilterBuilder.equalTo(AttributeBuilder.build(work, "222"))))
+                    .isEmpty();
+            assertThat(search(joined, flat, FilterBuilder.equalTo(AttributeBuilder.build(work))))
+                    .extracting(row -> row.getUid().getUidValue()).containsExactly("2");
+            assertThatThrownBy(() -> joined.create(flat, Set.of(AttributeBuilder.build(Name.NAME, "new")), OPTIONS))
+                    .isInstanceOf(UnsupportedOperationException.class);
+            assertThatThrownBy(() -> joined.updateDelta(flat, new Uid("1"), Set.of(
+                    AttributeDeltaBuilder.build(work, List.of("changed"))), OPTIONS))
+                    .isInstanceOf(UnsupportedOperationException.class);
+            assertThatThrownBy(() -> joined.delete(flat, new Uid("1"), OPTIONS))
+                    .isInstanceOf(UnsupportedOperationException.class);
+        } finally {
+            joined.dispose();
+        }
+        // The ordinary object class for the same table retains its CRUD implementation.
+        setJoinedPhones("changed", "home");
+    }
+
+    @Test
+    public final void readsFlatViewJoinWithExplicitOnAndDeclaredAttributeRename() {
+        var script = """
+                objectClass('FlatView') {
+                    sql {
+                        table '%s'
+                        join {
+                            table '%s'
+                            prefixAttributes 'view_'
+                            skipAttributes 'id'
+                            on { j -> j.left().column('id').eq(j.right().column('id')) }
+                            where { q -> q.column('username').eq('alice') }
+                        }
+                    }
+                    attribute('view_%s') { connId { name 'viewLogin' } }
+                }
+                """.formatted(objectClass(USER).getObjectClassValue(),
+                objectClass(USER_VIEW).getObjectClassValue(), attributeName(USER_VIEW, "username"));
+        var joined = joinedConnector(script);
+        try {
+            var rows = search(joined, new ObjectClass("FlatView"), null);
+            assertThat(rows).hasSize(2);
+            assertThat(search(joined, new ObjectClass("FlatView"),
+                    FilterBuilder.equalTo(AttributeBuilder.build("viewLogin", "alice"))))
+                    .hasSize(1).first().extracting(row -> value(row, "viewLogin")).isEqualTo("alice");
+        } finally {
+            joined.dispose();
+        }
+    }
+
+    @Test
+    public final void readsFlatJoinUsingEveryCompositeForeignKeyColumn() {
+        connector.updateDelta(objectClass(COMPOSITE), new Uid("1.1"), Set.of(
+                AttributeDeltaBuilder.build(attributeName(COMPOSITE, COMPOSITE_TAGS), List.of("selected"))), OPTIONS);
+        // Each distractor shares one key component. Omitting either equality would multiply the rows.
+        for (var uid : List.of("1.2", "2.1")) {
+            connector.create(objectClass(COMPOSITE), Set.of(
+                    AttributeBuilder.build(Uid.NAME, uid), AttributeBuilder.build(Name.NAME, uid),
+                    AttributeBuilder.build(attributeName(COMPOSITE, COMPOSITE_TAGS), List.of("selected"))), OPTIONS);
+        }
+        var script = """
+                objectClass('FlatComposite') {
+                    sql {
+                        table '%s'
+                        join {
+                            table '%s'
+                            prefixAttributes 'joined_'
+                            skipAttributes 'tenant_id', 'record_id'
+                            where { q -> q.column('tag_value').eq('selected') }
+                        }
+                    }
+                }
+                """.formatted(objectClass(COMPOSITE).getObjectClassValue(),
+                connector.context().getTableInfos().values().stream()
+                        .filter(table -> table.getName().equalsIgnoreCase(COMPOSITE_TAGS)).findFirst().orElseThrow().getName());
+        var joined = joinedConnector(script);
+        try {
+            var rows = search(joined, new ObjectClass("FlatComposite"), uidFilter(new Uid("1.1")));
+            var info = joined.schema().findObjectClassInfo("FlatComposite");
+            assertThat(rows).hasSize(1);
+            assertThat(value(rows.getFirst(), attributeInfo(info, "joined_tag_value").getName())).isEqualTo("selected");
+        } finally {
+            joined.dispose();
+        }
+    }
+
+    @Test
+    public final void rejectsMultiRowFlatJoinsBeforeDeliveringObjects() {
+        setJoinedPhones("work", "work");
+        var joined = joinedConnector("""
+                objectClass('FlatUser') {
+                    sql {
+                        table '%s'
+                        join {
+                            table '%s'
+                            prefixAttributes 'phone_'
+                            where { q -> q.column('phone_type').eq('work') }
+                        }
+                    }
+                }
+                """.formatted(objectClass(USER).getObjectClassValue(), objectClass(PHONES).getObjectClassValue()));
+        try {
+            var delivered = new ArrayList<ConnectorObject>();
+            assertThat(search(joined, new ObjectClass("FlatUser"), uidFilter(new Uid("2"))))
+                    .hasSize(1);
+            assertThatThrownBy(() -> joined.executeQuery(new ObjectClass("FlatUser"), null, delivered::add, OPTIONS))
+                    .isInstanceOf(ConnectorException.class).hasMessageContaining("multiple matching rows");
+            assertThat(delivered).isEmpty();
+        } finally {
+            joined.dispose();
+        }
+    }
+
+    @Test
+    public final void readsLocalizedViewsUsingAllTypeKeysAndSeparateLanguageJoins() throws Exception {
+        try (var connection = connector.context().getConnection();
+             var fixture = new LocalizedViewJoinFixture(connection.getConnection())) {
+            var joined = joinedConnector(localizedViewSchema(fixture), false);
+            try {
+                var flat = new ObjectClass("LocalizedUnit");
+                var info = joined.schema().findObjectClassInfo("LocalizedUnit");
+                var type = attributeInfo(info, "type_type_name").getName();
+                var english = attributeInfo(info, "en_label_text").getName();
+                var french = attributeInfo(info, "fr_label_text").getName();
+                var german = attributeInfo(info, "de_label_text").getName();
+
+                // Repeated unit/type numbers across tenants and sources must not multiply or mix rows.
+                assertThat(search(joined, flat, null)).extracting(
+                        row -> row.getUid().getUidValue(),
+                        row -> value(row, type), row -> value(row, english),
+                        row -> value(row, french), row -> value(row, german))
+                        .containsExactly(
+                                tuple("north.1", "Department", "North team", "Equipe nord", "Nordteam"),
+                                tuple("north.2", "Project", "Project team", null, null),
+                                tuple("north.3", "Office", "Office team", null, null),
+                                tuple("north.4", null, "Unknown type team", null, null),
+                                tuple("north.5", "Department", null, null, null),
+                                tuple("north.6", "Department", null, "Francais seulement", null),
+                                tuple("south.1", "Division", "South team", "Equipe sud", "Suedteam"));
+
+                assertThat(search(joined, flat, uidFilter(new Uid("south.1"))))
+                        .hasSize(1).first().extracting(row -> value(row, type)).isEqualTo("Division");
+                assertThat(search(joined, flat, FilterBuilder.and(uidFilter(new Uid("north.2")),
+                        FilterBuilder.equalTo(AttributeBuilder.build(type, "Project")))))
+                        .hasSize(1);
+                assertThat(search(joined, flat, FilterBuilder.equalTo(AttributeBuilder.build(french, "Equipe nord"))))
+                        .extracting(row -> row.getUid().getUidValue()).containsExactly("north.1");
+                assertThat(search(joined, flat, FilterBuilder.equalTo(AttributeBuilder.build(english, "Equipe nord"))))
+                        .isEmpty();
+                assertThat(search(joined, flat, FilterBuilder.equalTo(AttributeBuilder.build(english))))
+                        .extracting(row -> row.getUid().getUidValue()).containsExactly("north.5", "north.6");
+                assertThat(info.getAttributeInfo()).noneMatch(attribute ->
+                        attribute.isCreateable() || attribute.isUpdateable());
+            } finally {
+                joined.dispose();
+            }
+        }
+    }
+
+    @DataProvider
+    public Object[][] duplicateLocalizedViewRows() {
+        return new Object[][] {
+                { "INSERT INTO contract_unit_type VALUES ('north', 10, 100, 'Duplicate type')" },
+                { "INSERT INTO contract_unit_label VALUES ('north', 1, 'en', 'Duplicate label')" }
+        };
+    }
+
+    @Test(dataProvider = "duplicateLocalizedViewRows")
+    public final void rejectsDuplicateLocalizedViewMatchesBeforeReturningObjects(String duplicateSql) throws Exception {
+        try (var connection = connector.context().getConnection();
+             var fixture = new LocalizedViewJoinFixture(connection.getConnection())) {
+            fixture.execute(duplicateSql);
+            var joined = joinedConnector(localizedViewSchema(fixture), false);
+            try {
+                var delivered = new ArrayList<ConnectorObject>();
+                assertThatThrownBy(() -> joined.executeQuery(
+                        new ObjectClass("LocalizedUnit"), null, delivered::add, OPTIONS))
+                        .isInstanceOf(ConnectorException.class).hasMessageContaining("multiple matching rows");
+                assertThat(delivered).isEmpty();
+            } finally {
+                joined.dispose();
+            }
+        }
+    }
+
+    private String localizedViewSchema(LocalizedViewJoinFixture fixture) throws Exception {
+        // Oracle reports INTEGER differently from other drivers. The explicit composite UID
+        // must use the same native mapping as the separately exposed unit_key column.
+        var root = new SqlSchemaDetector(connector.context()).discover(List.of(
+                new SqlSchemaDetector.TableRef(null, fixture.identifier("contract_unit_v")))).getFirst();
+        var unitKey = root.getColumns().stream()
+                .filter(column -> column.getName().equalsIgnoreCase("unit_key")).findFirst().orElseThrow();
+        return """
+                import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping
+
+                objectClass('LocalizedUnit') {
+                    sql {
+                        table '%s'
+                        join {
+                            table '%s'
+                            prefixAttributes 'type_'
+                            skipAttributes 'tenant_key', 'kind_key', 'source_key'
+                            on { j ->
+                                j.left().column('tenant_key').eq(j.right().column('tenant_key'))
+                                j.left().column('kind_key').eq(j.right().column('kind_key'))
+                                j.left().column('source_key').eq(j.right().column('source_key'))
+                            }
+                        }
+                        join {
+                            table '%s'
+                            prefixAttributes 'en_'
+                            skipAttributes 'tenant_key', 'unit_key', 'locale_code'
+                            on { j ->
+                                j.left().column('tenant_key').eq(j.right().column('tenant_key'))
+                                j.left().column('unit_key').eq(j.right().column('unit_key'))
+                            }
+                            where { q -> q.column('locale_code').eq('en') }
+                        }
+                        join {
+                            table '%s'
+                            prefixAttributes 'fr_'
+                            skipAttributes 'tenant_key', 'unit_key', 'locale_code'
+                            on { j ->
+                                j.left().column('tenant_key').eq(j.right().column('tenant_key'))
+                                j.left().column('unit_key').eq(j.right().column('unit_key'))
+                            }
+                            where { q -> q.column('locale_code').eq('fr') }
+                        }
+                        join {
+                            table '%s'
+                            prefixAttributes 'de_'
+                            skipAttributes 'tenant_key', 'unit_key', 'locale_code'
+                            on { j ->
+                                j.left().column('tenant_key').eq(j.right().column('tenant_key'))
+                                j.left().column('unit_key').eq(j.right().column('unit_key'))
+                            }
+                            where { q -> q.column('locale_code').eq('de') }
+                        }
+                    }
+                    // Views have no JDBC primary keys, so explicitly map the two-part root UID.
+                    attribute('%s') {
+                        connId { name '__UID__' }
+                        sql { additionalColumns().column('%s', SqlSchemaValueMapping.%s) }
+                    }
+                }
+                """.formatted(fixture.identifier("contract_unit_v"), fixture.identifier("contract_unit_type_v"),
+                fixture.identifier("contract_unit_label_v"), fixture.identifier("contract_unit_label_v"),
+                fixture.identifier("contract_unit_label_v"), fixture.identifier("tenant_key"),
+                fixture.identifier("unit_key"), unitKey.getValueMapping().name());
+    }
+
+    private void setJoinedPhones(String firstType, String secondType) {
+        connector.updateDelta(objectClass(USER), new Uid("1"), Set.of(
+                AttributeDeltaBuilder.build(attributeName(USER, PHONES), List.of(
+                        embedded(PHONES, AttributeBuilder.build(attributeName(PHONES, "phone_number"), "111"),
+                                AttributeBuilder.build(attributeName(PHONES, "phone_type"), firstType)),
+                        embedded(PHONES, AttributeBuilder.build(attributeName(PHONES, "phone_number"), "222"),
+                                AttributeBuilder.build(attributeName(PHONES, "phone_type"), secondType))))), OPTIONS);
+    }
+
+    @Test
+    public final void pagesFlatJoinsAndHonorsHandlerStop() throws Exception {
+        try (var connection = connector.context().getConnection();
+             var insert = connection.getConnection().prepareStatement(
+                     "INSERT INTO " + objectClass(USER).getObjectClassValue() + " (username) VALUES (?)")) {
+            for (int i = 0; i < 205; i++) {
+                insert.setString(1, "flat-page-" + i);
+                insert.addBatch();
+            }
+            insert.executeBatch();
+        }
+        var joined = joinedConnector("""
+                objectClass('FlatPage') { sql {
+                    table '%s'
+                    join { table '%s'; prefixAttributes 'profile_' }
+                } }
+                """.formatted(objectClass(USER).getObjectClassValue(), objectClass(PROFILE).getObjectClassValue()));
+        try {
+            var rows = search(joined, new ObjectClass("FlatPage"), null);
+            assertThat(rows).hasSize(207);
+            assertThat(rows.stream().map(row -> row.getUid().getUidValue()).distinct()).hasSize(207);
+            var delivered = new ArrayList<ConnectorObject>();
+            joined.executeQuery(new ObjectClass("FlatPage"), null, row -> {
+                delivered.add(row);
+                return false;
+            }, OPTIONS);
+            assertThat(delivered).hasSize(1);
+        } finally {
+            joined.dispose();
+        }
+    }
+
+    private JoinedConnector joinedConnector(String script) {
+        return joinedConnector(script, true);
+    }
+
+    private JoinedConnector joinedConnector(String script, boolean discovery) {
+        var joined = new JoinedConnector(script);
+        var config = database.configuration(false);
+        config.setPoolSize(1);
+        config.setScanTables(discovery);
+        config.setScanViews(discovery);
+        try {
+            joined.init(config);
+            joined.schema();
+            return joined;
+        } catch (RuntimeException e) {
+            joined.dispose();
+            throw e;
+        }
+    }
+
+    private static List<ConnectorObject> search(JoinedConnector connector, ObjectClass objectClass, Filter filter) {
+        var result = new ArrayList<ConnectorObject>();
+        connector.executeQuery(objectClass, filter, result::add, OPTIONS);
+        return result;
+    }
+
+    @Test
+    public final void discoversOnlyConfiguredFlatJoinTablesWhenScanningIsDisabled() {
+        var joined = joinedConnector("""
+                objectClass('FlatTargeted') { sql {
+                    table '%s'
+                    join { table '%s'; prefixAttributes 'profile_' }
+                } }
+                """.formatted(objectClass(USER).getObjectClassValue(), objectClass(PROFILE).getObjectClassValue()), false);
+        try {
+            assertThat(search(joined, new ObjectClass("FlatTargeted"), null)).hasSize(2);
+            assertThat(joined.context().getTableInfos()).hasSize(2);
+        } finally {
+            joined.dispose();
+        }
+    }
+
+    private static final class JoinedConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+        private final String script;
+
+        private JoinedConnector(String script) {
+            super(false);
+            this.script = script;
+        }
+
+        @Override
+        protected void initializeObjectClassHandler(SqlHandlerLoader builder) { }
+
+        @Override
+        protected void initializeSchema(SqlSchemaDefinitionLoader loader) { loader.load(script); }
     }
 
     @Test

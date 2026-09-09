@@ -47,6 +47,7 @@ import java.util.Map;
 public class SqlWherePredicateBuilder {
     private final RelationalPathBase<?> tablePath;
     private final SqlBaseContext context;
+    private final SqlTableInfo metadata;
     private final List<BooleanExpression> predicates = new ArrayList<>();
 
     /** Cached column references: avoids repeated metadata lookups. */
@@ -56,6 +57,14 @@ public class SqlWherePredicateBuilder {
                              SqlBaseContext context) {
         this.tablePath = tablePath;
         this.context = context;
+        this.metadata = null;
+    }
+
+    /** Schema-time restriction on a joined table, before the runtime context is populated. */
+    public SqlWherePredicateBuilder(RelationalPathBase<?> tablePath, SqlTableInfo metadata) {
+        this.tablePath = tablePath;
+        this.context = null;
+        this.metadata = metadata;
     }
 
     /** Explicit method: {@code e.col('name')} or {@code e.column('name')} */
@@ -66,7 +75,7 @@ public class SqlWherePredicateBuilder {
             if (col == null) {
                 throw new IllegalArgumentException("Column not found: " + n);
             }
-            return new SqlColumn(tablePath, n, col.getJavaType());
+            return new SqlColumn(tablePath, metadata != null ? col.getName() : n, col.getJavaType());
         });
     }
 
@@ -89,6 +98,10 @@ public class SqlWherePredicateBuilder {
     }
 
     private SqlColumnMeta findColumnMeta(String name) {
+        if (metadata != null) {
+            return metadata.getColumns().stream()
+                    .filter(column -> column.getName().equalsIgnoreCase(name)).findFirst().orElse(null);
+        }
         var tables = context.getTableInfos();
         if (tables == null || tables.isEmpty()) return null;
 
