@@ -6,8 +6,8 @@
  */
 package com.evolveum.polygon.sql.base.write;
 
-import com.evolveum.polygon.conndev.spi.CreateOperationHandler;
 import com.evolveum.polygon.conndev.api.ContextLookup;
+import com.evolveum.polygon.conndev.spi.CreateOperationHandler;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeMapping;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
@@ -15,7 +15,6 @@ import com.querydsl.core.types.Path;
 import com.querydsl.sql.dml.SQLInsertClause;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.objects.Attribute;
-import org.identityconnectors.framework.common.objects.ConnectorObject;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.Uid;
 

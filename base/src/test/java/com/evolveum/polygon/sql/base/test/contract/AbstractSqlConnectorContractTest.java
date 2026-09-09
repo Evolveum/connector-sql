@@ -5,12 +5,7 @@
  */
 package com.evolveum.polygon.sql.base.test.contract;
 
-import com.evolveum.polygon.conndev.spi.CreateOperationStrategyHandler;
-import com.evolveum.polygon.conndev.spi.DeleteOperationStrategyHandler;
-import com.evolveum.polygon.conndev.spi.ObjectCreateOperation;
-import com.evolveum.polygon.conndev.spi.ObjectDeleteOperation;
-import com.evolveum.polygon.conndev.spi.ObjectUpdateOperation;
-import com.evolveum.polygon.conndev.spi.UpdateOperationStrategyHandler;
+import com.evolveum.polygon.conndev.spi.*;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
@@ -20,19 +15,7 @@ import org.identityconnectors.framework.common.exceptions.AlreadyExistsException
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.exceptions.UnknownUidException;
-import org.identityconnectors.framework.common.objects.Attribute;
-import org.identityconnectors.framework.common.objects.AttributeBuilder;
-import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
-import org.identityconnectors.framework.common.objects.AttributeInfo;
-import org.identityconnectors.framework.common.objects.AttributeUtil;
-import org.identityconnectors.framework.common.objects.ConnectorObject;
-import org.identityconnectors.framework.common.objects.ConnectorObjectReference;
-import org.identityconnectors.framework.common.objects.EmbeddedObject;
-import org.identityconnectors.framework.common.objects.Name;
-import org.identityconnectors.framework.common.objects.ObjectClass;
-import org.identityconnectors.framework.common.objects.ObjectClassInfo;
-import org.identityconnectors.framework.common.objects.OperationOptions;
-import org.identityconnectors.framework.common.objects.Uid;
+import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.common.objects.filter.FilterBuilder;
 import org.testng.annotations.AfterClass;

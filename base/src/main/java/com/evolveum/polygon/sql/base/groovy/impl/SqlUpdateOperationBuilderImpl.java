@@ -7,8 +7,8 @@
 package com.evolveum.polygon.sql.base.groovy.impl;
 
 import com.evolveum.polygon.conndev.groovy.AbstractUpdateOperationBuilder;
-import com.evolveum.polygon.conndev.spi.UpdateOperationHandler;
 import com.evolveum.polygon.conndev.spi.OperationExecutor;
+import com.evolveum.polygon.conndev.spi.UpdateOperationHandler;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.write.SqlWriteHandlers;
 

@@ -6,9 +6,9 @@
  */
 package com.evolveum.polygon.sql.base.schema;
 
-import java.util.List;
-
 import com.evolveum.polygon.sql.base.schema.ChildTableRelationship.JoinKey;
+
+import java.util.List;
 
 /**
  * Configuration for an attribute stored in an owned child table.

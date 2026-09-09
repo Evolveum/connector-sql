@@ -10,12 +10,7 @@ import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 import com.evolveum.polygon.sql.base.groovy.impl.ManifestBasedConnector;
 import com.evolveum.polygon.sql.base.test.SqlSchemaAssertions;
 import org.identityconnectors.common.security.GuardedString;
-import org.identityconnectors.framework.common.objects.AttributeBuilder;
-import org.identityconnectors.framework.common.objects.ConnectorObject;
-import org.identityconnectors.framework.common.objects.Name;
-import org.identityconnectors.framework.common.objects.OperationOptions;
-import org.identityconnectors.framework.common.objects.ObjectClass;
-import org.identityconnectors.framework.common.objects.Uid;
+import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.Filter;
 import org.identityconnectors.framework.common.objects.filter.FilterBuilder;
 import org.testng.annotations.Test;
@@ -105,7 +100,7 @@ public class SqlUidStringTypeIntegrationTest {
             var filter = FilterBuilder.equalTo(AttributeBuilder.build(Uid.NAME, "1"));
             var objects = query(conn, filter);
             assertThat(objects).hasSize(1);
-            var object = objects.get(0);
+            var object = objects.getFirst();
             assertThat(object.getUid().getUidValue()).isEqualTo("1");
             var uidAttribute = object.getAttributes().stream()
                     .filter(a -> Uid.NAME.equals(a.getName()))

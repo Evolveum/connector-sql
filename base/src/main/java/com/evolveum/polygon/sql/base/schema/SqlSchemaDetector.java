@@ -11,11 +11,7 @@ import com.evolveum.polygon.sql.base.SqlDatabase;
 import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
 import com.evolveum.polygon.sql.base.schema.definition.SqlTableDefinitionProvider;
 import com.evolveum.polygon.sql.base.schema.definition.SqlTableDefinitionProviders;
-import com.querydsl.sql.Configuration;
-import com.querydsl.sql.H2Templates;
-import com.querydsl.sql.MySQLTemplates;
-import com.querydsl.sql.SQLTemplates;
-import com.querydsl.sql.SQLTemplatesRegistry;
+import com.querydsl.sql.*;
 
 import java.sql.*;
 import java.util.*;
@@ -53,7 +49,7 @@ public class SqlSchemaDetector {
             var meta = wrapper.getConnection().getMetaData();
             var database = SqlDatabase.fromJdbcProductName(meta.getDatabaseProductName());
             var templatesBuilder = new SQLTemplatesRegistry().getBuilder(meta);
-            SQLTemplates templatesFromRegistry = SQLTemplates.DEFAULT;
+            var templatesFromRegistry = SQLTemplates.DEFAULT;
             if (templatesBuilder != null) {
                 // SQLite and the MySQL family report no JDBC schema for ordinary tables.
                 // Printing a missing schema makes QueryDSL generate "null"."table".

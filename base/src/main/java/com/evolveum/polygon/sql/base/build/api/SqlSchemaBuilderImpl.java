@@ -11,8 +11,9 @@ import com.evolveum.polygon.conndev.build.api.RelationshipBuilder;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.schema.BaseSchemaBuilder;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
-import com.querydsl.core.types.PathMetadataFactory;
 import com.querydsl.core.types.Path;
+import com.querydsl.core.types.PathMetadata;
+import com.querydsl.core.types.PathMetadataFactory;
 import com.querydsl.sql.RelationalPathBase;
 import groovy.lang.Closure;
 import org.identityconnectors.framework.common.objects.Name;
@@ -119,7 +120,7 @@ public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl
     public static final class DynamicRelationalPath extends RelationalPathBase<Object> {
 
         private DynamicRelationalPath(
-                Class<?> type, com.querydsl.core.types.PathMetadata metadata,
+                Class<?> type, PathMetadata metadata,
                 String schema, String table) {
             super(type, metadata, schema, table);
         }

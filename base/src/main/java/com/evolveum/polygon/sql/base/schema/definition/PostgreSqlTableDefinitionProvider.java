@@ -11,6 +11,7 @@ import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.SqlDatabase;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
@@ -120,7 +121,7 @@ public final class PostgreSqlTableDefinitionProvider implements SqlTableDefiniti
         return "\"" + identifier.replace("\"", "\"\"") + "\"";
     }
 
-    private static CompletableFuture<String> readAsync(java.io.InputStream stream) {
+    private static CompletableFuture<String> readAsync(InputStream stream) {
         return CompletableFuture.supplyAsync(() -> {
             try (stream) {
                 return new String(stream.readAllBytes(), StandardCharsets.UTF_8);

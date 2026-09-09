@@ -6,8 +6,8 @@
  */
 package com.evolveum.polygon.sql.base.write;
 
-import com.evolveum.polygon.conndev.spi.DeleteOperationHandler;
 import com.evolveum.polygon.conndev.api.ContextLookup;
+import com.evolveum.polygon.conndev.spi.DeleteOperationHandler;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.querydsl.sql.dml.SQLDeleteClause;

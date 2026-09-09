@@ -6,13 +6,9 @@
  */
 package com.evolveum.polygon.sql.base.write;
 
-import com.evolveum.polygon.conndev.build.api.UpdateOperationBuilder.UpdateRequest;
 import com.evolveum.polygon.conndev.api.ContextLookup;
-import com.evolveum.polygon.conndev.spi.AttributeCreateOperationHandler;
-import com.evolveum.polygon.conndev.spi.CreateOperationHandler;
-import com.evolveum.polygon.conndev.spi.DeleteOperationHandler;
-import com.evolveum.polygon.conndev.spi.OperationExecutor;
-import com.evolveum.polygon.conndev.spi.UpdateOperationHandler;
+import com.evolveum.polygon.conndev.build.api.UpdateOperationBuilder.UpdateRequest;
+import com.evolveum.polygon.conndev.spi.*;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.SqlTableAccess;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
@@ -22,11 +18,7 @@ import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 import org.identityconnectors.framework.common.objects.Uid;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
+import java.util.*;
 
 /**
  * Registers SQL-specific steps for conndev's coordinators.
