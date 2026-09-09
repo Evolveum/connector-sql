@@ -11,6 +11,7 @@ import com.evolveum.polygon.conndev.build.api.ObjectClassSchemaBuilder;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.concepts.GroovyClosures;
 import com.evolveum.polygon.conndev.concepts.SourceLocation;
+import com.evolveum.polygon.conndev.annotations.Yaml;
 import groovy.lang.Closure;
 import groovy.lang.DelegatesTo;
 
@@ -56,6 +57,7 @@ public interface SqlObjectClassSchemaBuilder extends ObjectClassSchemaBuilder<Sq
      * @param value whether to only include explicitly listed attributes
      * @return this builder for chaining
      */
+    @Yaml.Key
     SqlObjectClassSchemaBuilder onlyExplicitlyListed(boolean value);
 
     /**
@@ -74,6 +76,7 @@ public interface SqlObjectClassSchemaBuilder extends ObjectClassSchemaBuilder<Sq
      * @param value whether this object class is read-only
      * @return this builder for chaining
      */
+    @Yaml.Key
     SqlObjectClassSchemaBuilder readOnly(boolean value);
 
     /**

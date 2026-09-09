@@ -8,9 +8,13 @@ package com.evolveum.polygon.sql.base.build.api;
 
 import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.yaml.YamlSchemaLoader;
+import org.identityconnectors.framework.common.objects.ObjectClass;
+import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Configuration;
 import org.identityconnectors.framework.spi.Connector;
 import org.testng.annotations.Test;
+
+import java.math.BigInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.testng.Assert.expectThrows;
@@ -36,14 +40,15 @@ public class SqlYamlSchemaProtocolBlockTest {
     public void sqlBlockSetsTableAndSchema() {
         var schemaBuilder = schemaBuilder();
         new YamlSchemaLoader(schemaBuilder).load("""
-                objectClass: Person
-                sql:
-                  table: app_user
-                  schema: public
-                attributes:
-                  user_id:
-                    connId:
-                      name: __UID__
+                objectClasses:
+                  Person:
+                    sql:
+                      table: app_user
+                      schema: public
+                    attributes:
+                      user_id:
+                        connId:
+                          name: __UID__
                 """);
 
         var person = schemaBuilder.objectClass("Person");
@@ -55,9 +60,10 @@ public class SqlYamlSchemaProtocolBlockTest {
     public void sqlBlockWithOnlyTableLeavesSchemaEmpty() {
         var schemaBuilder = schemaBuilder();
         new YamlSchemaLoader(schemaBuilder).load("""
-                objectClass: Person
-                sql:
-                  table: app_user
+                objectClasses:
+                  Person:
+                    sql:
+                      table: app_user
                 """);
 
         var person = schemaBuilder.objectClass("Person");
@@ -71,9 +77,10 @@ public class SqlYamlSchemaProtocolBlockTest {
         var loader = new YamlSchemaLoader(schemaBuilder());
 
         var exception = expectThrows(IllegalArgumentException.class, () -> loader.load("""
-                objectClass: Person
-                sql:
-                  tabel: app_user
+                objectClasses:
+                  Person:
+                    sql:
+                      tabel: app_user
                 """));
         assertThat(exception.getMessage()).contains("tabel");
     }
@@ -84,10 +91,44 @@ public class SqlYamlSchemaProtocolBlockTest {
         var loader = new YamlSchemaLoader(schemaBuilder());
 
         var exception = expectThrows(IllegalArgumentException.class, () -> loader.load("""
-                objectClass: Person
-                scim:
-                  path: /Users
+                objectClasses:
+                  Person:
+                    scim:
+                      path: /Users
                 """));
         assertThat(exception.getMessage()).contains("scim");
+    }
+
+    /**
+     * An attribute-level {@code sql:} block binds {@code type}/{@code primaryKey}/{@code autoIncrement}
+     * onto the live builder — the declarative counterpart of the Groovy {@code sql { type INT }} DSL.
+     */
+    @Test
+    public void attributeSqlBlockBindsTypeAndColumnMetadata() {
+        var schemaBuilder = schemaBuilder();
+        new YamlSchemaLoader(schemaBuilder).load("""
+                objectClasses:
+                  Employee:
+                    sql:
+                      table: emp
+                    attributes:
+                      id:
+                        connId:
+                          name: __UID__
+                        sql:
+                          type: INT
+                          primaryKey: true
+                          autoIncrement: true
+                      quantity:
+                        sql:
+                          type: BIGINT
+                """);
+        schemaBuilder.applyStructuralRules();
+        var definition = schemaBuilder.build().objectClass(new ObjectClass("Employee"));
+        var path = definition.sql().pathAlias("o");
+        var id = (SqlAttributeMapping.SingleColumn) definition.attributeFromConnIdName(Uid.NAME).sql();
+        assertThat(id.dslPath(path).getType()).isEqualTo(Integer.class);
+        var quantity = (SqlAttributeMapping.SingleColumn) definition.attributeFromConnIdName("quantity").sql();
+        assertThat(quantity.dslPath(path).getType()).isEqualTo(BigInteger.class);
     }
 }

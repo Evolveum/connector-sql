@@ -1,0 +1,8 @@
+{
+  "connector": {
+    "schema": [
+      { "script": "/manifests/uid-int/user_view.groovy" }
+    ],
+    "operation": []
+  }
+}

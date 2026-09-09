@@ -12,12 +12,15 @@ import com.evolveum.polygon.conndev.build.api.ReferenceAttributeBuilder;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.concepts.GroovyClosures;
 import com.evolveum.polygon.conndev.concepts.SourceLocation;
+import com.evolveum.polygon.conndev.annotations.Yaml;
 import com.evolveum.polygon.sql.base.build.spi.SpiSqlAttributeBuilder;
+import com.evolveum.polygon.sql.base.yaml.binding.SqlTypeCoercer;
 import groovy.lang.Closure;
 import groovy.lang.DelegatesTo;
 
 public interface SqlAttributeBuilder<F extends SqlAttributeBuilder<F>> extends AttributeBuilder<F, SqlAttributeDefinition> {
 
+    @Yaml.Sub
     SqlMapping sql();
 
     default SqlMapping sql(@Script.Initialization
@@ -28,14 +31,18 @@ public interface SqlAttributeBuilder<F extends SqlAttributeBuilder<F>> extends A
 
     interface SqlMapping extends SqlTypeSpecification.Mixin, SpiSqlAttributeBuilder.SqlMapping {
 
+        @Yaml.Key
         default SqlMapping name(String name) {
             return column(DefinitionValue.from(name, SourceLocation.capture()));
         }
 
+        @Yaml.Key
+        @Yaml.ValueParser(SqlTypeCoercer.class)
         default SqlMapping type(SqlTypeSpecification typeSpecification) {
             return type(DefinitionValue.from(typeSpecification, SourceLocation.capture()));
         }
 
+        @Yaml.Key
         default SqlMapping notNull(boolean notNull) {
             return notNull(DefinitionValue.from(notNull, SourceLocation.capture()));
         }
@@ -48,6 +55,7 @@ public interface SqlAttributeBuilder<F extends SqlAttributeBuilder<F>> extends A
             return notNull(false);
         }
 
+        @Yaml.Key
         default SqlMapping unique(boolean unique) {
             return unique(DefinitionValue.from(unique, SourceLocation.capture()));
         }
@@ -60,6 +68,7 @@ public interface SqlAttributeBuilder<F extends SqlAttributeBuilder<F>> extends A
             return primaryKey(true);
         }
 
+        @Yaml.Key
         default SqlMapping primaryKey(boolean value) {
             return primaryKey(DefinitionValue.from(value, SourceLocation.capture()));
         }
@@ -68,6 +77,7 @@ public interface SqlAttributeBuilder<F extends SqlAttributeBuilder<F>> extends A
             return autoIncrement(true);
         }
 
+        @Yaml.Key
         default SqlMapping autoIncrement(boolean value) {
             return autoIncrement(DefinitionValue.from(value, SourceLocation.capture()));
         }

@@ -11,6 +11,7 @@ import com.evolveum.polygon.conndev.spi.ObjectClassOperation;
 import com.evolveum.polygon.conndev.spi.ObjectCreateOperation;
 import com.evolveum.polygon.conndev.spi.ObjectDeleteOperation;
 import com.evolveum.polygon.conndev.spi.ObjectUpdateOperation;
+import com.evolveum.polygon.conndev.annotations.Yaml;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectOperationSupportBuilder;
@@ -77,21 +78,25 @@ public class SqlObjectOperationBuilderImpl extends BaseObjectOperationSupportBui
     }
 
     @Override
+    @Yaml.Sub
     public SqlSearchOperationBuilderImpl search() {
         return search;
     }
 
     @Override
+    @Yaml.Sub
     public SqlCreateOperationBuilderImpl create() {
         return create;
     }
 
     @Override
+    @Yaml.Sub
     public SqlUpdateOperationBuilderImpl update() {
         return update;
     }
 
     @Override
+    @Yaml.Sub
     public SqlDeleteOperationBuilderImpl delete() {
         return delete;
     }
