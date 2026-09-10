@@ -337,6 +337,8 @@ public class SqlSchemaDetector {
             try (var fkRs = conn.getMetaData().getImportedKeys(null, table.schema, table.table)) {
                 while (fkRs.next()) {
                     var fkColumn = resolveColumn(fkRs, fkRs.getMetaData(), "FKCOLUMN_NAME");
+                    var pkCatalog = resolveColumn(fkRs, fkRs.getMetaData(), "PKTABLE_CAT");
+                    var pkSchema = resolveColumn(fkRs, fkRs.getMetaData(), "PKTABLE_SCHEM");
                     var pkTable = resolveColumn(fkRs, fkRs.getMetaData(), "PKTABLE_NAME");
                     var pkColumn = resolveColumn(fkRs, fkRs.getMetaData(), "PKCOLUMN_NAME");
                     var fkName = resolveColumn(fkRs, fkRs.getMetaData(), "FK_NAME");
@@ -345,8 +347,7 @@ public class SqlSchemaDetector {
                     }
                     for (SqlColumnMeta col : cols) {
                         if (col.getName().equalsIgnoreCase(fkColumn)) {
-                            col.setForeignKey(pkTable,
-                                    pkColumn != null ? pkColumn : null, fkName);
+                            col.setForeignKey(pkCatalog, pkSchema, pkTable, pkColumn, fkName);
                         }
                     }
                 }

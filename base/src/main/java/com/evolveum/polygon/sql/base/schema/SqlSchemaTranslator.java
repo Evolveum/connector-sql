@@ -15,6 +15,8 @@ import com.evolveum.polygon.sql.base.schema.ChildTableRelationship.*;
 import com.evolveum.polygon.sql.base.schema.strategy.*;
 import com.evolveum.polygon.sql.base.schema.strategy.ChildTableRelationshipDetectionRule;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
+import org.identityconnectors.framework.common.objects.Name;
+import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Connector;
 
 import java.util.*;
@@ -51,6 +53,7 @@ public class SqlSchemaTranslator {
     /** Object classes this translator correlated to a table (see {@link #translateTable}), kept
      * here rather than on the builder itself, since the correlation is this translator's concern. */
     private final Map<SqlObjectClassSchemaBuilderImpl, SqlTableInfo> correlatedTables = new LinkedHashMap<>();
+    private final Map<SqlObjectClassSchemaBuilderImpl, Set<String>> explicitJoinedAttributes = new HashMap<>();
 
     private Class<? extends Connector> connectorClass;
     private ContextLookup contextLookup;
@@ -146,6 +149,14 @@ public class SqlSchemaTranslator {
     }
 
     private SqlSchemaBuilderImpl translateInternal() {
+        if (Boolean.TRUE.equals(builder.getOnlyExplicitlyListed())) {
+            // Snapshot before discovery adds attributes to the builders' remote-name sets.
+            for (var objectClass : builder.allObjectClassBuilders()) {
+                if (objectClass.hasObjectJoins()) {
+                    explicitJoinedAttributes.put(objectClass, Set.copyOf(objectClass.getExplicitRemoteNames()));
+                }
+            }
+        }
         detectRelationships();
         for (SqlTableInfo table : tables) {
             translateTable(table);
@@ -356,11 +367,15 @@ public class SqlSchemaTranslator {
         if (table == null || table.getColumns() == null || table.getColumns().isEmpty()) {
             return;
         }
-        // Junction tables and simple-attribute child tables are invisible — no OC created for them
-        if (junctionTableNames.contains(table.getName().toUpperCase())) {
+        var explicitJoinedRoot = builder.allObjectClassBuilders().stream().anyMatch(objectClass ->
+                objectClass.hasObjectJoins() && table.getName().equals(objectClass.sql().table())
+                        && (objectClass.sql().schema() == null || objectClass.sql().schema().isBlank()
+                        || objectClass.sql().schema().equals(table.getSchema())));
+        // Explicit flat objects may use a table otherwise detected as a child/junction.
+        if (junctionTableNames.contains(table.getName().toUpperCase()) && !explicitJoinedRoot) {
             return;
         }
-        if (simpleAttributeChildTableNames.contains(table.getName().toUpperCase())) {
+        if (simpleAttributeChildTableNames.contains(table.getName().toUpperCase()) && !explicitJoinedRoot) {
             return;
         }
         if (builder.getOnlyExplicitlyListed() != null && builder.getOnlyExplicitlyListed()
@@ -390,7 +405,72 @@ public class SqlSchemaTranslator {
     public void applyRules() {
         for (var entry : correlatedTables.entrySet()) {
             applyRulesFor(entry.getValue(), entry.getKey());
+            applyObjectJoins(entry.getValue(), entry.getKey());
         }
+        for (var objectClass : builder.allObjectClassBuilders()) {
+            if (objectClass.hasObjectJoins() && !correlatedTables.containsKey(objectClass)) {
+                throw new IllegalArgumentException("Root table was not detected for joined object " + objectClass.name());
+            }
+        }
+    }
+
+    private void applyObjectJoins(SqlTableInfo root, SqlObjectClassSchemaBuilderImpl objectClass) {
+        if (!objectClass.hasObjectJoins()) {
+            return;
+        }
+        var usedNames = root.getColumns().stream().map(column -> column.getName().toLowerCase(Locale.ROOT))
+                .collect(Collectors.toCollection(HashSet::new));
+        var explicitNames = explicitJoinedAttributes.getOrDefault(objectClass, Set.of());
+        int index = 0;
+        for (var joinBuilder : objectClass.objectJoinBuilders()) {
+            var join = joinBuilder.resolve(root, tables, ++index);
+            objectClass.addObjectJoin(join);
+            for (var column : join.table().getColumns()) {
+                if (!joinBuilder.includes(column.getName())) {
+                    continue;
+                }
+                var name = joinBuilder.attributeName(column.getName());
+                if (!explicitNames.isEmpty() && !explicitNames.contains(name)) {
+                    continue;
+                }
+                if (!usedNames.add(name.toLowerCase(Locale.ROOT))
+                        || Uid.NAME.equalsIgnoreCase(name) || Name.NAME.equalsIgnoreCase(name)) {
+                    throw new IllegalArgumentException("Duplicate/reserved joined attribute " + name);
+                }
+                var attribute = (SqlAttributeBuilderImpl) objectClass.attribute(name);
+                if (Uid.NAME.equalsIgnoreCase(attribute.connId().name().value())) {
+                    throw new IllegalArgumentException("Joined attributes cannot replace the root UID");
+                }
+                setupCoreAttribute(attribute, column);
+                attribute.sql().sourceTable(join.path());
+                // Only column rules apply: joined primary keys must never replace the root UID.
+                var context = new SqlAttributeMappingRule.Context(join.table(), column);
+                for (var rule : attributeRules) {
+                    if (rule.checkIfApplicable(context, objectClass, attribute)) {
+                        var action = rule.createAction(context);
+                        if (action != null) {
+                            action.applyToAttribute(attribute);
+                        }
+                    }
+                }
+                // A LEFT JOIN may have no matching row, even for NOT NULL physical columns.
+                attribute.connId().required(false);
+            }
+        }
+        var uid = objectClass.findAttributes(attribute -> Uid.NAME.equals(attribute.connId().name().value()))
+                .stream().findFirst().orElseThrow(() -> new IllegalArgumentException(
+                        "Joined object requires a root UID: " + objectClass.name()));
+        if (((SqlAttributeBuilderImpl) uid).sql().build() == null) {
+            throw new IllegalArgumentException("Joined object requires a mapped root UID: " + objectClass.name());
+        }
+        var connIdNames = new HashSet<String>();
+        objectClass.findAttributes(attribute -> true).forEach(attribute -> {
+            if (!connIdNames.add(attribute.connId().name().value().toLowerCase(Locale.ROOT))) {
+                throw new IllegalArgumentException("Duplicate joined object attribute " + attribute.connId().name().value());
+            }
+            attribute.creatable(false);
+            attribute.updatable(false);
+        });
     }
 
     /**

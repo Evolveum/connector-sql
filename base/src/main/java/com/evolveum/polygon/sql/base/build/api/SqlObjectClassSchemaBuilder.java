@@ -146,6 +146,14 @@ public interface SqlObjectClassSchemaBuilder extends ObjectClassSchemaBuilder<Sq
      */
     interface SqlMapping {
 
+        /** Adds a read-only LEFT JOIN exposing prefixed, flat attributes on this object class. */
+        SqlJoinBuilder join();
+
+        default SqlJoinBuilder join(@Script.Initialization
+                @DelegatesTo(value = SqlJoinBuilder.class, strategy = Closure.DELEGATE_ONLY) Closure<?> closure) {
+            return GroovyClosures.callAndReturnDelegate(closure, join());
+        }
+
         /** Sets the SQL table name (String version). */
         void table(String table);
 

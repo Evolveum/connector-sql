@@ -14,6 +14,7 @@ import com.evolveum.polygon.conndev.schema.BaseObjectClassDefinitionBuilder;
 import com.evolveum.polygon.conndev.schema.ValueTypeOverrideMapping;
 import com.evolveum.polygon.sql.base.build.spi.SpiSqlAttributeBuilder;
 import com.evolveum.polygon.sql.base.connection.SqlValueMapping;
+import com.querydsl.sql.RelationalPathBase;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,6 +49,10 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
         private final List<SqlAdditionalColumnDef> additionalColumns = new ArrayList<>();
         private SqlAttributeMapping override;
         private Class<?> connIdTypeOverride;
+        private RelationalPathBase<?> sourceTable;
+
+        /** Binds a flat joined attribute to its own alias without changing its value mapping. */
+        public void sourceTable(RelationalPathBase<?> path) { sourceTable = path; }
 
         public SqlMappingBuilder(String name) { this.column = DefinitionValue.defaultFrom(name); }
 
@@ -111,7 +116,8 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
             // The final ConnId type was pushed here by AttributeTypeCoercionRule before
             // build() runs (see #applyConnIdTypeOverride); if it differs from the native
             // mapping's type, withConnIdType wraps the conversion accordingly.
-            var main = SqlAttributeMapping.singleColumn(column, this.valueMapping.value(), this.valueMapping.value());
+            var main = new SqlAttributeMapping.SingleColumn(
+                    column, this.valueMapping.value(), this.valueMapping.value(), sourceTable);
             SqlAttributeMapping result;
             if (additionalColumns.isEmpty()) {
                 result = main;

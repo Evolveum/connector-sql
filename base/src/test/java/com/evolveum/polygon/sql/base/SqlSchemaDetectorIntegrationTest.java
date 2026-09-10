@@ -6,6 +6,7 @@
  */
 package com.evolveum.polygon.sql.base;
 
+import com.evolveum.polygon.sql.base.build.api.SqlJoinBuilder;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
 import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
@@ -30,6 +31,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.fail;
 
 /**
@@ -76,6 +78,33 @@ public class SqlSchemaDetectorIntegrationTest {
         List<SqlTableInfo> tables = new SqlSchemaDetector(context).discover();
 
         assertThat(tables.size()).withFailMessage("Should discover exactly 6 tables").isEqualTo(6);
+    }
+
+    @Test
+    public void testJoinDoesNotInferForeignKeyToSameNamedTableInAnotherSchema() throws Exception {
+        try (var connection = context.getConnection();
+             var statement = connection.getConnection().createStatement()) {
+            statement.execute("CREATE SCHEMA ARCHIVE");
+            statement.execute("CREATE TABLE PUBLIC.JOIN_PARENT (ID INTEGER PRIMARY KEY)");
+            statement.execute("CREATE TABLE ARCHIVE.JOIN_PARENT (ID INTEGER PRIMARY KEY)");
+            statement.execute("""
+                    CREATE TABLE PUBLIC.JOIN_CHILD (
+                        ID INTEGER PRIMARY KEY, PARENT_ID INTEGER,
+                        CONSTRAINT FK_ARCHIVE_PARENT FOREIGN KEY (PARENT_ID) REFERENCES ARCHIVE.JOIN_PARENT(ID))
+                    """);
+        }
+        // Both selected tables are in PUBLIC, but the actual FK points to ARCHIVE.
+        var tables = new SqlSchemaDetector(context).discover(List.of(
+                new SqlSchemaDetector.TableRef("PUBLIC", "JOIN_PARENT"),
+                new SqlSchemaDetector.TableRef("PUBLIC", "JOIN_CHILD")));
+        var root = table(tables, "JOIN_PARENT");
+        var foreignKey = toColumnMap(table(tables, "JOIN_CHILD")).get("PARENT_ID");
+        assertThat(foreignKey.getReferencedCatalog()).isEqualTo(root.getCatalog());
+        assertThat(foreignKey.getReferencedSchema()).isEqualTo("ARCHIVE");
+        var join = new SqlJoinBuilder();
+        join.table("JOIN_CHILD");
+        assertThatThrownBy(() -> join.resolve(root, tables, 1))
+                .hasMessageContaining("unambiguous foreign key");
     }
 
     @Test

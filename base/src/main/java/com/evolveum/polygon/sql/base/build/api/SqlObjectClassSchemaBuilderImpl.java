@@ -14,6 +14,7 @@ import com.evolveum.polygon.conndev.yaml.YamlDocuments;
 import com.evolveum.polygon.conndev.yaml.YamlProtocolBlockConsumer;
 import com.evolveum.polygon.sql.base.schema.SqlChildJoinConfig;
 import com.evolveum.polygon.sql.base.schema.SqlJunctionJoinConfig;
+import com.evolveum.polygon.sql.base.schema.SqlObjectJoin;
 import com.evolveum.polygon.sql.base.yaml.model.YamlSqlBlock;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
@@ -35,6 +36,14 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
     private final Set<String> explicitRemoteNames = new LinkedHashSet<>();
     private final List<SqlChildJoinConfig> relatedAttributeJoinConfigs = new ArrayList<>();
     private final List<SqlJunctionJoinConfig> junctionJoinConfigs = new ArrayList<>();
+    private final List<SqlJoinBuilder> objectJoinBuilders = new ArrayList<>();
+    private final List<SqlObjectJoin> objectJoins = new ArrayList<>();
+
+    public List<SqlJoinBuilder> objectJoinBuilders() { return List.copyOf(objectJoinBuilders); }
+
+    public boolean hasObjectJoins() { return !objectJoinBuilders.isEmpty(); }
+
+    public void addObjectJoin(SqlObjectJoin join) { objectJoins.add(join); }
 
     public SqlObjectClassSchemaBuilderImpl(SqlSchemaBuilderImpl restSchemaBuilder, DefinitionValue<String> name) {
         super(restSchemaBuilder, name);
@@ -72,7 +81,7 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
 
     @Override
     public Boolean getReadOnly() {
-        return readOnly.value();
+        return hasObjectJoins() ? true : readOnly.value();
     }
 
     /**
@@ -116,6 +125,13 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
     @Override
     public SqlMapping sql() {
         return new SqlMapping() {
+            @Override
+            public SqlJoinBuilder join() {
+                var join = new SqlJoinBuilder();
+                objectJoinBuilders.add(join);
+                return join;
+            }
+
             @Override
             public void table(String name) {
                 table(DefinitionValue.from(name, SourceLocation.capture()));
@@ -179,7 +195,7 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
         }
         var nameAttribute = reference(DefinitionValue.defaultFrom(Name.NAME));
         nameAttribute.sql().override(mapping);
-        if (Boolean.TRUE.equals(readOnly.value())) {
+        if (Boolean.TRUE.equals(getReadOnly())) {
             nameAttribute.connId().creatable(DefinitionValue.detected(false));
             nameAttribute.connId().updatable(DefinitionValue.detected(false));
         }
@@ -191,7 +207,7 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
                                                  Map<String, SqlAttributeDefinition> nativeAttrs,
                                                  Map<String, SqlAttributeDefinition> connIdAttrs) {
 
-        var sql = new SqlSchemaBuilderImpl.SqlObjectClassMapping(schema, table);
+        var sql = new SqlSchemaBuilderImpl.SqlObjectClassMapping(schema, table, objectJoins);
         var resolvedJoinConfigs = relatedAttributeJoinConfigs.stream()
                 .map(config -> {
                     var attribute = nativeAttrs.get(config.targetAttributeName());
@@ -204,7 +220,7 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
                 .toList();
 
         return new SqlObjectClassDefinition(
-                connIdInfo, nativeAttrs, connIdAttrs, sql, readOnly.value(),
+                connIdInfo, nativeAttrs, connIdAttrs, sql, getReadOnly(),
                 resolvedJoinConfigs, junctionJoinConfigs);
     }
 
