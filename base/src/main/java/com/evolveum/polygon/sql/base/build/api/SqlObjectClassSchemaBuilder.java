@@ -29,6 +29,7 @@ public interface SqlObjectClassSchemaBuilder extends ObjectClassSchemaBuilder<Sq
     /**
      * Returns the SQL mapping for this object class.
      */
+    @Yaml.Sub
     SqlMapping sql();
 
     /**
@@ -155,7 +156,12 @@ public interface SqlObjectClassSchemaBuilder extends ObjectClassSchemaBuilder<Sq
         }
 
         /** Sets the SQL table name (String version). */
+        @Yaml.Key
         void table(String table);
+
+        /** Sets the SQL schema name (String version). */
+        @Yaml.Key
+        void schema(String schema);
 
         /** Returns the SQL schema name (empty string if not set). */
         String schema();
