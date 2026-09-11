@@ -67,6 +67,24 @@ public class SqlYamlOperationsLoaderTest {
     }
 
     @Test
+    public void deleteEnabledFlagBindsFromYamlOpsDocument() {
+        var context = new SqlBaseContext(new SqlConnectorConfiguration());
+        var handlerBuilder = newHandlerBuilder(context);
+
+        new YamlSqlOperationsLoader(handlerBuilder,
+                new GroovyScriptCompiler(context.configuration().groovyContext()))
+                .load(new StringReader("""
+                        objectClasses:
+                          Employee:
+                            delete:
+                              enabled: false
+                        """), "test.yaml");
+
+        var employee = (SqlObjectOperationBuilderImpl) handlerBuilder.objectClass("Employee");
+        assertThat(employee.isDeleteDisabled()).isTrue();
+    }
+
+    @Test
     public void unknownTopLevelKeyFailsFast() {
         var context = new SqlBaseContext(new SqlConnectorConfiguration());
         var handlerBuilder = newHandlerBuilder(context);
