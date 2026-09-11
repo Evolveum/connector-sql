@@ -9,7 +9,10 @@ package com.evolveum.polygon.sql.base;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeMapping;
 import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
+import com.querydsl.sql.Configuration;
 import com.querydsl.sql.RelationalPathBase;
+import com.querydsl.sql.SQLSerializer;
+import com.querydsl.sql.SQLTemplates;
 import org.identityconnectors.framework.common.objects.filter.AttributeFilter;
 import org.identityconnectors.framework.common.objects.filter.FilterBuilder;
 import org.testng.annotations.DataProvider;
@@ -134,6 +137,18 @@ public class SqlDatetimeFilterTest {
             assertThatThrownBy(() -> column.sqlFilter().predicateFor(createTablePath("t"), (AttributeFilter) filter))
                     .isInstanceOf(Exception.class);
         }
+    }
+
+    @Test
+    public void historicalTimestampFilterPreservesCalendarFields() {
+        var column = SqlAttributeMapping.singleColumn(
+                DefinitionValue.defaultFrom("ts_col"),
+                SqlSchemaValueMapping.TIMESTAMP, SqlSchemaValueMapping.TIMESTAMP);
+        var filter = FilterBuilder.equalTo(build("ts_col", ZonedDateTime.parse("0001-01-01T00:00:00Z")));
+        var predicate = column.sqlFilter().predicateFor(createTablePath("t"), (AttributeFilter) filter);
+        var serializer = new SQLSerializer(new Configuration(SQLTemplates.DEFAULT));
+        serializer.handle(predicate);
+        assertThat(serializer.getConstants()).containsExactly(Timestamp.valueOf("0001-01-01 00:00:00"));
     }
 
     // ─── Wire value conversions (integration with filter predicates) ───
