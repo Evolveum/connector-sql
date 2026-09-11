@@ -22,7 +22,8 @@ import static org.testng.Assert.expectThrows;
 /**
  * The {@code sql:} top-level YAML block is connector-sql's counterpart of the Groovy
  * {@code sql { table "..." } } DSL — it drives the same {@link SqlObjectClassSchemaBuilderImpl#sql()}
- * mapping via the generic conndev {@code YamlProtocolBlockConsumer} hook.
+ * mapping declaratively, via {@code @Yaml.Sub} on {@link SqlObjectClassSchemaBuilder#sql()} and
+ * {@code @Yaml.Key} on {@code SqlMapping.table(String)}/{@code schema(String)}.
  */
 public class SqlYamlSchemaProtocolBlockTest {
 
@@ -130,5 +131,43 @@ public class SqlYamlSchemaProtocolBlockTest {
         assertThat(id.dslPath(path).getType()).isEqualTo(Integer.class);
         var quantity = (SqlAttributeMapping.SingleColumn) definition.attributeFromConnIdName("quantity").sql();
         assertThat(quantity.dslPath(path).getType()).isEqualTo(BigInteger.class);
+    }
+
+    /**
+     * The {@code primaryKey}/{@code autoIncrement}/{@code notNull} flags in an attribute-level
+     * {@code sql:} block are not just stored — they drive the same ConnId schema effects as their
+     * auto-detected counterparts ({@code PrimaryKeyIsNotUpdatableRule},
+     * {@code AutoIncrementColumnIsNotEditableRule}, {@code NullableAttributesAreNotRequiredRule}).
+     */
+    @Test
+    public void attributeSqlFlagsDriveConnIdMetadata() {
+        var schemaBuilder = schemaBuilder();
+        new YamlSchemaLoader(schemaBuilder).load("""
+                objectClasses:
+                  Employee:
+                    sql:
+                      table: emp
+                    attributes:
+                      id:
+                        connId:
+                          name: __UID__
+                        sql:
+                          type: INT
+                          primaryKey: true
+                          autoIncrement: true
+                      email:
+                        sql:
+                          type: VARCHAR
+                          notNull: true
+                """);
+        schemaBuilder.applyStructuralRules();
+        var definition = schemaBuilder.build().objectClass(new ObjectClass("Employee"));
+
+        var id = definition.attributeFromConnIdName(Uid.NAME).connId();
+        assertThat(id.isCreateable()).isFalse();
+        assertThat(id.isUpdateable()).isFalse();
+
+        var email = definition.attributeFromConnIdName("email").connId();
+        assertThat(email.isRequired()).isTrue();
     }
 }

@@ -83,15 +83,49 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
             return this;
         }
 
-        @Override public SqlMapping notNull(DefinitionValue<Boolean> notNull) { this.notNull = notNull; return this; }
+        /**
+         * Sets not-null and, like {@code NullableAttributesAreNotRequiredRule} does for
+         * auto-detected columns, drives the ConnId {@code required} flag from it — in both
+         * directions, since an explicit declaration (unlike detection) is meant to be authoritative.
+         */
+        @Override public SqlMapping notNull(DefinitionValue<Boolean> notNull) {
+            this.notNull = notNull;
+            connId().required(DefinitionValue.from(notNull.value(), notNull.location()));
+            return this;
+        }
         @Override public SqlMapping unique(DefinitionValue<Boolean> unique) { this.unique = unique; return this; }
         @Override public SqlMapping valueMapping(DefinitionValue<SqlValueMapping> d) { this.valueMapping = d; return this; }
 
         public SqlMapping primaryKey() { return primaryKey(true); }
         @Override public SqlMapping primaryKey(boolean value) { return primaryKey(DefinitionValue.from(value, SourceLocation.capture())); }
         public SqlMapping autoIncrement(boolean value) { return autoIncrement(DefinitionValue.from(value, SourceLocation.capture())); }
-        @Override public SqlMapping autoIncrement(DefinitionValue<Boolean> value) { this.autoIncrement = value; return this; }
-        @Override public SqlMapping primaryKey(DefinitionValue<Boolean> primaryKey) { this.primaryKey = primaryKey; return this; }
+
+        /**
+         * Sets auto-increment and, like {@code AutoIncrementColumnIsNotEditableRule} does for
+         * auto-detected columns, marks the attribute non-creatable/non-updatable — the DB generates
+         * the value, so it can never be written by midPoint.
+         */
+        @Override public SqlMapping autoIncrement(DefinitionValue<Boolean> value) {
+            this.autoIncrement = value;
+            if (Boolean.TRUE.equals(value.value())) {
+                connId().creatable(DefinitionValue.from(false, value.location()));
+                connId().updatable(DefinitionValue.from(false, value.location()));
+            }
+            return this;
+        }
+
+        /**
+         * Sets the primary-key flag and, like {@code PrimaryKeyIsNotUpdatableRule} does for
+         * auto-detected columns, marks the attribute non-updatable — a key column is not meant to
+         * change after creation.
+         */
+        @Override public SqlMapping primaryKey(DefinitionValue<Boolean> primaryKey) {
+            this.primaryKey = primaryKey;
+            if (Boolean.TRUE.equals(primaryKey.value())) {
+                connId().updatable(DefinitionValue.from(false, primaryKey.location()));
+            }
+            return this;
+        }
 
         @Override public DefinitionValue<String> column() { return column; }
         @Override public Class<?> suggestedConnIdType() { return valueMapping.value() != null ? valueMapping.value().connIdType() : Object.class; }
