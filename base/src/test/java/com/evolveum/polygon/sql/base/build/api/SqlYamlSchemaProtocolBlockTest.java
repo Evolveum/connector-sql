@@ -6,6 +6,8 @@
  */
 package com.evolveum.polygon.sql.base.build.api;
 
+import com.evolveum.polygon.conndev.api.AttributePath;
+import com.evolveum.polygon.conndev.api.BasicJsonPathFormat;
 import com.evolveum.polygon.conndev.api.ContextLookup;
 import com.evolveum.polygon.conndev.yaml.YamlSchemaLoader;
 import org.identityconnectors.framework.common.objects.ObjectClass;
@@ -22,8 +24,7 @@ import static org.testng.Assert.expectThrows;
 /**
  * The {@code sql:} top-level YAML block is connector-sql's counterpart of the Groovy
  * {@code sql { table "..." } } DSL — it drives the same {@link SqlObjectClassSchemaBuilderImpl#sql()}
- * mapping declaratively, via {@code @Yaml.Sub} on {@link SqlObjectClassSchemaBuilder#sql()} and
- * {@code @Yaml.Key} on {@code SqlMapping.table(String)}/{@code schema(String)}.
+ * mapping via the generic conndev {@code YamlProtocolBlockConsumer} hook.
  */
 public class SqlYamlSchemaProtocolBlockTest {
 
@@ -134,40 +135,30 @@ public class SqlYamlSchemaProtocolBlockTest {
     }
 
     /**
-     * The {@code primaryKey}/{@code autoIncrement}/{@code notNull} flags in an attribute-level
-     * {@code sql:} block are not just stored — they drive the same ConnId schema effects as their
-     * auto-detected counterparts ({@code PrimaryKeyIsNotUpdatableRule},
-     * {@code AutoIncrementColumnIsNotEditableRule}, {@code NullableAttributesAreNotRequiredRule}).
+     * The generic {@code json: { path: ... }} binding is inherited from the conndev base
+     * {@code JsonMapping} — no SQL-specific code is involved.
      */
     @Test
-    public void attributeSqlFlagsDriveConnIdMetadata() {
+    public void inheritedJsonPathBindingIsApplied() {
         var schemaBuilder = schemaBuilder();
         new YamlSchemaLoader(schemaBuilder).load("""
                 objectClasses:
-                  Employee:
+                  Person:
                     sql:
-                      table: emp
+                      table: app_user
                     attributes:
-                      id:
-                        connId:
-                          name: __UID__
-                        sql:
-                          type: INT
-                          primaryKey: true
-                          autoIncrement: true
-                      email:
-                        sql:
-                          type: VARCHAR
-                          notNull: true
+                      user_name:
+                        json:
+                          type: string
+                          path: $.name.first
                 """);
         schemaBuilder.applyStructuralRules();
-        var definition = schemaBuilder.build().objectClass(new ObjectClass("Employee"));
+        var definition = schemaBuilder.build().objectClass(new ObjectClass("Person"));
+        var json = definition.attributeFromProtocolName("user_name").json();
 
-        var id = definition.attributeFromConnIdName(Uid.NAME).connId();
-        assertThat(id.isCreateable()).isFalse();
-        assertThat(id.isUpdateable()).isFalse();
-
-        var email = definition.attributeFromConnIdName("email").connId();
-        assertThat(email.isRequired()).isTrue();
+        assertThat(json.pathDeclaration().type().value()).isEqualTo(BasicJsonPathFormat.INSTANCE);
+        assertThat(json.path().components()).containsExactly(
+                new AttributePath.Attribute("name"),
+                new AttributePath.Attribute("first"));
     }
 }

@@ -76,7 +76,9 @@ public class HikariConnectionPool {
             throw new SQLException("Connection pool is closed", (Throwable) null);
         }
         try {
-            var connection = dataSource.getConnection();
+            // Development-mode tracing proxy: attaches the SQL executed through this connection
+            // to the active conndev operation entry, if any.
+            var connection = SqlProtocolTrace.tracing(dataSource.getConnection());
             if (connection == null) {
                 throw new SQLException("Pool returned a null connection", (Throwable) null);
             }
