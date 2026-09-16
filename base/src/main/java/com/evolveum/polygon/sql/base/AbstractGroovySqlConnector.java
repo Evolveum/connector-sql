@@ -15,6 +15,13 @@ import com.evolveum.polygon.conndev.spi.ClassHandlerConnectorBase;
 import com.evolveum.polygon.conndev.spi.CompositeObjectClassHandler;
 import com.evolveum.polygon.conndev.spi.ObjectClassHandler;
 import com.evolveum.polygon.conndev.spi.ObjectSearchOperation;
+import com.evolveum.polygon.conndev.yaml.GroovyScriptCompiler;
+import com.evolveum.polygon.conndev.yaml.YamlSchemaLoader;
+import com.evolveum.polygon.conndev.yaml.decl.GroovySyntaxChecker;
+import com.evolveum.polygon.conndev.yaml.decl.LocatedDocument;
+import com.evolveum.polygon.conndev.yaml.decl.YamlScriptValidator;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilder;
+import com.evolveum.polygon.sql.base.build.api.SqlObjectOperationSupportBuilder;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilder;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
@@ -27,6 +34,7 @@ import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
 import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
 import com.evolveum.polygon.sql.base.schema.TableFilter;
+import com.evolveum.polygon.sql.base.yaml.YamlSqlOperationsLoader;
 import com.querydsl.sql.SQLTemplates;
 import org.identityconnectors.framework.common.exceptions.ConnectionFailedException;
 import org.identityconnectors.framework.common.exceptions.InvalidCredentialException;
@@ -321,6 +329,9 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
     protected ScriptValidationResult validateScript(ScriptValidationRequest request) throws Exception {
         ensureSchemaInitialized();
         if (ScriptValidationRequest.ARTIFACT_KIND_SCHEMA.equals(request.artifactKind())) {
+            if (request.isYaml()) {
+                return validateYamlSchema(request);
+            }
             var builder = new SqlSchemaBuilderImpl(getClass(), context);
             var loader = new SqlSchemaDefinitionLoader(builder, context.configuration().groovyContext());
             schemaResources(request.filename()).forEach(loader::loadFromResource);
@@ -329,10 +340,55 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                 builder.build();
             }, request.scriptText(), request.operation());
         }
+        if (request.isYaml()) {
+            return validateYamlOperations(request);
+        }
         var handlerBuilder = new SqlOperationSupportBuilderImpl(context);
         var handlerLoader = new SqlHandlerLoader(context, handlerBuilder);
         operationResources(request.filename()).forEach(handlerLoader::loadFromResource);
         return GroovyScriptValidator.validate(handlerLoader::parse, handlerBuilder::build, request.scriptText(), request.operation());
+    }
+
+    /**
+     * YAML counterpart of the schema branch above — {@code compile} only runs the static syntax
+     * check, {@code build} loads the candidate for real via {@link YamlSchemaLoader}, bound
+     * directly onto the same builder the siblings already populated (no separate inert copy, as
+     * connector-scimrest's schema loader needs).
+     */
+    private ScriptValidationResult validateYamlSchema(ScriptValidationRequest request) {
+        var builder = new SqlSchemaBuilderImpl(getClass(), context);
+        var siblingLoader = new SqlSchemaDefinitionLoader(builder, context.configuration().groovyContext());
+        schemaResources(request.filename()).forEach(siblingLoader::loadFromResource);
+
+        return YamlScriptValidator.validate(
+                request,
+                document -> GroovySyntaxChecker.checkObjectClasses(document, SqlObjectClassSchemaBuilder.class,
+                        new GroovyScriptCompiler(context.configuration().groovyContext())),
+                () -> new YamlSchemaLoader(builder).load(request.scriptText()),
+                () -> {
+                    builder.applyStructuralRules();
+                    builder.build();
+                });
+    }
+
+    /**
+     * YAML counterpart of the operations branch above — same split as {@link #validateYamlSchema}.
+     * No {@code authentication} block on the SQL side, so {@link
+     * GroovySyntaxChecker#checkObjectClasses} applies directly (not REST's {@code
+     * checkOperations}).
+     */
+    private ScriptValidationResult validateYamlOperations(ScriptValidationRequest request) {
+        var handlerBuilder = new SqlOperationSupportBuilderImpl(context);
+        var handlerLoader = new SqlHandlerLoader(context, handlerBuilder);
+        operationResources(request.filename()).forEach(handlerLoader::loadFromResource);
+        var compiler = new GroovyScriptCompiler(context.configuration().groovyContext());
+
+        return YamlScriptValidator.validate(
+                request,
+                document -> GroovySyntaxChecker.checkObjectClasses(document, SqlObjectOperationSupportBuilder.class, compiler),
+                () -> new YamlSqlOperationsLoader(handlerBuilder, compiler).load(
+                        LocatedDocument.parse(request.filename() != null ? request.filename() : "candidate.yaml", request.scriptText())),
+                handlerBuilder::build);
     }
 
     @Override
