@@ -12,6 +12,7 @@ import com.evolveum.polygon.sql.base.connection.SqlValueMapping;
 
 public interface  SqlTypeSpecification {
 
+    @Groovy.Convenience
     public interface Mixin {
 
         @Groovy.Convenience SqlTypeSpecification INT = SqlSchemaValueMapping.INTEGER.asTypeSpecification();
@@ -25,6 +26,10 @@ public interface  SqlTypeSpecification {
         @Groovy.Convenience SqlTypeSpecification BOOLEAN = SqlSchemaValueMapping.BOOLEAN.asTypeSpecification();
 
         @Groovy.Convenience SqlTypeSpecification DATE = SqlSchemaValueMapping.DATE.asTypeSpecification();
+
+        @Groovy.Convenience SqlTypeSpecification TIMESTAMP = SqlSchemaValueMapping.TIMESTAMP.asTypeSpecification();
+
+        @Groovy.Convenience SqlTypeSpecification INTEGER = SqlSchemaValueMapping.INTEGER.asTypeSpecification();
 
         @Groovy.Convenience
         @SuppressWarnings("java:S100")
@@ -61,7 +66,6 @@ public interface  SqlTypeSpecification {
             return SqlSchemaValueMapping.DATE.asTypeSpecification();
         }
 
-        @Groovy.Convenience SqlTypeSpecification INTEGER = SqlSchemaValueMapping.INTEGER.asTypeSpecification();
 
     }
 

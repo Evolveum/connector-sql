@@ -25,6 +25,25 @@ Key packages under `base/src/main/java/com/evolveum/polygon/sql/base/`:
 
 Dialects: `PostgreSqlDialect` (RETURNING), `MySqlDialect`, `OracleSqlDialect` (FETCH FIRST), `SqliteDialect`, `StandardSqlDialect`.
 
+## Operation tracing (conndev dev mode)
+
+ConnId operations are automatically traced via the inherited `ClassHandlerConnectorBase`: with
+`developmentMode: true` in the configuration, every operation runs inside a
+`conndev-log/v1` operation entry (structured lines, INFO/DEBUG/TRACE/ERROR), and the SQL executed
+by the operation handlers is attached to it as `sql` protocol events.
+
+- SQL capture is JDBC-level: `HikariConnectionPool.getConnection` wraps the pooled connection in a
+  `SqlProtocolTrace` proxy **only while development mode is active on the thread**, so the exact
+  SQL text and bound parameter values are recorded as sent to the driver (no per-operation
+  instrumentation needed; zero overhead when development mode is off).
+- Events attach to the active operation entry through `ConnDevLog.currentOperation()`; calls
+  outside a ConnId operation (e.g. `test()`, schema detection on a non-wrapped connection) are no-ops.
+- Round-trip test: `SqlOperationTracingTest` (create/search/update/delete, correlated through
+  `OperationLogParser`, plus a no-structured-lines case with development mode off). Test lines are
+  captured by `CapturingLogProvider` (registered in `base/src/test/resources/META-INF/services/`).
+- Note: the first operation on a cold connector also includes the lazy pool init / schema
+  detection SQL inside its operation entry (they run inside the operation by design).
+
 ## Important gotchas
 - `SqlSchemaDetector.getTables()` first argument must be **`null`** (not `getJdbcUrl()`). Passing the JDBC URL breaks metadata lookup on H2 and most drivers.
 - `SqlHandlerBuilder.create()` is a stub.
