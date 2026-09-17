@@ -1,0 +1,42 @@
+= How to develop connectors using the SQL framework
+
+This section provides a reference and development guidance on building connectors with the Polygon SQL framework.
+
+Like the link:https://docs.evolveum.com/connectors/scimrest-framework/[SCIMREST framework], the SQL framework is designed using the terminology of the ConnId framework, so it is recommended to have a basic understanding of the link:https://docs.evolveum.com/connectors/connid/[ConnID architecture and terminology].
+
+== Documentation structure
+
+The SQL connector tutorial is organized as progressive steps:
+
+== Initial development steps
+
+If you are starting with the Polygon SQL framework, start building a connector capable only of the read operations.
+Then, continue with the more complex create, update, and delete operations.
+
+=== Read-only connector
+
+. Obtain the documentation for the database/schema that the connector
+will read from
+. Determine the connection & authentication parameters (JDBC URL, user, password)
+. Implement (or configure) test connection using xref:configuration.adoc[]
+. Determine the list of object classes and their attributes - discovery
+is automatic, verify the discovered schema in development mode
+. xref:search.adoc[] - Verify search works for each object class, including
+searching by `+++__UID__+++`
+. Determine relationships (child tables, references) between object classes,
+xref:relationships.adoc[] - verify detected relationships
+. (optional) xref:schema-customization.adoc[] - customize naming or attribute set
+
+=== Read-write connector
+
+In addition to the read-only steps:
+
+. xref:create.adoc[] - Verify create works for writable object classes
+. xref:update.adoc[] - Verify update works for writable object classes
+. xref:delete.adoc[] - Verify delete works for writable object classes
+. xref:related-table-writes.adoc[] - Verify writing to related (child/junction) tables for object classes with detected relationships
+
+== See also
+
+* link:https://docs.evolveum.com/connectors/connid/[ConnID architecture and terminology]
+* link:https://docs.evolveum.com/connectors/scimrest-framework/[] - The sibling SCIMREST framework for REST/SCIM 2.0 based connectors

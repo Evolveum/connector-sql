@@ -1,0 +1,167 @@
+= Connector configuration
+
+The SQL framework connector configuration is provided by `SqlConnectorConfiguration`.
+
+include::link-to-intro-preamble.adoc[]
+
+== Configuration properties
+
+Set via the ConnId connector configuration (for example the midPoint connector form), not via the manifest.
+
+[cols="1,1,1,2", options="header"]
+|===
+|Property |Type |Default |Description
+
+|`jdbcUrl`
+|String
+|*required*
+|JDBC connection URL (e.g., `jdbc:postgresql://localhost:5432/mydb`)
+
+|`username`
+|String
+|*required*
+|Database username
+
+|`password`
+|String (guarded)
+|*required*
+|Database password. Never echoed back in `toString()` output.
+
+|`poolSize`
+|Integer
+|`10`
+|Maximum HikariCP connections in the pool
+
+|`connectionTimeout`
+|Integer
+|`30000` ms
+|How long to wait for a connection from the pool
+
+|`idleTimeout`
+|Integer
+|`600000` ms
+|Idle connection eviction timeout
+
+|`validateConnectionOnBorrow`
+|Boolean
+|`true`
+|Declared for API compatibility. NOTE: this property does not currently affect pool behavior; use `testConnectionQuery` for an explicit test query.
+
+|`testConnectionQuery`
+|String
+|`null`
+|Optional SQL statement passed to HikariCP as the connection test query. If not specified built-in JDBC 4 connection validation is used.
+
+|`scanTables`
+|Boolean
+|`true`
+|Discover regular tables during schema detection and expose them via connector if possible.
+
+|`scanViews`
+|Boolean
+|`true`
+|Discover SQL views during schema detection and expose them via connector if possible.
+
+|`scanTableFilter`
+|String (regex)
+|`null` (match all)
+|Include filter — only tables whose name matches this pattern are discovered
+
+|`scanViewFilter`
+|String (regex)
+|`null` (match all)
+|Include filter — only views whose name matches this pattern are discovered
+
+|`scanExcludeTables`
+|String (regex)
+|`null`
+|Exclude filter — tables matching this pattern are not discovered. Takes precedence over `scanTableFilter`.
+
+|`scanExcludeViews`
+|String (regex)
+|`null`
+|Exclude filter — views matching this pattern are not discovered. Takes precedence over `scanViewFilter`.
+
+|`pgDumpPath`
+|String
+|`pg_dump`
+|Path to the `pg_dump` executable used to read native PostgreSQL table/view definitions in development mode. May be an absolute path or a name resolvable via `PATH`. A blank value disables PostgreSQL DDL retrieval.
+
+|`developmentMode`
+|Boolean
+|`false`
+|Enables development support: two additional development object classes for schema introspection (see xref:schema-discovery.adoc[]), native table definition retrieval, and script validation from the management system (see xref:custom-connector.adoc[]). Java connector subclasses that pass `reinitializeOnEachCall = true` additionally reload scripts on each operation.
+
+|===
+
+Schema auto-discovery is enabled when `scanTables` or `scanViews` is set to `true`.
+If both are `false`, only the tables explicitly referenced by your schema scripts are detected (targeted discovery).
+
+NOTE: `getAutoDiscoverSchema()` (used by older API surfaces) reports auto-discovery as enabled when *either* `scanTables` *or* `scanViews` is `true` — scanning only one of the two is enough to turn auto-discovery on.
+
+== Driver resolution
+
+The JDBC driver class is resolved automatically from the `jdbcUrl` scheme:
+
+[cols="1,1,2", options="header"]
+|===
+|URL prefix |Driver class |Example
+
+|`jdbc:postgresql:`
+|`org.postgresql.Driver`
+|`jdbc:postgresql://host:5432/dbname`
+
+|`jdbc:mysql:`
+|`com.mysql.cj.jdbc.Driver`
+|`jdbc:mysql://host:3306/dbname`
+
+|`jdbc:mariadb:`
+|`org.mariadb.jdbc.Driver`
+|`jdbc:mariadb://host:3306/dbname`
+
+|`jdbc:sqlserver:`
+|`com.microsoft.sqlserver.jdbc.SQLServerDriver`
+|`jdbc:sqlserver://host:1433;databaseName=dbname`
+
+|`jdbc:sqlite:`
+|`org.sqlite.JDBC`
+|`jdbc:sqlite:/path/to/file.db`
+
+|`jdbc:h2:`
+|`org.h2.Driver`
+|`jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1`
+
+|`jdbc:oracle:`
+|`oracle.jdbc.OracleDriver`
+|`jdbc:oracle:thin:@host:1521:service`
+
+|===
+
+When an unrecognized prefix is specified, the driver class falls back to HikariCP which derives the prefix from the JDBC URL.
+The driver JAR must be part of the connector bundle (see xref:custom-connector.adoc[]).
+
+== Example
+
+A minimal midPoint connector fragment:
+
+[source,xml]
+----
+<resource ...>
+    ...
+    <connectorRef>
+        <filter>
+           connectorBundle = "com.evolveum.polygon.sql.connector-sql-generic"
+        </filter>
+    </connectorRef>
+    <connectorConfiguration>
+       <configurationProperties>
+            <jdbcUrl>jdbc:postgresql://localhost:5432/mydb</jdbcUrl>
+            <username>admin</username>
+            <password>secret</password>
+            <scanTableFilter>^(app_.*|user|group)$</scanTableFilter>
+            <scanExcludeTables>^tmp_</scanExcludeTables>
+        </configurationProperties>
+    </connectorConfiguration>
+    ...
+</resource>
+----

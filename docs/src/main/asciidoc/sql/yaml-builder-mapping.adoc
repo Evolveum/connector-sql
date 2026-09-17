@@ -1,0 +1,155 @@
+= YAML Declarative Format → Builder Mapping (sql-connector)
+
+This reference covers the SQL-specific part of the declarative YAML format: the `sql:`
+protocol block (object-class and attribute level), the SQL flags
+(`readOnly`, `onlyExplicitlyListed`), and SQL search capabilities. The shared core
+(object classes, attributes, references, `connId`, path/filter string syntax, block
+scalars) is documented in the framework repo: `conndev/docs/yaml-builder-mapping.adoc`.
+
+Reference examples (committed next to their `.groovy` originals) in
+`base/src/test/resources/`: `h2/basic/User.schema.sql.yaml`,
+`manifests/uid-int/user_view.yaml`, `oracle/basic/oracle.yaml`,
+`SearchExample/Search.sql.yaml`, `schema/customize.yaml`, `test/objectClass/{Group,User}.yaml`,
+`manifests/script-validation/Employee.op.yaml`.
+
+All paths below are relative to `base/src/main/java/com/evolveum/polygon/sql/base/`.
+
+== 1. Loading
+
+[cols="1.4,2.6"]
+|===
+| Entry point | Behaviour
+
+| Schema scripts — `groovy/SqlSchemaDefinitionLoader.loadFromResource` :42
+| resolves with `ScriptResources.resolveWithYamlFallback` (:43) and hands the YAML to conndev `YamlSchemaLoader` over the *same live* `SqlSchemaBuilderImpl` — YAML-declared attributes and `sql:` blocks take effect immediately (unlike scimrest, where the YAML schema path is still inert)
+
+| `sql:` block dispatch
+| conndev `YamlSchemaLoader.apply` (:110-116) routes unknown top-level keys to `YamlProtocolBlockConsumer.applyProtocolBlock`; the only production implementation is `build/api/SqlObjectClassSchemaBuilderImpl.java:153`, which accepts exactly the block name `sql:` and binds it to `yaml/model/YamlSqlBlock.java:14` (`table`, `schema`)
+
+| Operation scripts — `groovy/SqlHandlerLoader.loadFromResource` :47
+| Groovy scripts (`objectClass("name") { ... }`) evaluate on the Groovy shell; YAML documents are driven through the location-aware engine — `yaml/YamlSqlOperationsLoader` — onto the same live `SqlOperationSupportBuilder` (a top-level `objectClasses:` mapping, each class carrying `create`/`update`/`delete`/`search` blocks)
+|===
+
+== 2. Object-class level
+
+[cols="1.4,1.6,2.6"]
+|===
+| YAML | Groovy DSL | Builder
+
+| `sql: { table: <name> }`
+| `sql { table "User" }`
+| `SqlObjectClassSchemaBuilder.sql()` — `build/api/SqlObjectClassSchemaBuilder.java:31` (no-arg) / :36 (closure) → `SqlMapping.table` — :147 (impl `build/api/SqlObjectClassSchemaBuilderImpl.java:117`+); convenience `table(String)` — :102
+
+| `sql: { schema: <name> }`
+| `sql { schema "public" }`
+| `SqlMapping.schema` (impl :156); convenience `schema(String)` — :112
+
+| `readOnly: true`
+| `readOnly(true)`
+| `SqlObjectClassSchemaBuilder.readOnly` — :77. Note: `readOnly` automatically disables create/update/delete in the operation support (`groovy/impl/SqlObjectOperationBuilderImpl.java:42`-:46)
+
+| `onlyExplicitlyListed: true`
+| `onlyExplicitlyListed(true)`
+| `SqlObjectClassSchemaBuilder.onlyExplicitlyListed` — :59 (also on `SqlSchemaBuilder` :28)
+
+| `create: { enabled: false }` (same for `update`/`delete`)
+| `disableCreate()`
+| `SqlObjectOperationSupportBuilder.disableCreate` — `build/api/SqlObjectOperationSupportBuilder.java:22` (`disableUpdate` :29, `disableDelete` :36); the `enabled:` flag is parsed by the YAML engine (`yaml/YamlSqlOperationsLoader`) onto the live operation builder
+|===
+
+== 3. Attribute level
+
+[cols="1.6,1.8,2.6"]
+|===
+| YAML | Groovy DSL | Builder
+
+| `sql: { type: INT }`
+| `sql { type INT }`
+| `SqlAttributeBuilder.sql()` — `build/api/SqlAttributeBuilder.java:21` (no-arg) / :23 (closure) → `SqlMapping.type` — :35 (impl `build/api/SqlAttributeBuilderImpl.java:76`). Type constants: `SqlTypeSpecification` — `build/api/SqlTypeSpecification.java`: `INT` :17, `BIGINT` :19, `SMALLINT` :21, `TINYINT` :23, `BOOLEAN` :25, `VARCHAR(n)` :31, `NUMBER(p)` :37, `NUMBER(p, s)` :43, `VARCHAR2(n)` :49, `TIMESTAMP(p)` :55, `INTEGER` :64
+
+| `sql: { primaryKey: true }`
+| `primaryKey` / `primaryKey true`
+| `SqlMapping.primaryKey()` :59 / `primaryKey(boolean)` :63 (impl :73/:77)
+
+| `sql: { autoIncrement: true }`
+| `autoIncrement` / `autoIncrement true`
+| `SqlMapping.autoIncrement()` :67 / `(boolean)` :71 (impl :75)
+
+| `sql: { notNull: true }`
+| `notNull true` / `notNull` / `nullable`
+| `SqlMapping.notNull(boolean)` :39 / `notNull()` :43 / `nullable()` :47 (impl :69)
+
+| `sql: { unique: true }`
+| `unique true` / `unique`
+| `SqlMapping.unique(boolean)` :51 / `unique()` :55 (impl :70)
+
+| `sql: { name: <column> }`
+| `sql { name "col" }` (column mapping when the SQL column differs from the attribute name)
+| `SqlMapping.name` — :31 (impl `SqlAttributeBuilderImpl.java:65`)
+
+| `connId: { name: __UID__ }`
+| `connId { name "__UID__" }`
+| conndev `AttributeBuilder.connId()` → `ConnIdMapping.name` — see the conndev reference §4; `__UID__`/`__NAME__` are the `Uid.NAME`/`Name.NAME` built-in constants
+
+| `json: { type, name, openApiFormat, path }`
+| `json { type "string"; path "..." }`
+| inherited from the conndev `AttributeBuilder.json()` → `JsonMapping` (no SQL-specific code) — including the `path:` attribute-path binding (default `BasicJsonPathFormat`, or an explicit `{ type, value }` mapping); see the conndev reference §8
+
+| `complexType: <EmbeddedClass>` + `multiValued: true`
+| `complexType("UserAddress"); multiValued true`
+| conndev `AttributeBuilder.complexType` / `multiValued` — the attribute becomes an embedded/multi-valued link to another object class (typically a separate table)
+
+| `sql: { foreignKey: { <ObjectClass>: { references: <col>, onDelete: <action> } } }` (WIP)
+| `sql { foreignKey("User") { references "id"; onDelete CASCADE } }`
+| *not implemented yet* in the SQL builders — the YAML (like the Groovy example) is illustrative
+
+| `sql: { joinOn: <groovy block> }` (WIP)
+| `sql { joinOn attribute("id").eq(other.attribute("user_id")) }`
+| *not implemented yet* — illustrative; the block scalar would carry the join predicate Groovy
+|===
+
+== 4. search
+
+[cols="1.8,2.0,2.2"]
+|===
+| YAML | Groovy DSL | Builder
+
+| `search.sql.builtIn.enabled`
+| `search { sql { builtIn { enabled true } } }`
+| `SqlSearchOperationBuilder.sql()` — `build/api/SqlSearchOperationBuilder.java:21`/:23 → `SqlSpecific.builtIn()` :33/:35 → `BuiltIn.enabled` :82 (impl `groovy/impl/SqlSearchOperationBuilderImpl.java:96`+ : `enabled` :102)
+
+| `search.sql.builtIn.where: <groovy>`
+| `builtIn { where { ... } }`
+| `BuiltIn.where(closure)` :89 → `SqlWherePredicateBuilder` (impl :108)
+
+| `search.sql.custom: { query: <groovy>, emptyFilterSupported }`
+| `sql { custom { query { ... } } }`
+| `SqlSpecific.custom()` :47/:49 → `SqlCustomSearchOperationBuilder.query(closure)` :71/:74, `emptyFilterSupported(boolean)` :77 (the *settable* filter flag lives on the custom builder)
+
+| `search.sql.builtIn.emptyFilterSupported` / `.anyFilterSupported` (WIP)
+| `builtIn { emptyFilterSupported true; anyFilterSupported true }`
+| *not settable yet* — the built-in implementation exposes only `enabled`/`where`; in the example the flags are framework defaults
+
+| `search.attributeResolver` / `custom` / `normalize`
+| same as in the shared search DSL
+| inherited conndev `SearchOperationBuilder` — `build/api/SearchOperationBuilder.java:33`+
+|===
+
+== 5. Worked examples (committed WIP files)
+
+* `base/src/test/resources/h2/basic/User.schema.sql.yaml` — the full vocabulary:
+  class-level `sql.table`, attribute `sql {type, primaryKey, autoIncrement, notNull, unique}`,
+  `connId {name: UID}`, an embedded complex attribute (`address` with `complexType` +
+  `multiValued` + `joinOn`), and a second object class with `embedded: true` and a
+  `foreignKey` declaration.
+* `base/src/test/resources/manifests/uid-int/user_view.yaml` — `sql {table, schema}` plus
+  `readOnly: true`, `onlyExplicitlyListed: true`, and explicitly typed built-ins
+  `connId {name: __UID__}` / `{name: __NAME__}`.
+* `base/src/test/resources/schema/customize.yaml` — table → object-class renaming
+  (`app_user` → `Person`) with remapped ConnId names
+  (`user_email` → `emailAddress`) and a pure ConnId attribute (`loginCount`).
+* `base/src/test/resources/oracle/basic/oracle.yaml` — 13 tables with Oracle types
+  (`VARCHAR2(255)`, `NUMBER(10)`, `TIMESTAMP(6)`) and per-table `__UID__`/`__NAME__`
+  mappings.
+* `base/src/test/resources/manifests/script-validation/Employee.op.yaml` —
+  `create: {enabled: false}` ≙ `disableCreate()`.

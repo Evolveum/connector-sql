@@ -1,0 +1,121 @@
+apiVersion: conndev-doc/v1
+# Maps the MidPoint connector wizard help topic keys (ConnectorWizardHelpTopics) to the
+# rendered HTML resources. Topics are tagged with the wizard protocol they belong to:
+# scim, rest, or sql. resource is a path relative to META-INF/conndev-doc/.
+connectorId: sql
+topics:
+  - key: application-identification
+    protocol: sql
+    title: Introduction to Polygon SQL framework
+    resource: sql/index.html
+    order: 10
+  - key: application-identification
+    protocol: sql
+    title: SQL framework design and functionality overview
+    resource: sql/functionality-overview.html
+    order: 20
+  - key: sql-connection
+    protocol: sql
+    title: Connector configuration
+    resource: sql/develop/configuration.html
+    order: 10
+  - key: sql-connection
+    protocol: sql
+    title: Database-specific notes
+    resource: sql/develop/database-specific.html
+    order: 20
+  - key: object-classes
+    protocol: sql
+    title: SQL schema discovery
+    resource: sql/develop/schema-discovery.html
+    order: 10
+  - key: select-object-class
+    protocol: sql
+    title: SQL schema discovery
+    resource: sql/develop/schema-discovery.html
+    order: 10
+  - key: object-class-schema
+    protocol: sql
+    title: SQL schema discovery
+    resource: sql/develop/schema-discovery.html
+    order: 10
+  - key: native-schema
+    protocol: sql
+    title: SQL schema customization
+    resource: sql/develop/schema-customization.html
+    order: 10
+  - key: native-schema
+    protocol: sql
+    title: Declarative YAML
+    resource: sql/develop/declarative-yaml.html
+    order: 20
+  - key: native-schema
+    protocol: sql
+    title: YAML Declarative Format to Builder Mapping
+    resource: sql/yaml-builder-mapping.html
+    order: 30
+  - key: search-all
+    protocol: sql
+    title: SQL search and filter support
+    resource: sql/develop/search.html
+    order: 10
+  - key: search-by-id
+    protocol: sql
+    title: SQL search and filter support
+    resource: sql/develop/search.html
+    order: 10
+  - key: search-filter
+    protocol: sql
+    title: SQL search and filter support
+    resource: sql/develop/search.html
+    order: 10
+  - key: search-filter
+    protocol: sql
+    title: Custom search implementation
+    resource: sql/develop/custom-search.html
+    order: 20
+  - key: create
+    protocol: sql
+    title: SQL create operation
+    resource: sql/develop/create.html
+    order: 10
+  - key: update
+    protocol: sql
+    title: SQL update operation
+    resource: sql/develop/update.html
+    order: 10
+  - key: delete
+    protocol: sql
+    title: SQL delete operation
+    resource: sql/develop/delete.html
+    order: 10
+  - key: relationships
+    protocol: sql
+    title: Multitable support, child tables and junction tables
+    resource: sql/develop/relationships.html
+    order: 10
+  - key: relationships
+    protocol: sql
+    title: Writing to child and junction tables
+    resource: sql/develop/related-table-writes.html
+    order: 20
+  - key: relationship-selection
+    protocol: sql
+    title: Multitable support, child tables and junction tables
+    resource: sql/develop/relationships.html
+    order: 10
+  - key: relationship
+    protocol: sql
+    title: Multitable support, child tables and junction tables
+    resource: sql/develop/relationships.html
+    order: 10
+  - key: next-steps
+    protocol: sql
+    title: How to develop connectors using the SQL framework
+    resource: sql/develop/index.html
+    order: 10
+  - key: next-steps
+    protocol: sql
+    title: Custom connector classes and bundles
+    resource: sql/develop/custom-connector.html
+    order: 20
