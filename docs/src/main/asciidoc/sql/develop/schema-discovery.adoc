@@ -28,51 +28,35 @@ Table and attribute correlation is case-insensitive, so `app_user` matches `App_
 
 The SQL-to-ConnId type mapping of a column is resolved from its JDBC type:
 
-[cols="1,1,2", options="header"]
-|===
-|SQL type family |ConnId Java type |Notes
+VARCHAR, CHAR, NVARCHAR, CLOB::
+  `String` — text columns, including the default fallback for unknown types
 
-|VARCHAR, CHAR, NVARCHAR, CLOB
-|`String`
-|text columns, including the default fallback for unknown types
+TINYINT, INTEGER::
+  `Integer` — `SMALLINT` columns are exposed as `Integer` attributes; values are converted between `Integer` (ConnId side) and `Short` (SQL side) on both reads and writes
 
-|TINYINT, INTEGER
-|`Integer`
-|`SMALLINT` columns are exposed as `Integer` attributes; values are converted between `Integer` (ConnId side) and `Short` (SQL side) on both reads and writes
+BIGINT::
+  `BigInteger`
 
-|BIGINT
-|`BigInteger`
-|
+DECIMAL, NUMERIC::
+  `BigDecimal`
 
-|DECIMAL, NUMERIC
-|`BigDecimal`
-|
+FLOAT, DOUBLE::
+  `Double` — `FLOAT` maps `Double` ⇄ `Float`
 
-|FLOAT, DOUBLE
-|`Double`
-|`FLOAT` maps `Double` ⇄ `Float`
+BOOLEAN, BIT::
+  `Boolean`
 
-|BOOLEAN, BIT
-|`Boolean`
-|
+DATE::
+  `ZonedDateTime` — midnight of the column date in the system time zone
 
-|DATE
-|`ZonedDateTime`
-|midnight of the column date in the system time zone
+TIME::
+  `String` — formatted `LocalTime`
 
-|TIME
-|`String`
-|formatted `LocalTime`
+TIMESTAMP (incl. with time zone)::
+  `ZonedDateTime`
 
-|TIMESTAMP (incl. with time zone)
-|`ZonedDateTime`
-|
-
-|BLOB, BINARY, VARBINARY
-|`byte[]`
-|
-
-|===
+BLOB, BINARY, VARBINARY::
+  `byte[]`
 
 Types used for *filter comparison* in search are listed in xref:search.adoc[].
 
@@ -93,25 +77,20 @@ NOTE: `__UID__` and `__NAME__` are always exposed as `String` attributes, regard
 
 After discovery, a fixed set of rules refines the schema:
 
-[cols="1,3", options="header"]
-|===
-|Rule |Effect
+Nullable columns map as not required::
+  A nullable column produces an attribute with `required = false`; non-nullable columns become required attributes.
 
-|Nullable columns map as not required
-|A nullable column produces an attribute with `required = false`; non-nullable columns become required attributes.
+Primary key columns are not updatable::
+  Attributes mapped to primary key columns get `updatable = false`.
 
-|Primary key columns are not updatable
-|Attributes mapped to primary key columns get `updatable = false`.
+Auto-increment columns are not creatable::
+  Attributes mapped to auto-increment/identity columns get `creatable = false` and `updatable = false`; the generated value is read back after create.
 
-|Auto-increment columns are not creatable
-|Attributes mapped to auto-increment/identity columns get `creatable = false` and `updatable = false`; the generated value is read back after create.
+Large types are not returned by default::
+  BLOB/CLOB/binary columns produce attributes with `returnedByDefault = false`, so they do not bloat search results unless explicitly requested.
 
-|Large types are not returned by default
-|BLOB/CLOB/binary columns produce attributes with `returnedByDefault = false`, so they do not bloat search results unless explicitly requested.
-
-|Views are read-only
-|Object classes mapped to SQL views get `creatable/updatable/removable = false` and no write handlers are registered for them; search and incremental sync (which is itself a read-only operation) remain available.
-|===
+Views are read-only::
+  Object classes mapped to SQL views get `creatable/updatable/removable = false` and no write handlers are registered for them; search and incremental sync (which is itself a read-only operation) remain available.
 
 These rules can be overridden in a xref:schema-customization.adoc[schema customization] script wherever the DSL exposes the corresponding flags — for example per-attribute `creatable(false)`, `updatable(false)`, `removable(false)` or `returnedByDefault(false)`, or object-class-level `readOnly(true)`.
 

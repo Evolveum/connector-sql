@@ -6,34 +6,23 @@ This document is part of the SQL connector tutorial. See xref:../index.adoc[] fo
 
 == Dialect behavior
 
-[cols="1,2,2", options="header"]
-|===
-|Database |Dialect-specific behavior |Notes
+PostgreSQL::
+  Identity/auto-increment keys are read back with the `RETURNING` clause — Native DDL requires the `pg_dump` executable
 
-|PostgreSQL
-|Identity/auto-increment keys are read back with the `RETURNING` clause
-|Native DDL requires the `pg_dump` executable
+Oracle::
+  Pagination uses `FETCH FIRST ... ROWS ONLY` — Native DDL via `DBMS_METADATA.GET_DDL`; connection URLs use the service format `jdbc:oracle:thin:@//host:1521/service`
 
-|Oracle
-|Pagination uses `FETCH FIRST ... ROWS ONLY`
-|Native DDL via `DBMS_METADATA.GET_DDL`; connection URLs use the service format `jdbc:oracle:thin:@//host:1521/service`
+MySQL, MariaDB::
+  Standard generated-key handling — Native DDL via `SHOW CREATE TABLE` / `SHOW CREATE VIEW`; no schema (namespace) support in metadata
 
-|MySQL, MariaDB
-|Standard generated-key handling
-|Native DDL via `SHOW CREATE TABLE` / `SHOW CREATE VIEW`; no schema (namespace) support in metadata
+SQLite::
+  File-based database; pagination and identity handled by the SQLite dialect — Enable foreign keys per connection (`?foreign_keys=on`) if you rely on FK metadata; no catalog/schema support
 
-|SQLite
-|File-based database; pagination and identity handled by the SQLite dialect
-|Enable foreign keys per connection (`?foreign_keys=on`) if you rely on FK metadata; no catalog/schema support
+H2::
+  In-memory and file modes; emulated modes (`MODE=PostgreSQL`, `MODE=Oracle`, …) for tests — Keep an in-memory DB alive with `DB_CLOSE_DELAY=-1`; H2 2.x uses the MVStore engine
 
-|H2
-|In-memory and file modes; emulated modes (`MODE=PostgreSQL`, `MODE=Oracle`, …) for tests
-|Keep an in-memory DB alive with `DB_CLOSE_DELAY=-1`; H2 2.x uses the MVStore engine
-
-|SQL Server
-|Standard generated-key handling
-|Driver bundled separately (see below)
-|===
+SQL Server::
+  Standard generated-key handling — Driver bundled separately (see below)
 
 == Capabilities matrix
 

@@ -41,25 +41,20 @@ Attributes whose columns are not writable by the database (for example, view-bac
 
 == Errors
 
-[cols="1,3", options="header"]
-|===
-|Condition |Exception
+No row matches the UID::
+  `UnknownUidException`
 
-|No row matches the UID
-|`UnknownUidException`
+Invalid value or constraint violation (not-null, foreign key, check)::
+  `InvalidAttributeValueException`
 
-|Invalid value or constraint violation (not-null, foreign key, check)
-|`InvalidAttributeValueException`
+Connection failure::
+  `ConnectionFailedException`
 
-|Connection failure
-|`ConnectionFailedException`
+Exactly-one-row check failed::
+  `ConnectorException`
 
-|Exactly-one-row check failed
-|`ConnectorException`
-
-|A delta would change the parent join column of an embedded value
-|`ConnectorException`
-|===
+A delta would change the parent join column of an embedded value::
+  `ConnectorException`
 
 Updates run in a transaction that is rolled back before the exception is returned.
 Unlike some REST/SCIM connectors, the SQL framework has a single update mode (partial delta) — there is no separate PUT/patch mode to configure.

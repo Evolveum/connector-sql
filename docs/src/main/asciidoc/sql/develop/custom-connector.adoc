@@ -137,28 +137,20 @@ The `Messages.properties` file (at the root of the bundle, next to the manifest)
 
 == Troubleshooting
 
-[cols="1,3", options="header"]
-|===
-|Issue |Solution
+Schema is empty::
+  Check `scanTables`/`scanViews` are `true`, that the connection user can read `DatabaseMetaData`, and that `onlyExplicitlyListed` is not hiding columns. For H2, use `jdbc:h2:mem:dbname;DB_CLOSE_DELAY=-1` to keep the in-memory database alive. See xref:configuration.adoc[].
 
-|Schema is empty
-|Check `scanTables`/`scanViews` are `true`, that the connection user can read `DatabaseMetaData`, and that `onlyExplicitlyListed` is not hiding columns.
-    For H2, use `jdbc:h2:mem:dbname;DB_CLOSE_DELAY=-1` to keep the in-memory database alive.
-    See xref:configuration.adoc[].
+`Connection test failed`::
+  Verify `jdbcUrl`, `username`, `password`. Check that the driver JAR is in the bundle.
 
-|`Connection test failed`
-|Verify `jdbcUrl`, `username`, `password`. Check that the driver JAR is in the bundle.
+No object class for a table::
+  Check the `scanExcludeTables` / `scanExcludeViews` patterns and the system-schema skips. See xref:schema-discovery.adoc[].
 
-|No object class for a table
-|Check the `scanExcludeTables` / `scanExcludeViews` patterns and the system-schema skips.
-    See xref:schema-discovery.adoc[].
+Scripts not loading::
+  The script path in the manifest must match the classpath resource exactly (`/` = classpath root). A missing `.groovy` silently falls back to `.yaml`/`.yml`.
 
-|Scripts not loading
-|The script path in the manifest must match the classpath resource exactly (`/` = classpath root). A missing `.groovy` silently falls back to `.yaml`/`.yml`.
+`Operation ... is not supported for ...`::
+  The object class is read-only (view or `readOnly true`) or the operation was disabled — see xref:create.adoc[], xref:update.adoc[], xref:delete.adoc[].
 
-|`Operation ... is not supported for ...`
-|The object class is read-only (view or `readOnly true`) or the operation was disabled — see xref:create.adoc[], xref:update.adoc[], xref:delete.adoc[].
-
-|Groovy script fails at runtime
-|Script errors are wrapped with the resource name; review connector logs. In development mode you can validate a script from the management system before deployment (see above).
-|===
+Groovy script fails at runtime::
+  Script errors are wrapped with the resource name; review connector logs. In development mode you can validate a script from the management system before deployment (see above).

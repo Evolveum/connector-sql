@@ -17,47 +17,32 @@ The built-in search handler provides automatic ConnId filter translation to SQL.
 
 Each row of the table lists a ConnId filter operation, the SQL predicate the translator generates for it, and the column type families the operation is supported for — the last column refers to the SQL type family of the filtered column (`String columns` means string-typed columns such as VARCHAR; `Numeric columns` means numeric types such as INTEGER or BIGINT).
 
-[cols="1,1,4", options="header"]
-|===
-|ConnId filter |Translated to |Supported by
+Equals::
+  `column = ?` (`IS NULL` for empty value) — All column types
 
-|Equals
-|`column = ?` (`IS NULL` for empty value)
-|All column types
+Contains::
+  `column LIKE '%?%'` — String columns
 
-|Contains
-|`column LIKE '%?%'`
-|String columns
+StartsWith::
+  `column LIKE '?%'` — String columns
 
-|StartsWith
-|`column LIKE '?%'`
-|String columns
+EndsWith::
+  `column LIKE '%?'` — String columns
 
-|EndsWith
-|`column LIKE '%?'`
-|String columns
+GreaterThan::
+  `column > ?` — Numeric columns, timestamp/date/time columns
 
-|GreaterThan
-|`column > ?`
-|Numeric columns, timestamp/date/time columns
+GreaterThanOrEqual::
+  `column >= ?` — Numeric columns, timestamp/date/time columns
 
-|GreaterThanOrEqual
-|`column >= ?`
-|Numeric columns, timestamp/date/time columns
+LessThan::
+  `column < ?` — Numeric columns, timestamp/date/time columns
 
-|LessThan
-|`column < ?`
-|Numeric columns, timestamp/date/time columns
+LessThanOrEqual::
+  `column +++<=+++ ?` — Numeric columns, timestamp/date/time columns
 
-|LessThanOrEqual
-|`column +++<=+++ ?`
-// Note: without the pass-through, you get ⇐
-|Numeric columns, timestamp/date/time columns
-
-|NotEquals / Present / NotPresent
-|not supported by the built-in translator
-|— (use xref:custom-search.adoc[] or a `where {}` block)
-|===
+NotEquals / Present / NotPresent::
+  not supported by the built-in translator — (use xref:custom-search.adoc[] or a `where {}` block)
 
 [NOTE]
 ====
@@ -95,22 +80,17 @@ objectClass("User") {
 
 Inside the `where { e +++->+++ }` closure (delegated to `SqlWherePredicateBuilder`):
 
-[cols="1,2", options="header"]
-|===
-|Method |Description
+`e.col("name")` / `e.column("name")`::
+  Typed column reference, resolved from the discovered table metadata (unknown column → `IllegalArgumentException`).
 
-|`e.col("name")` / `e.column("name")`
-|Typed column reference, resolved from the discovered table metadata (unknown column → `IllegalArgumentException`).
+`.eq(value)`::
+  Adds `column = value`; `eq(null)` yields `IS NULL`.
 
-|`.eq(value)`
-|Adds `column = value`; `eq(null)` yields `IS NULL`.
+`.ne(value)`::
+  Adds `column != value`.
 
-|`.ne(value)`
-|Adds `column != value`.
-
-|`e.add(predicate)`
-|Adds a raw QueryDSL `BooleanExpression` directly.
-|===
+`e.add(predicate)`::
+  Adds a raw QueryDSL `BooleanExpression` directly.
 
 NOTE: The builder exposes only `eq` and `ne`. For other comparison operators (`gt`, `lt`, `ge`, `le`, `between`, `like`, ...) build a raw QueryDSL predicate — see the QueryDSL https://www.javadoc.io/doc/com.querydsl/querydsl-core/5.1.0/com/querydsl/core/types/dsl/BooleanExpression.html[`BooleanExpression` documentation] for the full list of predicate methods (the framework uses QueryDSL 5.0.0) — and pass it with `e.add(...)`. For queries with arbitrary predicates, a xref:custom-search.adoc[custom query] is usually the cleaner option: its table reference (`a.tableRef()`) can be used to build typed column paths directly.
 
