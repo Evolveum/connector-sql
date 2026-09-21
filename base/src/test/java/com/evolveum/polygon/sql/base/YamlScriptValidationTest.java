@@ -61,6 +61,44 @@ public class YamlScriptValidationTest {
                   enabled: false
             """;
 
+    /**
+     * {@code base/src/test/resources/SearchExample/Search.sql.yaml} (a {@code sql: { builtIn: {...} }}
+     * shape) is orphaned - no test anywhere loads it - and both that shape and a bare {@code
+     * builtIn:} were rejected here with "Unknown key ... for SqlSearchOperationBuilderImpl", even
+     * though {@code SqlSearchOperationBuilder.sql()}/{@code SqlSpecific.builtIn()} exist as real
+     * Groovy-DSL methods: the YAML binder apparently has no registered handler for this key at
+     * all (unlike scimrest's per-key {@code CustomYamlHandler}s), a real gap left for a separate
+     * fix. {@code enabled} alone is the one search-level key confirmed to bind.
+     */
+    private static final String VALID_SEARCH_SCRIPT = """
+            objectClasses:
+              Person:
+                search:
+                  enabled: true
+            """;
+
+    /**
+     * {@code enabled: false} is the only declarative shape confirmed to exist anywhere in this
+     * repo for create/update/delete (see {@code base/src/test/resources/manifests/script-validation
+     * /Employee.op.yaml} and its Groovy counterpart {@code disableCreate()}) - unlike
+     * connector-scimrest's REST endpoints, SQL create/update/delete are framework-driven from the
+     * schema's table/attribute mapping by default, so there is no equivalent of a custom
+     * request/body to validate here.
+     */
+    private static final String VALID_UPDATE_DISABLE_SCRIPT = """
+            objectClasses:
+              Person:
+                update:
+                  enabled: false
+            """;
+
+    private static final String VALID_DELETE_DISABLE_SCRIPT = """
+            objectClasses:
+              Person:
+                delete:
+                  enabled: false
+            """;
+
     private static class TestConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
         TestConnector() {
             super(true);
@@ -94,6 +132,27 @@ public class YamlScriptValidationTest {
     @Test
     public void validYamlOperationScriptPassesValidation() {
         var result = validate(VALID_OPERATION_SCRIPT, "operation", ScriptValidationRequest.SCRIPT_OPERATION_BUILD);
+
+        assertEquals(result.get("status"), "ok", "Unexpected result: " + result);
+    }
+
+    @Test
+    public void validYamlSearchScriptPassesValidation() {
+        var result = validate(VALID_SEARCH_SCRIPT, "operation", ScriptValidationRequest.SCRIPT_OPERATION_BUILD);
+
+        assertEquals(result.get("status"), "ok", "Unexpected result: " + result);
+    }
+
+    @Test
+    public void validYamlUpdateDisableScriptPassesValidation() {
+        var result = validate(VALID_UPDATE_DISABLE_SCRIPT, "operation", ScriptValidationRequest.SCRIPT_OPERATION_BUILD);
+
+        assertEquals(result.get("status"), "ok", "Unexpected result: " + result);
+    }
+
+    @Test
+    public void validYamlDeleteDisableScriptPassesValidation() {
+        var result = validate(VALID_DELETE_DISABLE_SCRIPT, "operation", ScriptValidationRequest.SCRIPT_OPERATION_BUILD);
 
         assertEquals(result.get("status"), "ok", "Unexpected result: " + result);
     }
