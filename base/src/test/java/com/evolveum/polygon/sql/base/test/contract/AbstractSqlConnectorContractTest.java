@@ -11,7 +11,8 @@ import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilder;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
@@ -616,7 +617,7 @@ public abstract class AbstractSqlConnectorContractTest {
         }
     }
 
-    private static final class JoinedConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+    private static final class JoinedConnector extends AbstractGroovySqlConnector {
         private final String script;
         private final boolean onlyExplicitlyListed;
 
@@ -627,13 +628,13 @@ public abstract class AbstractSqlConnectorContractTest {
         }
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerLoader builder) { }
+        protected void initializeObjectClassHandler(GroovyScriptLoader builder) { }
 
         @Override
         protected void initializeSchema(SqlSchemaBuilder builder) { builder.onlyExplicitlyListed(onlyExplicitlyListed); }
 
         @Override
-        protected void initializeSchema(SqlSchemaDefinitionLoader loader) { loader.load(script); }
+        protected void initializeSchema(GroovySchemaLoader loader) { loader.load(script); }
     }
 
     @Test
@@ -1249,18 +1250,18 @@ public abstract class AbstractSqlConnectorContractTest {
     }
 
     private static final class ContractConnector
-            extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+            extends AbstractGroovySqlConnector {
 
         private ContractConnector() {
             super(false);
         }
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
+        protected void initializeObjectClassHandler(GroovyScriptLoader builder) {
         }
 
         @Override
-        protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
+        protected void initializeSchema(GroovySchemaLoader loader) {
         }
     }
 }

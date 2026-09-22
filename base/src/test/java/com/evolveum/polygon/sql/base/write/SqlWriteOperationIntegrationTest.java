@@ -10,7 +10,8 @@ import com.evolveum.polygon.conndev.spi.ObjectCreateOperation;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
@@ -45,19 +46,19 @@ public class SqlWriteOperationIntegrationTest {
     private TestSqlConnector connector;
 
     private static class TestSqlConnector
-            extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+            extends AbstractGroovySqlConnector {
 
         TestSqlConnector() {
             super(false);
         }
 
         @Override
-        protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
+        protected void initializeSchema(GroovySchemaLoader loader) {
             // Schema is discovered from the test database.
         }
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
+        protected void initializeObjectClassHandler(GroovyScriptLoader builder) {
             // Built-in handlers are registered after explicit handlers.
         }
     }
@@ -65,20 +66,20 @@ public class SqlWriteOperationIntegrationTest {
     private static class CustomCreateConnector extends TestSqlConnector {
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
+        protected void initializeObjectClassHandler(GroovyScriptLoader builder) {
             ObjectCreateOperation custom = (attributes, options) -> new ConnectorObjectBuilder()
                     .setObjectClass(USER)
                     .setUid("custom-uid")
                     .setName("custom-name")
                     .build();
-            builder.register(USER, ObjectCreateOperation.class, custom);
+            ((SqlHandlerLoader) builder).register(USER, ObjectCreateOperation.class, custom);
         }
     }
 
     private static class GroovyCustomHandlerConnector extends TestSqlConnector {
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
+        protected void initializeObjectClassHandler(GroovyScriptLoader builder) {
             builder.loadFromString("""
                     import com.evolveum.polygon.conndev.spi.ObjectCreateOperation
                     import com.evolveum.polygon.conndev.spi.ObjectDeleteOperation

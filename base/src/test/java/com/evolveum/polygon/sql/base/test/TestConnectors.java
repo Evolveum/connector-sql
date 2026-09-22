@@ -9,7 +9,8 @@ package com.evolveum.polygon.sql.base.test;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 
 import java.util.function.Consumer;
 
@@ -64,8 +65,8 @@ public final class TestConnectors {
      * @return configured test connector
      */
     public static DefaultTestConnector of(
-            Consumer<SqlHandlerLoader> handlerInitializer,
-            Consumer<SqlSchemaDefinitionLoader> schemaInitializer) {
+            Consumer<GroovyScriptLoader> handlerInitializer,
+            Consumer<GroovySchemaLoader> schemaInitializer) {
         return new CustomTestConnector(handlerInitializer, schemaInitializer);
     }
 
@@ -74,7 +75,7 @@ public final class TestConnectors {
      * Extends this class if you need custom behavior.
      */
     public static class DefaultTestConnector
-            extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+            extends AbstractGroovySqlConnector {
 
         private final String handlerScript;
 
@@ -89,14 +90,14 @@ public final class TestConnectors {
         }
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
+        protected void initializeObjectClassHandler(GroovyScriptLoader builder) {
             if (handlerScript != null) {
                 builder.loadFromString(handlerScript);
             }
         }
 
         @Override
-        protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
+        protected void initializeSchema(GroovySchemaLoader loader) {
             // Schema is auto-discovered from DB tables
         }
     }
@@ -107,18 +108,18 @@ public final class TestConnectors {
     public static class CustomTestConnector
             extends DefaultTestConnector {
 
-        private final Consumer<SqlHandlerLoader> handlerInitializer;
-        private final Consumer<SqlSchemaDefinitionLoader> schemaInitializer;
+        private final Consumer<GroovyScriptLoader> handlerInitializer;
+        private final Consumer<GroovySchemaLoader> schemaInitializer;
 
         protected CustomTestConnector(
-                Consumer<SqlHandlerLoader> handlerInitializer,
-                Consumer<SqlSchemaDefinitionLoader> schemaInitializer) {
+                Consumer<GroovyScriptLoader> handlerInitializer,
+                Consumer<GroovySchemaLoader> schemaInitializer) {
             this.handlerInitializer = handlerInitializer;
             this.schemaInitializer = schemaInitializer;
         }
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
+        protected void initializeObjectClassHandler(GroovyScriptLoader builder) {
             super.initializeObjectClassHandler(builder);
             if (handlerInitializer != null) {
                 handlerInitializer.accept(builder);
@@ -126,7 +127,7 @@ public final class TestConnectors {
         }
 
         @Override
-        protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
+        protected void initializeSchema(GroovySchemaLoader loader) {
             if (schemaInitializer != null) {
                 schemaInitializer.accept(loader);
             }

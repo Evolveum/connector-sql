@@ -11,7 +11,8 @@ import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.sql.base.test.PostgresDatabaseInitializer;
 import org.identityconnectors.framework.common.objects.*;
 import org.testng.annotations.AfterMethod;
@@ -45,10 +46,10 @@ public class SqlSearchOperationPostgresTest {
     private TestSqlConnector connector;
     private Path pgDumpStub;
 
-    private static class TestSqlConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+    private static class TestSqlConnector extends AbstractGroovySqlConnector {
         TestSqlConnector() { super(false); }
-        @Override protected void initializeObjectClassHandler(SqlHandlerLoader builder) {}
-        @Override protected void initializeSchema(SqlSchemaDefinitionLoader loader) {}
+        @Override protected void initializeObjectClassHandler(GroovyScriptLoader builder) {}
+        @Override protected void initializeSchema(GroovySchemaLoader loader) {}
     }
 
     @BeforeMethod

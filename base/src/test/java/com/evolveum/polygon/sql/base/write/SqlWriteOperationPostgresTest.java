@@ -10,7 +10,8 @@ import com.evolveum.polygon.common.GuardedStringAccessor;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.sql.base.test.PostgresDatabaseInitializer;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
@@ -50,19 +51,19 @@ public class SqlWriteOperationPostgresTest {
     private TestSqlConnector connector;
 
     private static class TestSqlConnector
-            extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+            extends AbstractGroovySqlConnector {
 
         TestSqlConnector() {
             super(false);
         }
 
         @Override
-        protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
+        protected void initializeSchema(GroovySchemaLoader loader) {
             // Schema is discovered from the test database.
         }
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
+        protected void initializeObjectClassHandler(GroovyScriptLoader builder) {
             // Use built-in operation handlers.
         }
     }

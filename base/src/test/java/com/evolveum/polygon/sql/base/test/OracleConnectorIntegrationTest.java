@@ -10,7 +10,8 @@ import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.sql.base.test.contract.ExternalDatabaseTestSupport;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.objects.*;
@@ -43,7 +44,7 @@ public abstract class OracleConnectorIntegrationTest {
     /** Returns true when the connector uses a Groovy schema script instead of auto-discovery. */
     protected abstract boolean useScriptSchema();
 
-    protected static class TestOracleConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+    protected static class TestOracleConnector extends AbstractGroovySqlConnector {
         private final boolean loadGroovySchema;
 
         protected TestOracleConnector(boolean loadGroovySchema) {
@@ -52,11 +53,11 @@ public abstract class OracleConnectorIntegrationTest {
         }
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
+        protected void initializeObjectClassHandler(GroovyScriptLoader builder) {
         }
 
         @Override
-        protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
+        protected void initializeSchema(GroovySchemaLoader loader) {
             if (loadGroovySchema) {
                 loader.loadFromResource("/oracle/basic/oracle.groovy");
             }

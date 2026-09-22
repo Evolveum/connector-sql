@@ -9,7 +9,8 @@ package com.evolveum.polygon.sql.base.write;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import org.identityconnectors.common.security.GuardedString;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
 import org.identityconnectors.framework.common.objects.*;
@@ -394,7 +395,7 @@ public class SqlRelatedAttributeRegressionTest {
         }
     }
 
-    private static final class TestSqlConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+    private static final class TestSqlConnector extends AbstractGroovySqlConnector {
         private final String schemaScript;
 
         private TestSqlConnector(String schemaScript) {
@@ -403,14 +404,14 @@ public class SqlRelatedAttributeRegressionTest {
         }
 
         @Override
-        protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
+        protected void initializeSchema(GroovySchemaLoader loader) {
             if (!schemaScript.isEmpty()) {
                 loader.load(schemaScript);
             }
         }
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerLoader loader) {
+        protected void initializeObjectClassHandler(GroovyScriptLoader loader) {
             // Use built-in handlers.
         }
     }

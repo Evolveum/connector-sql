@@ -13,7 +13,8 @@ import com.evolveum.polygon.conndev.devtools.log.ProtocolPayload;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.sql.base.test.contract.SqlTestDatabases;
 import com.evolveum.polygon.sql.base.test.contract.SqlTestDatabase;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
@@ -220,18 +221,18 @@ public class SqlOperationTracingTest {
     }
 
     private static final class ContractTraceConnector
-            extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+            extends AbstractGroovySqlConnector {
 
         private ContractTraceConnector() {
             super(false);
         }
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
+        protected void initializeObjectClassHandler(GroovyScriptLoader builder) {
         }
 
         @Override
-        protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
+        protected void initializeSchema(GroovySchemaLoader loader) {
         }
     }
 }

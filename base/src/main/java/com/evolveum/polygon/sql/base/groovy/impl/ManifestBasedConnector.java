@@ -6,11 +6,11 @@
  */
 package com.evolveum.polygon.sql.base.groovy.impl;
 
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.conndev.spi.ConnectorManifest;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
-import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
 import java.util.List;
@@ -39,7 +39,7 @@ import java.util.List;
  * }</pre>
  */
 @ConnectorClass(displayNameKey = "manifest.sql.connector.display", configurationClass = SqlConnectorConfiguration.class, messageCatalogPaths = "Messages")
-public class ManifestBasedConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+public class ManifestBasedConnector extends AbstractGroovySqlConnector {
 
     private static final String CONNECTOR_MANIFEST = "/connector.manifest";
     private final ConnectorManifest manifest;
@@ -59,12 +59,12 @@ public class ManifestBasedConnector extends AbstractGroovySqlConnector<SqlConnec
     }
 
     @Override
-    protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
+    protected void initializeSchema(GroovySchemaLoader loader) {
         manifest.schemaScripts().forEach(loader::loadFromResource);
     }
 
     @Override
-    protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
+    protected void initializeObjectClassHandler(GroovyScriptLoader builder) {
         manifest.operationScripts().forEach(builder::loadFromResource);
     }
 

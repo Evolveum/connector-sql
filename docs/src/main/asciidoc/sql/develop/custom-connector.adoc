@@ -53,10 +53,11 @@ For programmatic control, use subclass `AbstractGroovySqlConnector`:
 ----
 package com.example;
 
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
 
 public class ExampleSqlConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
 
@@ -65,16 +66,17 @@ public class ExampleSqlConnector extends AbstractGroovySqlConnector<SqlConnector
     }
 
     @Override
-    protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
+    protected void initializeSchema(GroovySchemaLoader loader) {
         loader.loadFromResource("/schema/users.groovy");
         // loadFromResource resolves .yaml/.yml when the .groovy file is missing
     }
 
     @Override
-    protected void initializeObjectClassHandler(SqlHandlerLoader loader) {
+    protected void initializeObjectClassHandler(GroovyScriptLoader loader) {
         loader.loadFromResource("/handlers/user_ops.groovy");
-        // loader.loadFromString(...) and loader.register(objectClass, operationType, operation)
-        // are available for fully programmatic handler registration
+        // loader.loadFromString(script) is available too. For fully programmatic handler
+        // registration, cast to SqlHandlerLoader to reach register(objectClass, operationType, operation):
+        ((SqlHandlerLoader) loader).register(objectClass, operationType, operation);
     }
 }
 ----

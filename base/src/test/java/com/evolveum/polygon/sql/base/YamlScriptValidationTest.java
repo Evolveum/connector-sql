@@ -8,7 +8,8 @@ package com.evolveum.polygon.sql.base;
 
 import com.evolveum.polygon.conndev.groovy.ScriptValidationRequest;
 import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import org.identityconnectors.framework.common.objects.ScriptContext;
 import org.testng.annotations.Test;
 
@@ -26,7 +27,7 @@ import static org.testng.Assert.assertEquals;
  */
 public class YamlScriptValidationTest {
 
-    // The connector's own startup schema — loaded via SqlSchemaDefinitionLoader.load(String), which
+    // The connector's own startup schema — loaded via GroovySchemaLoader.load(String), which
     // (unlike loadFromResource) is Groovy-only, so this must stay Groovy even though the candidate
     // scripts below are YAML.
     private static final String STARTUP_SCHEMA_SCRIPT = """
@@ -99,18 +100,18 @@ public class YamlScriptValidationTest {
                   enabled: false
             """;
 
-    private static class TestConnector extends AbstractGroovySqlConnector<SqlConnectorConfiguration> {
+    private static class TestConnector extends AbstractGroovySqlConnector {
         TestConnector() {
             super(true);
         }
 
         @Override
-        protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
+        protected void initializeSchema(GroovySchemaLoader loader) {
             loader.load(STARTUP_SCHEMA_SCRIPT);
         }
 
         @Override
-        protected void initializeObjectClassHandler(SqlHandlerLoader builder) {
+        protected void initializeObjectClassHandler(GroovyScriptLoader builder) {
         }
     }
 

@@ -55,17 +55,16 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * <p>This class manages its lifecycle. Operations that require a pool will
  * lazily initialize it on first call or reinitialize on each call as configured.</p>
  */
-public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfiguration>
-        extends ClassHandlerConnectorBase implements PoolableConnector {
+public abstract class AbstractGroovySqlConnector
+        extends ClassHandlerConnectorBase<SqlBaseContext> implements PoolableConnector {
 
-    private final boolean reinitializeOnEachCall;
-    private boolean initialized;
-    private boolean connected;
-    private SqlBaseContext context;
+    private static final String SQL_BLOCK = "sql";
+    private static final String SQL_BLOCK_TYPE = ConnDevObjectClass.protocolBlockType(SQL_BLOCK);
+
     private AtomicBoolean closed = new AtomicBoolean(false);
 
     protected AbstractGroovySqlConnector(boolean reinitializeOnEachCall) {
-        this.reinitializeOnEachCall = reinitializeOnEachCall;
+        super(reinitializeOnEachCall);
     }
 
     @Override
@@ -76,13 +75,13 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
 
     @Override
     public SqlBaseContext context() {
-        ensureConnectionInitialized();
+        initializeHandlers();
         return context;
     }
 
     @Override
     public ObjectClassHandler handlerFor(ObjectClass objectClass) throws UnsupportedOperationException {
-        ensureConnectionInitialized();
+        initializeHandlers();
         var handler = context.handlerFor(objectClass);
         if (handler == null) {
             throw new UnsupportedOperationException("Cannot find handler for " + objectClass);
@@ -98,12 +97,82 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
             }
             if (cfg instanceof SqlConnectorConfiguration sqlConf) {
                 context = new SqlBaseContext(sqlConf);
-                initialized = false;
-                connected = false;
+                coreInitialized = false;
+                fullyInitialized = false;
             } else {
                 throw new IllegalArgumentException("Configuration must be an instance of SqlConnectorConfiguration");
             }
         }
+    }
+
+    @Override
+    public void test() {
+        initializeHandlers();
+        try {
+            context.testConnection();
+        } catch (ConnectionFailedException | InvalidCredentialException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new ConnectionFailedException("Connection test failed: " + e.getMessage());
+        }
+    }
+
+    @Override
+    public Schema schema() {
+        initializeCore();
+        return context.schema().connIdSchema();
+    }
+
+    @Override
+    public void dispose() {
+        if (closed.compareAndSet(false, true)) {
+            if (context != null) {
+                context.close();
+            }
+            context = null;
+        }
+    }
+
+    @Override
+    public void checkAlive() {
+        if (closed.get()) {
+            throw new IllegalStateException("Connector was closed.");
+        }
+    }
+
+    protected void initializeSchema(SqlSchemaBuilder builder) {
+        // NOOP for overriding
+    }
+
+    /**
+     * Validates the candidate script against a throwaway target seeded with all currently
+     * deployed sibling scripts (via {@link #schemaResources} / {@link #operationResources}, minus
+     * {@code filename} itself), so cross-references to them (e.g. a schema attribute's {@code
+     * referencedObjectClass}) resolve during evaluation and build, and so the candidate replaces
+     * rather than merges with its own old content.
+     */
+    @Override
+    protected ScriptValidationResult validateScript(ScriptValidationRequest request) throws Exception {
+        initializeCore();
+        if (ScriptValidationRequest.ARTIFACT_KIND_SCHEMA.equals(request.artifactKind())) {
+            if (request.isYaml()) {
+                return validateYamlSchema(request);
+            }
+            var builder = new SqlSchemaBuilderImpl(getClass(), context);
+            var loader = new SqlSchemaDefinitionLoader(builder, context.configuration().groovyContext());
+            schemaResources(request.filename()).forEach(loader::loadFromResource);
+            return GroovyScriptValidator.validate(loader::parse, () -> {
+                builder.applyStructuralRules();
+                builder.build();
+            }, request.scriptText(), request.operation());
+        }
+        if (request.isYaml()) {
+            return validateYamlOperations(request);
+        }
+        var handlerBuilder = new SqlOperationSupportBuilderImpl(context);
+        var handlerLoader = new SqlHandlerLoader(context, handlerBuilder);
+        operationResources(request.filename()).forEach(handlerLoader::loadFromResource);
+        return GroovyScriptValidator.validate(handlerLoader::parse, handlerBuilder::build, request.scriptText(), request.operation());
     }
 
     /**
@@ -112,32 +181,32 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
      * building the schema from local Groovy/YAML definitions alone when the configuration is still
      * incomplete (e.g. a brand new, not yet filled in wizard form) — connecting is pointless then and
      * would only fail. Does not undo a richer, DB-discovered schema already produced by a prior
-     * {@link #ensureConnectionInitialized()} on this instance.
+     * {@link #initializeHandlers()} on this instance.
      */
-    private void ensureSchemaInitialized() {
+    private void initializeCore() {
         if (closed.get()) {
             return;
         }
         synchronized (this) {
-            if (reinitializeOnEachCall || !initialized) {
+            if (reinitializeOnEachCall || !coreInitialized) {
                 boolean allowConnection = context.configuration().isComplete();
                 initialize0(allowConnection);
-                initialized = true;
-                connected = allowConnection;
+                coreInitialized = true;
+                fullyInitialized = allowConnection;
             }
         }
     }
 
     /** Ensures a live connection pool exists and, if enabled, the schema has been discovered from the database. */
-    private void ensureConnectionInitialized() {
+    private void initializeHandlers() {
         if (closed.get()) {
             return;
         }
         synchronized (this) {
-            if (reinitializeOnEachCall || !connected) {
+            if (reinitializeOnEachCall || !fullyInitialized) {
                 initialize0(true);
-                initialized = true;
-                connected = true;
+                coreInitialized = true;
+                fullyInitialized = true;
             }
         }
     }
@@ -271,9 +340,6 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         context.setTableInfos(tableMap);
     }
 
-    private static final String SQL_BLOCK = "sql";
-    private static final String SQL_BLOCK_TYPE = ConnDevObjectClass.protocolBlockType(SQL_BLOCK);
-
     /** The object-class-level {@code sql} block: DB schema and table name. */
     private static ObjectClassInfo sqlObjectClassBlock() {
         var builder = new ObjectClassInfoBuilder();
@@ -282,71 +348,6 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
         builder.addAttributeInfo(AttributeInfoBuilder.build("table", String.class));
         builder.addAttributeInfo(AttributeInfoBuilder.build("schema", String.class));
         return builder.build();
-    }
-
-    protected void initializeSchema(SqlSchemaBuilder builder) {
-        // NOOP for overriding
-    }
-
-    /**
-     * Initializes schema by loading Groovy scripts into the provided loader.
-     *
-     * @param loader the Groovy schema loader to populate
-     */
-    protected abstract void initializeSchema(SqlSchemaDefinitionLoader loader);
-
-    /**
-     * Initializes operation handlers for object classes by loading Groovy scripts.
-     *
-     * @param builder the handler builder to populate
-     */
-    protected abstract void initializeObjectClassHandler(SqlHandlerLoader builder);
-
-    public void test() {
-        ensureConnectionInitialized();
-        try {
-            context.testConnection();
-        } catch (ConnectionFailedException | InvalidCredentialException e) {
-            throw e;
-        } catch (Exception e) {
-            throw new ConnectionFailedException("Connection test failed: " + e.getMessage());
-        }
-    }
-
-    public Schema schema() {
-        ensureSchemaInitialized();
-        return context.schema().connIdSchema();
-    }
-
-    /**
-     * Validates the candidate script against a throwaway target seeded with all currently
-     * deployed sibling scripts (via {@link #schemaResources} / {@link #operationResources}, minus
-     * {@code filename} itself), so cross-references to them (e.g. a schema attribute's {@code
-     * referencedObjectClass}) resolve during evaluation and build, and so the candidate replaces
-     * rather than merges with its own old content.
-     */
-    @Override
-    protected ScriptValidationResult validateScript(ScriptValidationRequest request) throws Exception {
-        ensureSchemaInitialized();
-        if (ScriptValidationRequest.ARTIFACT_KIND_SCHEMA.equals(request.artifactKind())) {
-            if (request.isYaml()) {
-                return validateYamlSchema(request);
-            }
-            var builder = new SqlSchemaBuilderImpl(getClass(), context);
-            var loader = new SqlSchemaDefinitionLoader(builder, context.configuration().groovyContext());
-            schemaResources(request.filename()).forEach(loader::loadFromResource);
-            return GroovyScriptValidator.validate(loader::parse, () -> {
-                builder.applyStructuralRules();
-                builder.build();
-            }, request.scriptText(), request.operation());
-        }
-        if (request.isYaml()) {
-            return validateYamlOperations(request);
-        }
-        var handlerBuilder = new SqlOperationSupportBuilderImpl(context);
-        var handlerLoader = new SqlHandlerLoader(context, handlerBuilder);
-        operationResources(request.filename()).forEach(handlerLoader::loadFromResource);
-        return GroovyScriptValidator.validate(handlerLoader::parse, handlerBuilder::build, request.scriptText(), request.operation());
     }
 
     /**
@@ -391,26 +392,9 @@ public abstract class AbstractGroovySqlConnector<T extends SqlConnectorConfigura
                 handlerBuilder::build);
     }
 
-    @Override
-    public void dispose() {
-        if (closed.compareAndSet(false, true)) {
-            if (context != null) {
-                context.close();
-            }
-            context = null;
-        }
-    }
-
     private void checkInitialized() {
         if (context == null || closed.get()) {
             throw new IllegalStateException("Connector not initialized. Call init() first.");
-        }
-    }
-
-    @Override
-    public void checkAlive() {
-        if (closed.get()) {
-            throw new IllegalStateException("Connector was closed.");
         }
     }
 }

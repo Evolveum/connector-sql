@@ -6,6 +6,7 @@
  */
 package com.evolveum.polygon.sql.base.groovy;
 
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
 import com.evolveum.polygon.conndev.spi.ObjectClassOperation;
 import com.evolveum.polygon.conndev.yaml.GroovyScriptCompiler;
 import com.evolveum.polygon.conndev.yaml.ScriptResources;
@@ -24,7 +25,7 @@ import java.io.InputStreamReader;
  * Builds operation handlers for SQL connector.
  * Provides hooks for registering operation handlers programmatically or via Groovy scripts.
  */
-public class SqlHandlerLoader {
+public class SqlHandlerLoader implements GroovyScriptLoader {
 
     private final SqlBaseContext context;
     private final GroovyShell shell;
@@ -46,6 +47,7 @@ public class SqlHandlerLoader {
      * documents ({@code .yaml}/{@code .yml}) are driven through the location-aware engine onto the
      * same live {@link SqlOperationSupportBuilder}.
      */
+    @Override
     public void loadFromResource(String resourceName) {
         if (ScriptResources.isYaml(resourceName)) {
             loadYamlFromResource(resourceName);
@@ -77,10 +79,12 @@ public class SqlHandlerLoader {
      *
      * @param scriptText the Groovy script text
      */
+    @Override
     public void loadFromString(String scriptText) {
         shell.evaluate(scriptText);
     }
 
+    @Override
     public Script parse(String scriptText) {
         return shell.parse(scriptText);
     }

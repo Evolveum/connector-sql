@@ -7,7 +7,7 @@
 package com.evolveum.polygon.sql.base;
 
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
-import com.evolveum.polygon.sql.base.groovy.SqlSchemaDefinitionLoader;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.sql.base.test.SqlIntegrationTestBase;
 import com.evolveum.polygon.sql.base.test.SqlSchemaAssertions;
 import org.identityconnectors.common.security.GuardedString;
@@ -196,7 +196,7 @@ public class SqlDevConnectorIntegrationTest
         protected TestSqlConnectorWithScanDisabled() { super(); }
 
         @Override
-        protected void initializeSchema(SqlSchemaDefinitionLoader loader) {
+        protected void initializeSchema(GroovySchemaLoader loader) {
             loader.loadFromResource("/test/objectClass/User.groovy");
             loader.loadFromResource("/test/objectClass/Group.groovy");
         }
