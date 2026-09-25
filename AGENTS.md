@@ -40,7 +40,8 @@ by the operation handlers is attached to it as `sql` protocol events.
   outside a ConnId operation (e.g. `test()`, schema detection on a non-wrapped connection) are no-ops.
 - Round-trip test: `SqlOperationTracingTest` (create/search/update/delete, correlated through
   `OperationLogParser`, plus a no-structured-lines case with development mode off). Test lines are
-  captured by `CapturingLogProvider` (registered in `base/src/test/resources/META-INF/services/`).
+  captured by `CapturingLogSpi` (an in-memory ConnId `LogSpi`, registered in
+  `base/src/test/resources/META-INF/services/org.identityconnectors.common.logging`).
 - Note: the first operation on a cold connector also includes the lazy pool init / schema
   detection SQL inside its operation entry (they run inside the operation by design).
 

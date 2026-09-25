@@ -6,13 +6,14 @@
  */
 package com.evolveum.polygon.sql.base.test;
 
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.conndev.devtools.log.ConndevLogFormat;
 import com.evolveum.polygon.conndev.devtools.log.OperationLogParser;
 import com.evolveum.polygon.conndev.devtools.log.OperationTrace;
 import com.evolveum.polygon.conndev.devtools.log.ProtocolPayload;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
-import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
 import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.sql.base.test.contract.SqlTestDatabases;
@@ -61,7 +62,7 @@ public class SqlOperationTracingTest {
         connector.init(database.configuration(true));
         // Warm the pool and schema detection so operations under test run against a live pool.
         connector.schema();
-        CapturingLogProvider.clear();
+        CapturingLogSpi.clear();
     }
 
     @AfterMethod(alwaysRun = true)
@@ -80,7 +81,7 @@ public class SqlOperationTracingTest {
     public void createEmitsSqlProtocolEventsCorrelatedWithOperation() {
         var username = attribute(USERNAME);
 
-        CapturingLogProvider.clear();
+        CapturingLogSpi.clear();
         connector.create(objectClass(), Set.of(
                 AttributeBuilder.build(Name.NAME, "traced-create"),
                 AttributeBuilder.build(username, "traced-create-user")), OPTIONS);
@@ -98,7 +99,7 @@ public class SqlOperationTracingTest {
                 AttributeBuilder.build(Name.NAME, "traced-search"),
                 AttributeBuilder.build(username, "traced-search-user")), OPTIONS);
 
-        CapturingLogProvider.clear();
+        CapturingLogSpi.clear();
         var found = new ArrayList<ConnectorObject>();
         connector.executeQuery(objectClass(),
                 FilterBuilder.equalTo(AttributeBuilder.build(username, "traced-search-user")), found::add, OPTIONS);
@@ -118,7 +119,7 @@ public class SqlOperationTracingTest {
                 AttributeBuilder.build(Name.NAME, "traced-update"),
                 AttributeBuilder.build(attribute(USERNAME), "traced-update-user")), OPTIONS);
 
-        CapturingLogProvider.clear();
+        CapturingLogSpi.clear();
         connector.updateDelta(objectClass(), uid, Set.of(
                 AttributeDeltaBuilder.build(email, List.of("traced-updated@example.com"))), OPTIONS);
 
@@ -134,7 +135,7 @@ public class SqlOperationTracingTest {
                 AttributeBuilder.build(Name.NAME, "traced-delete"),
                 AttributeBuilder.build(attribute(USERNAME), "traced-delete-user")), OPTIONS);
 
-        CapturingLogProvider.clear();
+        CapturingLogSpi.clear();
         connector.delete(objectClass(), uid, OPTIONS);
 
         var trace = singleTrace();
@@ -154,7 +155,7 @@ public class SqlOperationTracingTest {
             plain.create(objectClass(), Set.of(
                     AttributeBuilder.build(Name.NAME, "plain-user"),
                     AttributeBuilder.build(USERNAME, "plain-user-name")), OPTIONS);
-            assertThat(CapturingLogProvider.lines())
+            assertThat(CapturingLogSpi.lines())
                     .noneMatch(line -> line.message().contains(ConndevLogFormat.MARKER));
         } finally {
             plain.dispose();
@@ -212,8 +213,8 @@ public class SqlOperationTracingTest {
     }
 
     private static OperationTrace singleTrace() {
-        var lines = CapturingLogProvider.lines().stream()
-                .map(CapturingLogProvider.CapturedLine::message)
+        var lines = CapturingLogSpi.lines().stream()
+                .map(CapturingLogSpi.CapturedLine::message)
                 .toList();
         var traces = OperationLogParser.parse(lines);
         assertThat(traces).hasSize(1);
