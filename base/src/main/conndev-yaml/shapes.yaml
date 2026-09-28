@@ -1,0 +1,55 @@
+apiVersion: conndev-yaml-shape/v1
+document: sql
+pythonModule: sql_yaml_schema
+
+# The object-class value is the union of the schema document (the object-class schema builder)
+# and the operations document (the per-object-class operation builder). The sql documents carry
+# no authentication block, so the single permissive document is the union of the two
+# objectClasses slots.
+entries:
+  - key: objectClasses
+    binding: mapOf
+    type: com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilderImpl
+  - key: objectClasses
+    binding: mapOf
+    type: com.evolveum.polygon.sql.base.groovy.impl.SqlObjectOperationBuilderImpl
+    slot: operations
+
+customHandlers:
+  # The class-level connId alias map (UID/NAME -> attribute name).
+  - handler: com.evolveum.polygon.conndev.yaml.decl.DeclConnIdAliasHandler
+    on:
+      - com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilderImpl
+    shape:
+      type: map
+      keys: [UID, NAME]
+      value:
+        type: string
+
+valueParsers:
+  com.evolveum.polygon.conndev.yaml.decl.DeclConnIdTypeParser:
+    type: string
+    enum: [String, Integer, Long, Boolean, Double, Float, Character, Byte, Binary, BigDecimal, BigInteger, GuardedString, GuardedByteArray, ZonedDateTime, Map, ConnectorObjectReference, EmbeddedObject]
+  # SQL type names: the size/precision in parentheses is dropped (fuzzy matching at runtime).
+  com.evolveum.polygon.sql.base.yaml.binding.SqlTypeCoercer:
+    type: string
+
+names:
+  com.evolveum.polygon.sql.base.build.api.SqlObjectClassSchemaBuilder$SqlMapping: SqlClass
+  com.evolveum.polygon.sql.base.build.api.SqlAttributeBuilder$SqlMapping: SqlAttribute
+
+# The plain scan of the attributes map value stops at the SqlAttributeBuilder interface; the
+# runtime binds onto the concrete builder, which implements the Reference facet — so the
+# reference-only keys (objectClass/subtype/role) apply to plain attributes as well. Replace the
+# scanned shape with the merge of both interfaces.
+overrides:
+  objectClasses.*.attributes.*:
+    type: object
+    name: Attribute
+    delegateTypes:
+      - com.evolveum.polygon.sql.base.build.api.SqlAttributeBuilder
+      - com.evolveum.polygon.sql.base.build.api.SqlAttributeBuilder$Reference
+
+# An empty attribute block (attributes.<name>:) is a valid explicit-null value.
+nullable:
+  - objectClasses.*.attributes.*
