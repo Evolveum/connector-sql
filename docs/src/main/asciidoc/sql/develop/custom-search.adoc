@@ -2,7 +2,7 @@
 
 If the built-in search is not suitable — for example, you need ORDER BY, computed columns, or a query that spans a multiple tables — you can implement a fully custom SQL query per object class.
 
-include::link-to-intro-preamble.adoc[]
+include::sql/develop/link-to-intro-preamble.adoc[]
 
 == Declaring a custom query
 

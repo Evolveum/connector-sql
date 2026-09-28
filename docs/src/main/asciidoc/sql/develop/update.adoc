@@ -2,7 +2,7 @@
 
 Update operations apply ConnId deltas to the existing row with a single transactional SQL `UPDATE`.
 
-include::link-to-intro-preamble.adoc[]
+include::sql/develop/link-to-intro-preamble.adoc[]
 
 == Basic update
 

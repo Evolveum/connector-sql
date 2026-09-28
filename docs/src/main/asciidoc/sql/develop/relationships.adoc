@@ -2,7 +2,7 @@
 
 The SQL framework detects relationships between tables automatically and exposes them as attributes on the ConnId object class.
 
-include::link-to-intro-preamble.adoc[]
+include::sql/develop/link-to-intro-preamble.adoc[]
 
 IMPORTANT: Relationship detection is convention- and metadata-driven; there is no script API to define custom join paths today. The `relationship {}` function in currently unsupported scripts is a stub, and `joinOn` / `foreignKey` blocks (as seen in some example scripts) are illustrative only — do not depend on them.
 

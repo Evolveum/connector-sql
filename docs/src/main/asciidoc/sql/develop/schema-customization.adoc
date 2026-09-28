@@ -3,7 +3,7 @@
 After discovery, you can customize the schema with Groovy schema scripts (or declarative YAML — see xref:declarative-yaml.adoc[]).
 This is the reference for the schema script DSL.
 
-include::link-to-intro-preamble.adoc[]
+include::sql/develop/link-to-intro-preamble.adoc[]
 
 == The objectClass block
 

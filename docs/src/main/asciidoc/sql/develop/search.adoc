@@ -2,7 +2,7 @@
 
 The SQL framework provides built-in search for every object class, translating ConnId filters to SQL predicates.
 
-include::link-to-intro-preamble.adoc[]
+include::sql/develop/link-to-intro-preamble.adoc[]
 
 == Basic search
 

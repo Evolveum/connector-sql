@@ -2,7 +2,7 @@
 
 The SQL framework connector configuration is provided by `SqlConnectorConfiguration`.
 
-include::link-to-intro-preamble.adoc[]
+include::sql/develop/link-to-intro-preamble.adoc[]
 
 == Configuration properties
 

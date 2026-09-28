@@ -1,10 +1,8 @@
 = Declarative YAML
 
-The SQL Framework supports a declarative YAML form for the connector manifest, schema definitions, and operation handlers, in addition to Groovy scripts.
+The connector supports a declarative YAML form for the connector manifest, schema definitions, and operation handlers, in addition to Groovy scripts.
 
 YAML documents and Groovy scripts are two front-ends over the *same* builders — a YAML document drives the same live builders the Groovy DSL does, so both forms can be mixed per connector.
-
-include::link-to-intro-preamble.adoc[]
 
 IMPORTANT: Use Groovy scripts for anything requiring scripted behavior — custom search queries, `where` predicates, attribute resolvers. YAML covers declarative table/attribute mapping and operation control. This page and xref:schema-customization.adoc[schema customization] describe the same schema customization — the YAML form is a declarative subset of the Groovy DSL.
 

@@ -2,7 +2,7 @@
 
 Create operations use a transactional SQL `INSERT` with generated-key handling and row read-back.
 
-include::link-to-intro-preamble.adoc[]
+include::sql/develop/link-to-intro-preamble.adoc[]
 
 == Basic create
 

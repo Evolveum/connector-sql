@@ -2,7 +2,7 @@
 
 The SQL framework automatically discovers schemas from the connected database using standard JDBC metadata.
 
-include::link-to-intro-preamble.adoc[]
+include::sql/develop/link-to-intro-preamble.adoc[]
 
 == Automatic schema discovery
 

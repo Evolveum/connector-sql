@@ -2,7 +2,7 @@
 
 Delete operations remove the row matching the exact UID with a transactional SQL `DELETE`.
 
-include::link-to-intro-preamble.adoc[]
+include::sql/develop/link-to-intro-preamble.adoc[]
 
 == Basic delete
 

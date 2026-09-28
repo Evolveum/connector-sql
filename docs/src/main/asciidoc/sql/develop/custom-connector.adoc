@@ -2,7 +2,7 @@
 
 Most connectors can be built without any Java code, just a manifest and scripts. This page covers both the manifest-based route and the Java subclass route.
 
-include::link-to-intro-preamble.adoc[]
+include::sql/develop/link-to-intro-preamble.adoc[]
 
 == Option 1: manifest-based connector (no Java)
 
