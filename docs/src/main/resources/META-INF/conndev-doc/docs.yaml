@@ -41,19 +41,24 @@ topics:
     order: 10
   - key: native-schema
     protocol: sql
+    title: Schema Script Basics (SQL)
+    resource: sql/develop/schema-script.html
+    order: 5
+  - key: native-schema
+    protocol: sql
     title: SQL schema customization
     resource: sql/develop/schema-customization.html
-    order: 10
+    order: 20
   - key: native-schema
     protocol: sql
     title: Declarative YAML
     resource: sql/develop/declarative-yaml.html
-    order: 20
+    order: 30
   - key: native-schema
     protocol: sql
     title: YAML Declarative Format to Builder Mapping
     resource: sql/yaml-builder-mapping.html
-    order: 30
+    order: 40
   - key: search-all
     protocol: sql
     title: SQL search and filter support
