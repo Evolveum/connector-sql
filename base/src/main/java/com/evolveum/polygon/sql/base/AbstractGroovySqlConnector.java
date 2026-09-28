@@ -309,7 +309,7 @@ public abstract class AbstractGroovySqlConnector
                 if (ocBuilder.embedded()) {
                     continue;
                 }
-                var ocHandlerBuilder = handlerBuilder.objectClass(ocBuilder.name());
+                var ocHandlerBuilder = handlerBuilder.objectClass(ocBuilder.objectClass().getObjectClassValue());
                 translator.applyHandlerRulesFor(ocBuilder, ocHandlerBuilder);
             }
         }

@@ -77,7 +77,7 @@ public class SqlSchemaBuilderImpl extends BaseSchemaBuilder<SqlSchemaBuilderImpl
     }
 
     @Override
-    protected SqlObjectClassSchemaBuilderImpl newObjectClass(DefinitionValue<String> name) {
+    protected SqlObjectClassSchemaBuilderImpl newObjectClass(DefinitionValue<ObjectClass> name) {
         return new SqlObjectClassSchemaBuilderImpl(this, name);
     }
 

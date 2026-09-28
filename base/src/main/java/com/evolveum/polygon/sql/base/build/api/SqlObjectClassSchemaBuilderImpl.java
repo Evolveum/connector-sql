@@ -14,6 +14,7 @@ import com.evolveum.polygon.sql.base.schema.SqlChildJoinConfig;
 import com.evolveum.polygon.sql.base.schema.SqlJunctionJoinConfig;
 import com.evolveum.polygon.sql.base.schema.SqlObjectJoin;
 import org.identityconnectors.framework.common.objects.Name;
+import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 
 import java.util.*;
@@ -41,9 +42,9 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
 
     public void addObjectJoin(SqlObjectJoin join) { objectJoins.add(join); }
 
-    public SqlObjectClassSchemaBuilderImpl(SqlSchemaBuilderImpl restSchemaBuilder, DefinitionValue<String> name) {
+    public SqlObjectClassSchemaBuilderImpl(SqlSchemaBuilderImpl restSchemaBuilder, DefinitionValue<ObjectClass> name) {
         super(restSchemaBuilder, name);
-        table = name.asDefault();
+        table = name.transform(ObjectClass::getObjectClassValue).asDefault();
     }
 
     @Override

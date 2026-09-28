@@ -16,6 +16,7 @@ import com.evolveum.polygon.sql.base.groovy.impl.SqlObjectOperationBuilderImpl;
 import com.evolveum.polygon.sql.base.schema.*;
 import com.evolveum.polygon.sql.base.search.SqlJoinAttributeResolver;
 import com.evolveum.polygon.sql.base.search.SqlJunctionAttributeResolver;
+import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
 
@@ -128,7 +129,7 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
         var attrName = rel.childTable();
         boolean multiValued = !rel.type().isSingleValue();
         var attr = (SqlAttributeBuilderImpl) objectClass.attribute(attrName);
-        attr.complexType(detected(rel.childTable()));
+        attr.complexType(detected(new ObjectClass(rel.childTable())));
         attr.connId().multiValued(detected(multiValued));
         ((SqlObjectClassSchemaBuilderImpl) objectClass).addRelatedAttributeJoinConfig(
                 createSqlJoinConfig(rel));

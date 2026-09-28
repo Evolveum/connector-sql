@@ -14,8 +14,9 @@ import com.evolveum.polygon.sql.base.groovy.impl.SqlObjectOperationBuilderImpl;
 import com.evolveum.polygon.sql.base.schema.ChildTableRelationship.*;
 import com.evolveum.polygon.sql.base.schema.strategy.*;
 import com.evolveum.polygon.sql.base.schema.strategy.ChildTableRelationshipDetectionRule;
-import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Name;
+import org.identityconnectors.framework.common.objects.ObjectClass;
+import org.identityconnectors.framework.common.objects.ObjectClassInfo;
 import org.identityconnectors.framework.common.objects.Uid;
 import org.identityconnectors.framework.spi.Connector;
 
@@ -409,7 +410,7 @@ public class SqlSchemaTranslator {
         }
         for (var objectClass : builder.allObjectClassBuilders()) {
             if (objectClass.hasObjectJoins() && !correlatedTables.containsKey(objectClass)) {
-                throw new IllegalArgumentException("Root table was not detected for joined object " + objectClass.name());
+                throw new IllegalArgumentException("Root table was not detected for joined object " + objectClass.objectClass().getObjectClassValue());
             }
         }
     }
@@ -459,9 +460,9 @@ public class SqlSchemaTranslator {
         }
         var uid = objectClass.findAttributes(attribute -> Uid.NAME.equals(attribute.connId().name().value()))
                 .stream().findFirst().orElseThrow(() -> new IllegalArgumentException(
-                        "Joined object requires a root UID: " + objectClass.name()));
+                        "Joined object requires a root UID: " + objectClass.objectClass().getObjectClassValue()));
         if (((SqlAttributeBuilderImpl) uid).sql().build() == null) {
-            throw new IllegalArgumentException("Joined object requires a mapped root UID: " + objectClass.name());
+            throw new IllegalArgumentException("Joined object requires a mapped root UID: " + objectClass.objectClass().getObjectClassValue());
         }
         var connIdNames = new HashSet<String>();
         objectClass.findAttributes(attribute -> true).forEach(attribute -> {
@@ -524,7 +525,7 @@ public class SqlSchemaTranslator {
 
     @SuppressWarnings("unchecked")
     private SqlObjectClassSchemaBuilderImpl correlateBuilder(SqlTableInfo table) {
-        var maybeClassName = detected(table.getName());
+        var maybeClassName = detected(new ObjectClass(table.getName()));
         var objectClass = (SqlObjectClassSchemaBuilderImpl) builder.correlateObjectClass(
                 o -> {
                     var sqlSchema = o.sql().schema();
