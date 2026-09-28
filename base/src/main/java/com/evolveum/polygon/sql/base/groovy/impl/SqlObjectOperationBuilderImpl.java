@@ -6,12 +6,12 @@
  */
 package com.evolveum.polygon.sql.base.groovy.impl;
 
+import com.evolveum.polygon.conndev.annotations.Yaml;
 import com.evolveum.polygon.conndev.groovy.BaseObjectOperationSupportBuilder;
 import com.evolveum.polygon.conndev.spi.ObjectClassOperation;
 import com.evolveum.polygon.conndev.spi.ObjectCreateOperation;
 import com.evolveum.polygon.conndev.spi.ObjectDeleteOperation;
 import com.evolveum.polygon.conndev.spi.ObjectUpdateOperation;
-import com.evolveum.polygon.conndev.annotations.Yaml;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectClassDefinition;
 import com.evolveum.polygon.sql.base.build.api.SqlObjectOperationSupportBuilder;

@@ -6,10 +6,9 @@
  */
 package com.evolveum.polygon.sql.base;
 
-import com.evolveum.polygon.conndev.groovy.ScriptValidationRequest;
-import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
 import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.conndev.groovy.ScriptValidationRequest;
 import org.identityconnectors.framework.common.objects.ScriptContext;
 import org.testng.annotations.Test;
 

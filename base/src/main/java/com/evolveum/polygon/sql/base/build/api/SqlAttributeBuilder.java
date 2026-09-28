@@ -7,12 +7,12 @@
 package com.evolveum.polygon.sql.base.build.api;
 
 import com.evolveum.polygon.conndev.annotations.Script;
+import com.evolveum.polygon.conndev.annotations.Yaml;
 import com.evolveum.polygon.conndev.build.api.AttributeBuilder;
 import com.evolveum.polygon.conndev.build.api.ReferenceAttributeBuilder;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.concepts.GroovyClosures;
 import com.evolveum.polygon.conndev.concepts.SourceLocation;
-import com.evolveum.polygon.conndev.annotations.Yaml;
 import com.evolveum.polygon.sql.base.build.spi.SpiSqlAttributeBuilder;
 import com.evolveum.polygon.sql.base.yaml.binding.SqlTypeCoercer;
 import groovy.lang.Closure;

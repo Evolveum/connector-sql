@@ -5,14 +5,12 @@
  */
 package com.evolveum.polygon.sql.base.test.contract;
 
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
 import com.evolveum.polygon.conndev.spi.*;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
-import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilder;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
-import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
-import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
@@ -35,9 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.assertj.core.api.Assertions.tuple;
+import static org.assertj.core.api.Assertions.*;
 
 /**
  * Common behavior contract executed against every supported real database configuration.

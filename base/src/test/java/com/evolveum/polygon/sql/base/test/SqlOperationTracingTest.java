@@ -6,24 +6,16 @@
  */
 package com.evolveum.polygon.sql.base.test;
 
-import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
-import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.conndev.devtools.log.ConndevLogFormat;
 import com.evolveum.polygon.conndev.devtools.log.OperationLogParser;
 import com.evolveum.polygon.conndev.devtools.log.OperationTrace;
 import com.evolveum.polygon.conndev.devtools.log.ProtocolPayload;
-import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
-import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
-import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
 import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
-import com.evolveum.polygon.sql.base.test.contract.SqlTestDatabases;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
+import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.test.contract.SqlTestDatabase;
-import org.identityconnectors.framework.common.objects.AttributeBuilder;
-import org.identityconnectors.framework.common.objects.AttributeDeltaBuilder;
-import org.identityconnectors.framework.common.objects.ConnectorObject;
-import org.identityconnectors.framework.common.objects.Name;
-import org.identityconnectors.framework.common.objects.OperationOptions;
-import org.identityconnectors.framework.common.objects.ObjectClass;
+import com.evolveum.polygon.sql.base.test.contract.SqlTestDatabases;
+import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.common.objects.filter.FilterBuilder;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
@@ -32,6 +24,7 @@ import org.testng.annotations.Test;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -196,7 +189,7 @@ public class SqlOperationTracingTest {
     }
 
     private static String normalizedSql(String sql) {
-        return sql.toLowerCase(java.util.Locale.ROOT).replaceAll("\\s+", " ");
+        return sql.toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
     }
 
     private static List<ProtocolPayload> sqlProtocols(OperationTrace trace) {
@@ -218,7 +211,7 @@ public class SqlOperationTracingTest {
                 .toList();
         var traces = OperationLogParser.parse(lines);
         assertThat(traces).hasSize(1);
-        return traces.get(0);
+        return traces.getFirst();
     }
 
     private static final class ContractTraceConnector

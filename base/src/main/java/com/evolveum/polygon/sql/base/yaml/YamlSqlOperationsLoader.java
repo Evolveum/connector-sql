@@ -7,9 +7,9 @@
 package com.evolveum.polygon.sql.base.yaml;
 
 import com.evolveum.polygon.conndev.yaml.GroovyScriptCompiler;
+import com.evolveum.polygon.conndev.yaml.decl.DeclYamlBinder;
 import com.evolveum.polygon.conndev.yaml.decl.LocatedDocument;
 import com.evolveum.polygon.conndev.yaml.decl.LocatedNode;
-import com.evolveum.polygon.conndev.yaml.decl.DeclYamlBinder;
 import com.evolveum.polygon.sql.base.build.api.SqlOperationSupportBuilder;
 
 import java.io.Reader;

@@ -6,8 +6,8 @@
  */
 package com.evolveum.polygon.sql.base;
 
-import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
+import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.sql.base.test.SqlIntegrationTestBase;
 import com.evolveum.polygon.sql.base.test.SqlSchemaAssertions;
 import org.identityconnectors.common.security.GuardedString;

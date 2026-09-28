@@ -7,11 +7,11 @@
 package com.evolveum.polygon.sql.base.build.api;
 
 import com.evolveum.polygon.conndev.annotations.Script;
+import com.evolveum.polygon.conndev.annotations.Yaml;
 import com.evolveum.polygon.conndev.build.api.ObjectClassSchemaBuilder;
 import com.evolveum.polygon.conndev.concepts.DefinitionValue;
 import com.evolveum.polygon.conndev.concepts.GroovyClosures;
 import com.evolveum.polygon.conndev.concepts.SourceLocation;
-import com.evolveum.polygon.conndev.annotations.Yaml;
 import groovy.lang.Closure;
 import groovy.lang.DelegatesTo;
 

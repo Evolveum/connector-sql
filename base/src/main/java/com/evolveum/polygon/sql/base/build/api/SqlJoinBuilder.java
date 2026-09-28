@@ -14,14 +14,7 @@ import com.querydsl.core.types.PathMetadataFactory;
 import com.querydsl.sql.RelationalPathBase;
 import groovy.lang.Closure;
 
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Schema DSL for one read-only LEFT JOIN; {@code left()} always denotes the root object table.

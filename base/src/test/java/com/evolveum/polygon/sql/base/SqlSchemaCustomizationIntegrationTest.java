@@ -6,7 +6,6 @@
  */
 package com.evolveum.polygon.sql.base;
 
-import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
 import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
 import com.evolveum.polygon.sql.base.groovy.impl.ManifestBasedConnector;
 import com.evolveum.polygon.sql.base.test.SqlSchemaAssertions;

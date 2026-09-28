@@ -7,11 +7,10 @@
 package com.evolveum.polygon.sql.base.write;
 
 import com.evolveum.polygon.common.GuardedStringAccessor;
+import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
+import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
 import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
-import com.evolveum.polygon.sql.base.groovy.SqlHandlerLoader;
-import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
-import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.sql.base.test.PostgresDatabaseInitializer;
 import org.identityconnectors.framework.common.exceptions.AlreadyExistsException;
 import org.identityconnectors.framework.common.exceptions.InvalidAttributeValueException;
