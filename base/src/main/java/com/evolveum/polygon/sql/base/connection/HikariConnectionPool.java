@@ -31,7 +31,7 @@ public class HikariConnectionPool {
 
         config.setJdbcUrl(configuration.getJdbcUrl());
 
-        var driverClassName = getDriverClassName(configuration.getJdbcUrl());
+        var driverClassName = resolveDriverClassName(configuration);
         if (driverClassName != null) {
             config.setDriverClassName(driverClassName);
         }
@@ -128,7 +128,24 @@ public class HikariConnectionPool {
     }
 
     /**
+     * Resolves the JDBC driver class name for the given configuration.
+     * The explicitly configured {@code driverClassName} takes precedence; when it is
+     * absent or blank, the driver class is resolved from the JDBC URL scheme.
+     *
+     * @param configuration The connector configuration
+     * @return The fully-qualified driver class name, or null if no driver could be resolved.
+     */
+    public static String resolveDriverClassName(SqlConnectorConfiguration configuration) {
+        var configured = configuration.getDriverClassName();
+        if (configured != null && !configured.isBlank()) {
+            return configured;
+        }
+        return getDriverClassName(configuration.getJdbcUrl());
+    }
+
+    /**
      * Computes the JDBC driver class name based on the provided JDBC URL.
+     * Used as a fallback when no explicit {@code driverClassName} is configured.
      *
      * @param jdbcUrl The JDBC connection string (e.g., "jdbc:postgresql://localhost:5432/db")
      * @return The fully-qualified driver class name, or null if unsupported/invalid.

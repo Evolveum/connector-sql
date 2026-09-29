@@ -154,4 +154,59 @@ public class HikariConnectionPoolTest {
 
         pool.close();
     }
+
+    @Test
+    public void testExplicitDriverClassNameIsUsed() {
+        configuration.setJdbcUrl("jdbc:h2:mem:driverexplicit;DB_CLOSE_DELAY=-1");
+        configuration.setDriverClassName("org.h2.Driver");
+
+        pool = new HikariConnectionPool(configuration);
+        pool.initialize();
+
+        assertThat(pool.getDataSource().getDriverClassName()).isEqualTo("org.h2.Driver");
+    }
+
+    @Test
+    public void testDriverAutoResolvedWhenUnset() {
+        configuration.setJdbcUrl("jdbc:h2:mem:driverauto;DB_CLOSE_DELAY=-1");
+
+        pool = new HikariConnectionPool(configuration);
+        pool.initialize();
+
+        assertThat(pool.getDataSource().getDriverClassName()).isEqualTo("org.h2.Driver");
+    }
+
+    @Test
+    public void testBlankDriverClassNameFallsBackToAutoResolution() {
+        configuration.setJdbcUrl("jdbc:h2:mem:driverblank;DB_CLOSE_DELAY=-1");
+        configuration.setDriverClassName("   ");
+
+        pool = new HikariConnectionPool(configuration);
+        pool.initialize();
+
+        assertThat(pool.getDataSource().getDriverClassName()).isEqualTo("org.h2.Driver");
+    }
+
+    @Test
+    public void testResolveDriverClassNamePrefersExplicit() {
+        configuration.setJdbcUrl("jdbc:postgresql://localhost:5432/mydb");
+        configuration.setDriverClassName("com.example.CustomDriver");
+
+        assertThat(HikariConnectionPool.resolveDriverClassName(configuration)).isEqualTo("com.example.CustomDriver");
+    }
+
+    @Test
+    public void testResolveDriverClassNameFallsBackToJdbcUrl() {
+        configuration.setJdbcUrl("jdbc:postgresql://localhost:5432/mydb");
+
+        assertThat(HikariConnectionPool.resolveDriverClassName(configuration)).isEqualTo("org.postgresql.Driver");
+    }
+
+    @Test
+    public void testResolveDriverClassNameBlankFallsBackToJdbcUrl() {
+        configuration.setJdbcUrl("jdbc:mysql://localhost:3306/mydb");
+        configuration.setDriverClassName("");
+
+        assertThat(HikariConnectionPool.resolveDriverClassName(configuration)).isEqualTo("com.mysql.cj.jdbc.Driver");
+    }
 }

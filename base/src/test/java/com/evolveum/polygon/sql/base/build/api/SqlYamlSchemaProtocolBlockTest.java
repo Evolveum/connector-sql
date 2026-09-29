@@ -23,8 +23,8 @@ import static org.testng.Assert.expectThrows;
 
 /**
  * The {@code sql:} top-level YAML block is connector-sql's counterpart of the Groovy
- * {@code sql { table "..." } } DSL — it drives the same {@link SqlObjectClassSchemaBuilderImpl#sql()}
- * mapping via the generic conndev {@code YamlProtocolBlockConsumer} hook.
+ * {@code sql { table "..." } } DSL — it binds onto the same {@link SqlObjectClassSchemaBuilderImpl#sql()}
+ * mapping via the {@code @Yaml.Sub} annotation on the builder accessor.
  */
 public class SqlYamlSchemaProtocolBlockTest {
 

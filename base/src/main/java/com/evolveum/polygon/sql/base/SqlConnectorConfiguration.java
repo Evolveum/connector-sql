@@ -17,6 +17,7 @@ import org.identityconnectors.framework.spi.ConfigurationProperty;
 public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration {
 
     private String jdbcUrl;
+    private String driverClassName;
     private String username;
     private GuardedString password;
     private Integer poolSize = 10;
@@ -39,6 +40,21 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
 
     public void setJdbcUrl(String jdbcUrl) {
         this.jdbcUrl = jdbcUrl;
+    }
+
+    /**
+     * Returns the fully-qualified JDBC driver class name to use for the connection.
+     * When not set (or blank), the driver class is resolved automatically from the
+     * {@link #getJdbcUrl() jdbcUrl} scheme. Set this to bundle a different JDBC backend
+     * (e.g. a vendor-specific, forked, or otherwise custom driver).
+     */
+    @ConfigurationProperty(order = 10)
+    public String getDriverClassName() {
+        return driverClassName;
+    }
+
+    public void setDriverClassName(String driverClassName) {
+        this.driverClassName = driverClassName;
     }
 
     @ConfigurationProperty(required = true, order = 20)
