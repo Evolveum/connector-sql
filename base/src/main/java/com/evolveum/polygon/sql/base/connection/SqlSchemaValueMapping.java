@@ -9,6 +9,8 @@ package com.evolveum.polygon.sql.base.connection;
 import com.evolveum.polygon.sql.base.build.api.SqlTypeSpecification;
 import com.querydsl.core.types.Path;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.JDBCType;
 import java.sql.Types;
 
@@ -79,6 +81,86 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
     }
 
     /**
+     * Coerces an arbitrary value (e.g. a ConnId- or script-supplied value) to this mapping's
+     * wire type, for binding into SQL statements. Values already at the wire type pass
+     * through unchanged; strings are parsed and numbers converted without truncation or
+     * silent overflow of a narrower integer type.
+     */
+    public Object coerceToWireValue(Object value) {
+        if (value == null) {
+            return null;
+        }
+        var wireType = primaryWireType();
+        if (wireType.isInstance(value)) {
+            return value;
+        }
+        if (value instanceof String stringValue) {
+            return parse(stringValue, wireType);
+        }
+        if (value instanceof Number number
+                && Number.class.isAssignableFrom(wireType)) {
+            return convertNumber(number, wireType);
+        }
+        return toWireValue(value);
+    }
+
+    private static Object convertNumber(Number value, Class<?> targetType) {
+        var decimal = new BigDecimal(value.toString());
+        // Foreign keys may use a different numeric JDBC type than their referenced column.
+        // Do not silently truncate a fractional value or overflow a narrower integer type.
+        if (targetType == BigInteger.class) {
+            return decimal.toBigIntegerExact();
+        }
+        if (targetType == Integer.class) {
+            return decimal.intValueExact();
+        }
+        if (targetType == Long.class) {
+            return decimal.longValueExact();
+        }
+        if (targetType == Short.class) {
+            return decimal.shortValueExact();
+        }
+        if (targetType == Byte.class) {
+            return decimal.byteValueExact();
+        }
+        return parse(decimal.toString(), targetType);
+    }
+
+    private static Object parse(String value, Class<?> targetType) {
+        if (targetType == String.class) {
+            return value;
+        }
+        if (targetType == BigInteger.class) {
+            return new BigInteger(value);
+        }
+        if (targetType == BigDecimal.class) {
+            return new BigDecimal(value);
+        }
+        if (targetType == Integer.class) {
+            return Integer.valueOf(value);
+        }
+        if (targetType == Long.class) {
+            return Long.valueOf(value);
+        }
+        if (targetType == Short.class) {
+            return Short.valueOf(value);
+        }
+        if (targetType == Byte.class) {
+            return Byte.valueOf(value);
+        }
+        if (targetType == Double.class) {
+            return Double.valueOf(value);
+        }
+        if (targetType == Float.class) {
+            return Float.valueOf(value);
+        }
+        if (targetType == Boolean.class) {
+            return Boolean.valueOf(value);
+        }
+        return value;
+    }
+
+    /**
      * Looks up the SqlSchemaValueMapping by QueryDSL Java type (from {@link QueryDslTypeMapping}).
      * This is the primary way to resolve a mapping when QueryDSL's {@code getJavaType()} already
      * produced the Java class.
@@ -142,6 +224,18 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
             if (upper.contains("TINY")) {
                 return TINYINT;
             }
+            return INTEGER;
+        }
+        if (upper.contains("SERIAL")) {
+            if (upper.contains("SMALL")) {
+                return SMALLINT;
+            }
+            if (upper.contains("BIG")) {
+                return BIGINT;
+            }
+            return INTEGER;
+        }
+        if (upper.contains("IDENTITY")) {
             return INTEGER;
         }
         if (upper.contains("DECIMAL")) {

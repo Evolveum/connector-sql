@@ -1,0 +1,46 @@
+# Schema with an explicitly typed SERIAL __UID__ (mirrors a PostgreSQL serial primary key).
+# The UID column is an integer in the DB but must be exposed to ConnId as a String and its
+# query values converted back to the integer protocol type.
+objectClasses:
+  app_user:
+    sql:
+      table: app_user
+      schema: public
+    onlyExplicitlyListed: true
+    connId:
+      UID: id
+      NAME: username
+
+    attributes:
+      id:
+        connId:
+          name: UID
+        sql:
+          type: SERIAL
+          primaryKey: true
+          autoIncrement: true
+          notNull: true
+          unique: true
+
+      username:
+        connId:
+          name: NAME
+        sql:
+          type: VARCHAR(255)
+          notNull: true
+
+      email:
+        sql:
+          type: VARCHAR(255)
+
+      birthdate:
+        connId:
+          type: ZonedDateTime
+        sql:
+          type: DATE
+
+      created_at:
+        connId:
+          type: ZonedDateTime
+        sql:
+          type: TIMESTAMP

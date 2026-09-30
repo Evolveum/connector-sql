@@ -20,8 +20,6 @@ import com.querydsl.sql.dml.SQLDeleteClause;
 import com.querydsl.sql.dml.SQLInsertClause;
 import org.identityconnectors.framework.common.exceptions.ConnectorException;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.Locale;
@@ -112,18 +110,7 @@ public final class SqlTableAccess {
         if (column == null || column.getValueMapping() == null || value == null) {
             return value;
         }
-        var mapping = column.getValueMapping();
-        if (mapping.primaryWireType().isInstance(value)) {
-            return value;
-        }
-        if (value instanceof String stringValue) {
-            return parse(stringValue, mapping.primaryWireType());
-        }
-        if (value instanceof Number number
-                && Number.class.isAssignableFrom(mapping.primaryWireType())) {
-            return convertNumber(number, mapping.primaryWireType());
-        }
-        return mapping.toWireValue(value);
+        return column.getValueMapping().coerceToWireValue(value);
     }
 
     public Object toConnIdValue(String columnName, Object value) {
@@ -195,62 +182,6 @@ public final class SqlTableAccess {
             throw new ConnectorException("No detected metadata for related table " + tableName);
         }
         return table;
-    }
-
-    private static Object convertNumber(Number value, Class<?> targetType) {
-        var decimal = new BigDecimal(value.toString());
-        // Foreign keys may use a different numeric JDBC type than their referenced column.
-        // Do not silently truncate a fractional value or overflow a narrower integer type.
-        if (targetType == BigInteger.class) {
-            return decimal.toBigIntegerExact();
-        }
-        if (targetType == Integer.class) {
-            return decimal.intValueExact();
-        }
-        if (targetType == Long.class) {
-            return decimal.longValueExact();
-        }
-        if (targetType == Short.class) {
-            return decimal.shortValueExact();
-        }
-        if (targetType == Byte.class) {
-            return decimal.byteValueExact();
-        }
-        return parse(decimal.toString(), targetType);
-    }
-
-    private static Object parse(String value, Class<?> targetType) {
-        if (targetType == String.class) {
-            return value;
-        }
-        if (targetType == BigInteger.class) {
-            return new BigInteger(value);
-        }
-        if (targetType == BigDecimal.class) {
-            return new BigDecimal(value);
-        }
-        if (targetType == Integer.class) {
-            return Integer.valueOf(value);
-        }
-        if (targetType == Long.class) {
-            return Long.valueOf(value);
-        }
-        if (targetType == Short.class) {
-            return Short.valueOf(value);
-        }
-        if (targetType == Byte.class) {
-            return Byte.valueOf(value);
-        }
-        if (targetType == Double.class) {
-            return Double.valueOf(value);
-        }
-        if (targetType == Float.class) {
-            return Float.valueOf(value);
-        }
-        if (targetType == Boolean.class) {
-            return Boolean.valueOf(value);
-        }
-        return value;
     }
 
     @SuppressWarnings({ "rawtypes", "unchecked" })

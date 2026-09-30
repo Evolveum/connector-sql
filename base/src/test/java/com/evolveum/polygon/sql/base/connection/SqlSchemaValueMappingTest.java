@@ -182,6 +182,15 @@ public class SqlSchemaValueMappingTest {
     }
 
     @Test
+    public void testFromTypeNameSerialAndIdentityTypes() {
+        assertThat(SqlSchemaValueMapping.fromTypeName("SERIAL")).isEqualTo(SqlSchemaValueMapping.INTEGER);
+        assertThat(SqlSchemaValueMapping.fromTypeName("serial")).isEqualTo(SqlSchemaValueMapping.INTEGER);
+        assertThat(SqlSchemaValueMapping.fromTypeName("SMALLSERIAL")).isEqualTo(SqlSchemaValueMapping.SMALLINT);
+        assertThat(SqlSchemaValueMapping.fromTypeName("BIGSERIAL")).isEqualTo(SqlSchemaValueMapping.BIGINT);
+        assertThat(SqlSchemaValueMapping.fromTypeName("IDENTITY")).isEqualTo(SqlSchemaValueMapping.INTEGER);
+    }
+
+    @Test
     public void testFromTypeNameCharacterVariants() {
         assertThat(SqlSchemaValueMapping.fromTypeName("CHARACTER VARYING"))
                 .isEqualTo(SqlSchemaValueMapping.VARCHAR);
@@ -343,6 +352,44 @@ public class SqlSchemaValueMappingTest {
 
         assertThat(mapping.toWireValue("14:30:00")).isInstanceOf(LocalTime.class);
         assertThat(mapping.toWireValue(null)).isNull();
+    }
+
+    // ── coerceToWireValue() conversions ────────────────────────────────────
+
+    @Test
+    public void testCoerceToWireValueParsesStringToWireType() {
+        assertThat(SqlSchemaValueMapping.INTEGER.coerceToWireValue("42")).isEqualTo(42);
+        assertThat(SqlSchemaValueMapping.SMALLINT.coerceToWireValue("42")).isEqualTo((short) 42);
+        assertThat(SqlSchemaValueMapping.BIGINT.coerceToWireValue("123")).isEqualTo(new BigInteger("123"));
+        assertThat(SqlSchemaValueMapping.NUMERIC.coerceToWireValue("12.5")).isEqualTo(new BigDecimal("12.5"));
+        assertThat(SqlSchemaValueMapping.DOUBLE.coerceToWireValue("1.5")).isEqualTo(1.5d);
+        assertThat(SqlSchemaValueMapping.BOOLEAN.coerceToWireValue("true")).isEqualTo(true);
+    }
+
+    @Test
+    public void testCoerceToWireValuePassthroughAndNumberConversion() {
+        // Already at the wire type
+        assertThat(SqlSchemaValueMapping.INTEGER.coerceToWireValue(42)).isEqualTo(42);
+        assertThat(SqlSchemaValueMapping.VARCHAR.coerceToWireValue("text")).isEqualTo("text");
+        // null
+        assertThat(SqlSchemaValueMapping.INTEGER.coerceToWireValue(null)).isNull();
+        // Number widened/converted to the wire type
+        assertThat(SqlSchemaValueMapping.BIGINT.coerceToWireValue(7L)).isEqualTo(new BigInteger("7"));
+        // Unparseable string on a non-numeric wire type passes through unchanged
+        assertThat(SqlSchemaValueMapping.TIMESTAMP.coerceToWireValue("not-a-timestamp"))
+                .isEqualTo("not-a-timestamp");
+    }
+
+    @Test
+    public void testCoerceToWireValueRejectsInvalidNumeric() {
+        assertThatThrownBy(() -> SqlSchemaValueMapping.INTEGER.coerceToWireValue("abc"))
+                .isInstanceOf(NumberFormatException.class);
+    }
+
+    @Test
+    public void testCoerceToWireValueRejectsOverflowingNumber() {
+        assertThatThrownBy(() -> SqlSchemaValueMapping.INTEGER.coerceToWireValue(2L * Integer.MAX_VALUE))
+                .isInstanceOf(ArithmeticException.class);
     }
 
     // ── Wire type assertions ───────────────────────────────────────────────

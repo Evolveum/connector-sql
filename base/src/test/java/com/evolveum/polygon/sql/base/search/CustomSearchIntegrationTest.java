@@ -7,7 +7,9 @@
 package com.evolveum.polygon.sql.base.search;
 
 import com.evolveum.polygon.sql.base.test.SqlIntegrationTestBase;
+import com.querydsl.core.types.Constant;
 import com.querydsl.core.types.PathMetadataFactory;
+import com.querydsl.core.types.dsl.BooleanOperation;
 import com.querydsl.sql.RelationalPathBase;
 import groovy.lang.Closure;
 import org.identityconnectors.framework.common.objects.AttributeBuilder;
@@ -202,6 +204,52 @@ public class CustomSearchIntegrationTest
         var context = connector.context();
         var builder = new SqlWherePredicateBuilder(newTablePath("users", "u"), context);
         assertThat(builder.build()).isNull();
+    }
+
+    @Test
+    public void testPredicateBuilderEqCoercesStringValueToIntColumn() {
+        var context = connector.context();
+        var builder = new SqlWherePredicateBuilder(newTablePath("users", "u"), context);
+        builder.col("id").eq("1");
+        var constant = (Constant<?>) ((BooleanOperation) builder.build()).getArgs().get(1);
+        assertThat(constant.getConstant())
+                .as("String value on an INT column must be coerced to the column's integer wire type")
+                .isInstanceOf(Integer.class)
+                .isEqualTo(1);
+    }
+
+    @Test
+    public void testPredicateBuilderNeCoercesStringValueToIntColumn() {
+        var context = connector.context();
+        var builder = new SqlWherePredicateBuilder(newTablePath("users", "u"), context);
+        builder.col("id").ne("1");
+        var constant = (Constant<?>) ((BooleanOperation) builder.build()).getArgs().get(1);
+        assertThat(constant.getConstant())
+                .isInstanceOf(Integer.class)
+                .isEqualTo(1);
+    }
+
+    @Test
+    public void testPredicateBuilderEqPassesThroughMatchingValueType() {
+        var context = connector.context();
+        var builder = new SqlWherePredicateBuilder(newTablePath("users", "u"), context);
+        builder.col("id").eq(1);
+        builder.col("status").eq("active");
+        var predicates = builder.build();
+        assertThat(predicates).isNotNull();
+        assertThat(predicates.toString()).contains("id").contains("status");
+    }
+
+    @Test
+    public void testColumnRefEqCoercesStringValueToIntColumn() {
+        var context = connector.context();
+        var tablePath = new SqlTablePath(context, "users", "u");
+        var predicate = tablePath.column("id").eq("1");
+        var constant = (Constant<?>) ((BooleanOperation) predicate).getArgs().get(1);
+        assertThat(constant.getConstant())
+                .as("String value on an INT column must be coerced to the column's integer wire type")
+                .isInstanceOf(Integer.class)
+                .isEqualTo(1);
     }
 
     // ── SqlSearchOperation runtime evaluation ──

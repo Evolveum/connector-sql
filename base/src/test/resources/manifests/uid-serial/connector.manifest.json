@@ -1,0 +1,8 @@
+{
+  "connector": {
+    "schema": [
+      { "script": "/manifests/uid-serial/app_user.yaml" }
+    ],
+    "operation": []
+  }
+}

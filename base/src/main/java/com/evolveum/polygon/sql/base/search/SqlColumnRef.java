@@ -6,6 +6,7 @@
  */
 package com.evolveum.polygon.sql.base.search;
 
+import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
 import com.querydsl.core.types.OrderSpecifier;
 import com.querydsl.core.types.Path;
 import com.querydsl.core.types.dsl.BooleanExpression;
@@ -31,10 +32,13 @@ import java.time.ZonedDateTime;
 
     private final ComparableExpressionBase columnPath;
     private final SqlTablePath tablePath;
+    private final SqlSchemaValueMapping valueMapping;
 
-    SqlColumnRef(SqlTablePath tablePath, String name, java.lang.reflect.Type javaType) {
+    SqlColumnRef(SqlTablePath tablePath, String name, java.lang.reflect.Type javaType,
+                 SqlSchemaValueMapping valueMapping) {
         this.tablePath = tablePath;
         this.columnPath = resolveColumn(tablePath.tableRef(), name, javaType);
+        this.valueMapping = valueMapping;
     }
 
     SqlTablePath tablePath() {
@@ -49,7 +53,7 @@ import java.time.ZonedDateTime;
         if (value == null) {
             return columnPath.isNull();
         }
-        return columnPath.eq(value);
+        return columnPath.eq(coerce(value));
     }
 
     /**
@@ -57,7 +61,12 @@ import java.time.ZonedDateTime;
      */
     @SuppressWarnings("unused")
     public BooleanExpression ne(Object value) {
-        return columnPath.ne(value);
+        return columnPath.ne(coerce(value));
+    }
+
+    /** Converts a script-supplied value to the column's wire type before binding. */
+    private Object coerce(Object value) {
+        return valueMapping != null ? valueMapping.coerceToWireValue(value) : value;
     }
 
     /** ASC order specifier: {@code t.column('username').asc()} */

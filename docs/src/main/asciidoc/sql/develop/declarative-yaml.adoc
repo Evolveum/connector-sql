@@ -94,7 +94,7 @@ Attribute-level `sql` keys:
   The SQL column when it differs from the attribute name
 
 `type`::
-  The SQL column type (`INT`, `BIGINT`, `SMALLINT`, `TINYINT`, `BOOLEAN`, `VARCHAR(n)`, `NUMBER(p)`, `NUMBER(p, s)`, `VARCHAR2(n)`, `TIMESTAMP(p)`, `INTEGER`, ...)
+  The SQL column type (`INT`, `BIGINT`, `SMALLINT`, `TINYINT`, `SERIAL`, `SMALLSERIAL`, `BIGSERIAL`, `IDENTITY`, `BOOLEAN`, `VARCHAR(n)`, `NUMBER(p)`, `NUMBER(p, s)`, `VARCHAR2(n)`, `TIMESTAMP(p)`, `INTEGER`, ...)
 
 `notNull`::
   The column is not nullable

@@ -7,6 +7,7 @@
 package com.evolveum.polygon.sql.base.search;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
 import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
 import com.querydsl.core.types.PathMetadataFactory;
 import com.querydsl.sql.RelationalPathBase;
@@ -63,7 +64,7 @@ public class SqlTablePath {
             throw new IllegalArgumentException(
                     "Column '" + name + "' not found in table '" + tableName + "'");
         }
-        return new SqlColumnRef(this, name, meta.getJavaType());
+        return new SqlColumnRef(this, name, meta.getJavaType(), meta.getValueMapping());
     }
 
     /**
@@ -72,7 +73,7 @@ public class SqlTablePath {
      */
     @SuppressWarnings("unused")
     public SqlColumnRef column(String name, Class<?> type) {
-        return new SqlColumnRef(this, name, type);
+        return new SqlColumnRef(this, name, type, SqlSchemaValueMapping.fromQdslJavaType(type));
     }
 
     private SqlColumnMeta findColumnMeta(String name) {

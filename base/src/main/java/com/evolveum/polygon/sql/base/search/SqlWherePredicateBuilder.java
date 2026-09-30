@@ -7,6 +7,7 @@
 package com.evolveum.polygon.sql.base.search;
 
 import com.evolveum.polygon.sql.base.SqlBaseContext;
+import com.evolveum.polygon.sql.base.connection.SqlSchemaValueMapping;
 import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
 import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
 import com.querydsl.core.types.Order;
@@ -75,7 +76,8 @@ public class SqlWherePredicateBuilder {
             if (col == null) {
                 throw new IllegalArgumentException("Column not found: " + n);
             }
-            return new SqlColumn(tablePath, metadata != null ? col.getName() : n, col.getJavaType());
+            return new SqlColumn(tablePath, metadata != null ? col.getName() : n,
+                    col.getJavaType(), col.getValueMapping());
         });
     }
 
@@ -126,11 +128,14 @@ public class SqlWherePredicateBuilder {
         private final String columnName;
         private final ComparableExpressionBase path;
         private final SqlWherePredicateBuilder builder;
+        private final SqlSchemaValueMapping valueMapping;
 
-        SqlColumn(RelationalPathBase<?> tpath, String colName, java.lang.reflect.Type javaType) {
+        SqlColumn(RelationalPathBase<?> tpath, String colName, java.lang.reflect.Type javaType,
+                  SqlSchemaValueMapping valueMapping) {
             this.columnName = colName;
             this.path = createComparablePath(tpath, colName, javaType);
             this.builder = SqlWherePredicateBuilder.this;
+            this.valueMapping = valueMapping;
         }
 
     @SuppressWarnings("unused")
@@ -139,7 +144,7 @@ public class SqlWherePredicateBuilder {
         if (value == null) {
             predicate = path.isNull();
         } else {
-            predicate = path.eq(value);
+            predicate = path.eq(coerce(value));
         }
         builder.predicates.add(predicate);
         return builder;
@@ -147,10 +152,15 @@ public class SqlWherePredicateBuilder {
 
     @SuppressWarnings("unused")
     public SqlWherePredicateBuilder ne(Object value) {
-        var predicate = path.ne(value);
+        var predicate = path.ne(coerce(value));
         builder.predicates.add(predicate);
         return builder;
     }
+
+        /** Converts a script-supplied value to the column's wire type before binding. */
+        private Object coerce(Object value) {
+            return valueMapping != null ? valueMapping.coerceToWireValue(value) : value;
+        }
 
     @SuppressWarnings("unused")
     public OrderSpecifier<?> asc() {
