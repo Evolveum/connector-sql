@@ -33,7 +33,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
     private String testConnectionQuery;
     private String pgDumpPath = "pg_dump";
 
-    @ConfigurationProperty(required = true, order = 0)
+    @ConfigurationProperty(required = true, groupMessageKey = "sql.basic", order = 0)
     public String getJdbcUrl() {
         return jdbcUrl;
     }
@@ -48,7 +48,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
      * {@link #getJdbcUrl() jdbcUrl} scheme. Set this to bundle a different JDBC backend
      * (e.g. a vendor-specific, forked, or otherwise custom driver).
      */
-    @ConfigurationProperty(order = 10)
+    @ConfigurationProperty(groupMessageKey = "sql.advanced", order = 200)
     public String getDriverClassName() {
         return driverClassName;
     }
@@ -57,7 +57,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.driverClassName = driverClassName;
     }
 
-    @ConfigurationProperty(required = true, order = 20)
+    @ConfigurationProperty(required = true, groupMessageKey = "sql.basic", order = 1)
     public String getUsername() {
         return username;
     }
@@ -71,7 +71,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
      * Note: This value is sensitive and should only be used for database connection setup.
      * It is intentionally omitted from toString() to prevent accidental exposure.
      */
-    @ConfigurationProperty(required = true, order = 30)
+    @ConfigurationProperty(required = true, groupMessageKey = "sql.basic", order = 2)
     public GuardedString getPassword() {
         return password;
     }
@@ -80,6 +80,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.password = password;
     }
 
+    @ConfigurationProperty(groupMessageKey = "sql.advanced", order = 201)
     public Integer getPoolSize() {
         return poolSize;
     }
@@ -88,6 +89,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.poolSize = poolSize;
     }
 
+    @ConfigurationProperty(groupMessageKey = "sql.advanced", order = 202)
     public Integer getConnectionTimeout() {
         return connectionTimeout;
     }
@@ -96,6 +98,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.connectionTimeout = connectionTimeout;
     }
 
+    @ConfigurationProperty(groupMessageKey = "sql.advanced", order = 203)
     public Integer getIdleTimeout() {
         return idleTimeout;
     }
@@ -104,6 +107,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.idleTimeout = idleTimeout;
     }
 
+    @ConfigurationProperty(groupMessageKey = "sql.advanced", order = 204)
     public Boolean getValidateConnectionOnBorrow() {
         return validateConnectionOnBorrow;
     }
@@ -112,6 +116,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.validateConnectionOnBorrow = validateConnectionOnBorrow;
     }
 
+    @ConfigurationProperty(groupMessageKey = "sql.schemaScanning", order = 100)
     public Boolean getScanTables() {
         return scanTables;
     }
@@ -120,6 +125,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.scanTables = scanTables;
     }
 
+    @ConfigurationProperty(groupMessageKey = "sql.schemaScanning", order = 101)
     public Boolean getScanViews() {
         return scanViews;
     }
@@ -128,6 +134,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.scanViews = scanViews;
     }
 
+    @ConfigurationProperty(groupMessageKey = "sql.schemaScanning", order = 102)
     public String getScanTableFilter() {
         return scanTableFilter;
     }
@@ -136,6 +143,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.scanTableFilter = scanTableFilter;
     }
 
+    @ConfigurationProperty(groupMessageKey = "sql.schemaScanning", order = 103)
     public String getScanViewFilter() {
         return scanViewFilter;
     }
@@ -144,6 +152,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.scanViewFilter = scanViewFilter;
     }
 
+    @ConfigurationProperty(groupMessageKey = "sql.schemaScanning", order = 104)
     public String getScanExcludeTables() {
         return scanExcludeTables;
     }
@@ -152,6 +161,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
         this.scanExcludeTables = scanExcludeTables;
     }
 
+    @ConfigurationProperty(groupMessageKey = "sql.schemaScanning", order = 105)
     public String getScanExcludeViews() {
         return scanExcludeViews;
     }
@@ -192,6 +202,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
                 && password != null;
     }
 
+    @ConfigurationProperty(groupMessageKey = "sql.advanced", order = 205)
     public String getTestConnectionQuery() {
         return testConnectionQuery;
     }
@@ -204,7 +215,7 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
      * Executable used to read native PostgreSQL table and view definitions in development mode.
      * May be an absolute path or a command available on {@code PATH}. A blank value disables it.
      */
-    @ConfigurationProperty(order = 110)
+    @ConfigurationProperty(groupMessageKey = "sql.advanced", order = 206)
     public String getPgDumpPath() {
         return pgDumpPath;
     }
