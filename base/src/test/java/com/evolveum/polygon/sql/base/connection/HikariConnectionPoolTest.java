@@ -10,11 +10,13 @@ import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import org.identityconnectors.common.security.GuardedString;
 import org.testng.annotations.AfterMethod;
 import org.testng.annotations.BeforeMethod;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
 import java.sql.SQLException;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalArgumentException;
 import static org.assertj.core.api.Assertions.fail;
 
 public class HikariConnectionPoolTest {
@@ -174,6 +176,53 @@ public class HikariConnectionPoolTest {
         pool.initialize();
 
         assertThat(pool.getDataSource().getDriverClassName()).isEqualTo("org.h2.Driver");
+    }
+
+    @DataProvider
+    public Object[][] jdbcUrlWhitespace() {
+        return new Object[][] {
+                { " ", "" },
+                { "\n                ", "\n            " },
+                { "\r\n\t ", " \t\r\n" },
+                { "", " \t" }
+        };
+    }
+
+    @Test(dataProvider = "jdbcUrlWhitespace")
+    public void testOracleDriverResolvedWithWhitespaceAroundJdbcUrl(String prefix, String suffix) {
+        configuration.setJdbcUrl(prefix + "jdbc:oracle:thin:@//localhost:1521/service" + suffix);
+
+        // Check explicit driver selection: an already registered driver must not hide the regression.
+        assertThat(HikariConnectionPool.resolveDriverClassName(configuration)).isEqualTo("oracle.jdbc.OracleDriver");
+    }
+
+    @Test
+    public void testPoolInitializationWithWhitespaceAroundJdbcUrl() throws SQLException {
+        var jdbcUrl = "jdbc:h2:mem:driverwhitespace;DB_CLOSE_DELAY=-1";
+        configuration.setJdbcUrl("\n    " + jdbcUrl + "\n");
+
+        pool = new HikariConnectionPool(configuration);
+        pool.initialize();
+
+        assertThat(pool.getDataSource().getDriverClassName()).isEqualTo("org.h2.Driver");
+        assertThat(pool.getDataSource().getJdbcUrl()).isEqualTo(jdbcUrl);
+        assertThat(configuration.getJdbcUrl()).isEqualTo(jdbcUrl);
+        try (var connection = pool.getDataSource().getConnection()) {
+            assertThat(connection.isValid(1)).isTrue();
+        }
+    }
+
+    @DataProvider
+    public Object[][] missingJdbcUrls() {
+        return new Object[][] { { null }, { "" }, { " \t\r\n" } };
+    }
+
+    @Test(dataProvider = "missingJdbcUrls")
+    public void testMissingJdbcUrlIsRejected(String jdbcUrl) {
+        configuration.setJdbcUrl(jdbcUrl);
+
+        assertThat(configuration.isComplete()).isFalse();
+        assertThatIllegalArgumentException().isThrownBy(configuration::validate).withMessage("JDBC URL is required");
     }
 
     @Test

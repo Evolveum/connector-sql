@@ -39,7 +39,8 @@ public class SqlConnectorConfiguration extends BaseGroovyConnectorConfiguration 
     }
 
     public void setJdbcUrl(String jdbcUrl) {
-        this.jdbcUrl = jdbcUrl;
+        // Normalize before driver resolution; Hikari's own trimming happens too late for that.
+        this.jdbcUrl = jdbcUrl == null ? null : jdbcUrl.trim();
     }
 
     /**
