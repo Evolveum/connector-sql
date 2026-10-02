@@ -54,11 +54,6 @@ topics:
     title: Declarative YAML
     resource: sql/develop/declarative-yaml.html
     order: 30
-  - key: native-schema
-    protocol: sql
-    title: YAML Declarative Format to Builder Mapping
-    resource: sql/yaml-builder-mapping.html
-    order: 40
   - key: search-all
     protocol: sql
     title: SQL search and filter support

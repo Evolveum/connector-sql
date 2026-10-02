@@ -224,7 +224,6 @@ public class SqlSchemaValueMappingTest {
     public void testFromTypeNameNull() {
         assertThat(SqlSchemaValueMapping.fromTypeName(null)).isNull();
     }
-
     // ── toConnIdValue() conversions ────────────────────────────────────────
 
     @Test
@@ -495,11 +494,11 @@ public class SqlSchemaValueMappingTest {
     }
 
     @Test
-    public void testVarcharDefaultFallback() {
-        // Unknown type name should fall back to VARCHAR
+    public void testUnknownTypeNamesYieldNull() {
+        // strict matching: known aliases resolve, everything else is rejected (no silent fallback)
         assertThat(SqlSchemaValueMapping.fromTypeName("UUID")).isEqualTo(SqlSchemaValueMapping.VARCHAR);
-        assertThat(SqlSchemaValueMapping.fromTypeName("GEOMETRY")).isEqualTo(SqlSchemaValueMapping.VARCHAR);
-        assertThat(SqlSchemaValueMapping.fromTypeName("SOME_CUSTOM_TYPE")).isEqualTo(SqlSchemaValueMapping.VARCHAR);
+        assertThat(SqlSchemaValueMapping.fromTypeName("GEOMETRY")).isNull();
+        assertThat(SqlSchemaValueMapping.fromTypeName("SOME_CUSTOM_TYPE")).isNull();
     }
 
     @Test

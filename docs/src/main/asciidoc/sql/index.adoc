@@ -36,5 +36,3 @@ When midPoint initiates a provisioning operation (create, update, delete, read, 
 == Development reference and guide
 
 See the xref:develop/[] section for guidance on building connectors with the SQL framework.
-
-See the xref:develop/index.adoc[] section for guidance on building connectors with the Polygon SQL framework.

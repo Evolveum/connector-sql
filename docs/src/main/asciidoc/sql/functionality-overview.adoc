@@ -30,7 +30,7 @@ ConnId support & operations::
 ** Built-in handlers for search, create, update, delete per object class, selected based on the object class properties (writable table vs. view).
 ** Search: ConnId filters translated to SQL predicates, paginated execution, built-in `where {}` refinement and fully custom SQL query support; read-only joined object classes (flat LEFT JOIN projections, see xref:develop/schema-customization.adoc[joined attributes (read-only)]) are filterable and paginated the same way.
 ** Write: transactional create/update/delete with ConnId exception mapping (duplicate key → `AlreadyExistsException`, constraint/data errors → `InvalidAttributeValueException`, connection problems → `ConnectionFailedException`).
-** Incremental sync operation based on a sync column with soft-delete (tombstone) support.
+
 
 Scripting support::
 ** Custom Groovy DSLs for schema customization (object classes, tables, attributes) and operation handlers (search, write enablement/disablement).

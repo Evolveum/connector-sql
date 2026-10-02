@@ -13,6 +13,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.sql.JDBCType;
 import java.sql.Types;
+import java.util.Map;
 
 /**
  * Enum of SQL schema value mappings between SQL column types and ConnId wire types.
@@ -21,8 +22,8 @@ import java.sql.Types;
  *
  * <p>Delegates QueryDSL-Java-type ↔ ConnId-type conversions to
  * {@link QueryDslTypeMapping}, and adds SQL-specific concerns:
- * JDBC type codes, type name fuzzy matching, QueryDSL path creation,
- * and extended string-parsing in {@code toWireValue()} for API input.</p>
+ * JDBC type codes, exact type-name matching with database-specific aliases,
+ * QueryDSL path creation, and extended string-parsing in {@code toWireValue()} for API input.</p>
  *
  * <p>Analogous to {@code JsonSchemaValueMapping} in the conndev-base framework,
  * but tailored for SQL column types (VARCHAR, INT, TIMESTAMP, etc.).</p>
@@ -188,95 +189,99 @@ public enum SqlSchemaValueMapping implements SqlValueMapping.SingleColumn {
     }
 
     /**
-     * Looks up the SqlSchemaValueMapping by SQL type name.
-     * Matches against known SQL type names (VARCHAR, INT, BIGINT, etc.).
+     * Database-specific SQL type name aliases (matched exactly, case-insensitively) — the
+     * canonical {@link JDBCType} names of the enum constants are matched directly, this table
+     * covers the variants used by specific databases. Size/precision suffixes are stripped by
+     * the callers before lookup.
+     */
+    private static final Map<String, SqlSchemaValueMapping> TYPE_ALIASES = Map.ofEntries(
+            // character types
+            Map.entry("CHAR", VARCHAR),
+            Map.entry("CHARACTER", VARCHAR),
+            Map.entry("CHARACTER VARYING", VARCHAR),
+            Map.entry("CHAR VARYING", VARCHAR),
+            Map.entry("VARCHAR2", VARCHAR),
+            Map.entry("NCHAR", VARCHAR),
+            Map.entry("NCHAR VARYING", VARCHAR),
+            Map.entry("NVARCHAR", VARCHAR),
+            Map.entry("NVARCHAR2", VARCHAR),
+            Map.entry("NATIONAL CHARACTER", VARCHAR),
+            Map.entry("NATIONAL CHARACTER VARYING", VARCHAR),
+            Map.entry("LONG VARCHAR", VARCHAR),
+            Map.entry("LONGNVARCHAR", VARCHAR),
+            Map.entry("UUID", VARCHAR),
+            // integer types
+            Map.entry("INT", INTEGER),
+            Map.entry("INT2", SMALLINT),
+            Map.entry("INT4", INTEGER),
+            Map.entry("INT8", BIGINT),
+            Map.entry("MEDIUMINT", INTEGER),
+            Map.entry("SERIAL", INTEGER),
+            Map.entry("SERIAL2", SMALLINT),
+            Map.entry("SERIAL4", INTEGER),
+            Map.entry("SERIAL8", BIGINT),
+            Map.entry("SMALLSERIAL", SMALLINT),
+            Map.entry("BIGSERIAL", BIGINT),
+            Map.entry("IDENTITY", INTEGER),
+            // exact numeric types
+            Map.entry("DEC", DECIMAL),
+            Map.entry("NUMBER", NUMERIC),
+            Map.entry("MONEY", NUMERIC),
+            Map.entry("SMALLMONEY", NUMERIC),
+            // approximate numeric types
+            Map.entry("REAL", FLOAT),
+            Map.entry("FLOAT4", FLOAT),
+            Map.entry("FLOAT8", DOUBLE),
+            Map.entry("DOUBLE PRECISION", DOUBLE),
+            // boolean types
+            Map.entry("BOOL", BOOLEAN),
+            // bit types
+            Map.entry("VARBIT", BIT),
+            // date and time types
+            Map.entry("DATETIME", TIMESTAMP),
+            Map.entry("TIMESTAMP WITH TIME ZONE", TIMESTAMP_WITH_TIMEZONE),
+            Map.entry("TIMESTAMP WITHOUT TIME ZONE", TIMESTAMP),
+            Map.entry("TIMESTAMPTZ", TIMESTAMP_WITH_TIMEZONE),
+            Map.entry("TIME WITH TIME ZONE", TIME),
+            // binary types
+            Map.entry("BINARY", BLOB),
+            Map.entry("BINARY VARYING", BLOB),
+            Map.entry("VARBINARY", BLOB),
+            Map.entry("LONGVARBINARY", BLOB),
+            Map.entry("BYTEA", BLOB),
+            Map.entry("RAW", BLOB),
+            Map.entry("LONG RAW", BLOB),
+            Map.entry("TINYBLOB", BLOB),
+            Map.entry("MEDIUMBLOB", BLOB),
+            Map.entry("LONGBLOB", BLOB),
+            // large character types
+            Map.entry("NCLOB", CLOB),
+            Map.entry("NTEXT", CLOB),
+            Map.entry("TEXT", CLOB),
+            Map.entry("TINYTEXT", CLOB),
+            Map.entry("MEDIUMTEXT", CLOB),
+            Map.entry("LONGTEXT", CLOB),
+            Map.entry("XML", CLOB),
+            Map.entry("JSON", CLOB)
+    );
+
+    /**
+     * Looks up the SqlSchemaValueMapping by SQL type name. Matching is exact and
+     * case-insensitive: the canonical {@link JDBCType} name of a mapping first, then the
+     * database-specific aliases in {@link #TYPE_ALIASES}. Returns {@code null} for an
+     * unrecognized name — callers are expected to reject it.
      */
     public static SqlSchemaValueMapping fromTypeName(String typeName) {
         if (typeName == null) {
             return null;
         }
-        var upper = typeName.toUpperCase().trim();
-
-        // Direct match
+        var name = typeName.toUpperCase().trim();
         for (SqlSchemaValueMapping m : values()) {
-            if (m.jdbcType.toString().equals(upper)) {
+            if (m.jdbcType.toString().equals(name)) {
                 return m;
             }
         }
-
-        // Pattern match for database-specific type names
-        if (upper.contains("VAR") && upper.contains("CHAR")) {
-            return VARCHAR;
-        }
-        if (upper.contains("NVARCHAR") || upper.contains("NCHAR")) {
-            return VARCHAR;
-        }
-        if (upper.contains("CHAR") && !upper.contains("VAR")) {
-            return VARCHAR;
-        }
-        if (upper.contains("INT") && !upper.contains("TIMESTAMP")) {
-            if (upper.contains("BIG")) {
-                return BIGINT;
-            }
-            if (upper.contains("SMALL")) {
-                return SMALLINT;
-            }
-            if (upper.contains("TINY")) {
-                return TINYINT;
-            }
-            return INTEGER;
-        }
-        if (upper.contains("SERIAL")) {
-            if (upper.contains("SMALL")) {
-                return SMALLINT;
-            }
-            if (upper.contains("BIG")) {
-                return BIGINT;
-            }
-            return INTEGER;
-        }
-        if (upper.contains("IDENTITY")) {
-            return INTEGER;
-        }
-        if (upper.contains("DECIMAL")) {
-            return DECIMAL;
-        }
-        if (upper.contains("NUMBER") || upper.contains("NUMERIC")) {
-            return NUMERIC;
-        }
-        if (upper.contains("FLOAT") || upper.contains("REAL")) {
-            return FLOAT;
-        }
-        if (upper.contains("DOUBLE")) {
-            return DOUBLE;
-        }
-        if (upper.contains("BOOLEAN") || upper.contains("BOOL")) {
-            return BOOLEAN;
-        }
-        if (upper.contains("BIT")) {
-            return BIT;
-        }
-        if (upper.contains("TIMESTAMP") || upper.contains("DATETIME")) {
-            if (upper.contains("TIME ZONE") || upper.contains("TIMESTAMPTZ")) {
-                return TIMESTAMP_WITH_TIMEZONE;
-            }
-            return TIMESTAMP;
-        }
-        if (upper.contains("DATE")) {
-            return DATE;
-        }
-        if (upper.contains("TIME")) {
-            return TIME;
-        }
-        if (upper.contains("CLOB") || upper.contains("NCLOB")) {
-            return CLOB;
-        }
-        if (upper.contains("BLOB") || upper.contains("BINARY")) {
-            return BLOB;
-        }
-
-        // Default fallback for text
-        return VARCHAR;
+        return TYPE_ALIASES.get(name);
     }
 
     /**

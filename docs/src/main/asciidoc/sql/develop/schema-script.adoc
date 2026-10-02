@@ -92,8 +92,8 @@ objectClass("Project") {
     attribute("ownerEmail") {
         json {
             path { type JSON_PATH; value "$.owner_email" }
+            openApiFormat "email"
         }
-        openApiFormat "email"
     }
     attribute("createdAt") {
         openApiFormat "date-time"
@@ -158,9 +158,7 @@ The attribute keys you will meet: `description`, `required`, `multiValued`, `cre
 `connId: { name, type }` mapping (including the `__UID__` / `__NAME__` built-ins); the inherited
 `json: { name, type, openApiFormat, path }` block; and the `sql` block of the object class. A
 bare `attr: {}` declares the attribute with defaults. See
-xref:declarative-yaml.adoc[declarative YAML] for the full reference, including the
-format-to-builder mapping in xref:../yaml-builder-mapping.adoc[YAML Declarative Format to
-Builder Mapping].
+xref:declarative-yaml.adoc[declarative YAML] for the full reference.
 
 == References
 
