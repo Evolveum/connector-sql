@@ -38,7 +38,7 @@ import java.util.List;
  * }
  * }</pre>
  */
-@ConnectorClass(displayNameKey = "manifest.sql.connector.display", configurationClass = SqlConnectorConfiguration.class, messageCatalogPaths = "Messages")
+@ConnectorClass(displayNameKey = "manifest.connector.display", configurationClass = SqlConnectorConfiguration.class, messageCatalogPaths = "Messages")
 public class ManifestBasedConnector extends AbstractGroovySqlConnector {
 
     private static final String CONNECTOR_MANIFEST = "/connector.manifest";
