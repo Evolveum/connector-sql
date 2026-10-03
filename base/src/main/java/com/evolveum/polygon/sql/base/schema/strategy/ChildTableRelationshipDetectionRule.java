@@ -16,6 +16,7 @@ import com.evolveum.polygon.sql.base.groovy.impl.SqlObjectOperationBuilderImpl;
 import com.evolveum.polygon.sql.base.schema.*;
 import com.evolveum.polygon.sql.base.search.SqlJoinAttributeResolver;
 import com.evolveum.polygon.sql.base.search.SqlJunctionAttributeResolver;
+import org.identityconnectors.framework.common.objects.AttributeInfo;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 
 import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
@@ -140,6 +141,9 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
         var targetTable = jr.targetTable();
         var ref = (SqlAttributeBuilderImpl) ((SqlObjectClassSchemaBuilderImpl) objectClass).reference(detected(targetTable));
         ref.objectClass(targetTable);
+        // midPoint (ConnIdSchemaParser#determineParticipantRole) rejects reference attributes
+        // without a role; the referring object class is the subject side of the detected link.
+        ref.role(AttributeInfo.RoleInReference.SUBJECT);
         ref.connId().multiValued(detected(true));
         // Built-in writes currently support owned child rows, not links to independent objects.
         ref.connId().creatable(detected(false));
