@@ -6,6 +6,7 @@
  */
 package com.evolveum.polygon.sql.base;
 
+import com.evolveum.polygon.conndev.dev.ConnDevObjectClass;
 import com.evolveum.polygon.conndev.groovy.GroovySchemaLoader;
 import com.evolveum.polygon.sql.base.dev.SqlDevelopmentMode;
 import com.evolveum.polygon.sql.base.test.SqlIntegrationTestBase;
@@ -69,7 +70,36 @@ public class SqlDevConnectorIntegrationTest
     public void exposesConnDevObjectClassInSchema() {
         assertThat(schemaNames()).contains(
                 "conndev_objectclass", "conndev_attribute", "conndev_connidattribute", "conndev_sql",
-                "conndev_sqltable");
+                "conndev_sqlattribute", "conndev_sqltable");
+    }
+
+    @Test
+    public void exportsDetectedMappingDescriptions() throws Exception {
+        var objects = search(ConnDevObjectClass.OBJECT_CLASS_NAME, null);
+        var appUser = objects.stream()
+                .filter(o -> o.getName().getNameValue().equalsIgnoreCase("APP_USER"))
+                .findFirst()
+                .orElseThrow();
+
+        // the object class documents the table it is mapped to (work package #12486)
+        assertThat((String) getAttr(appUser, "description")).contains("APP_USER");
+
+        // the attribute documents the mapped column and its native type
+        var attributes = (List<Object>) appUser.getAttributeByName("attributes").getValue();
+        var username = (EmbeddedObject) attributes.stream()
+                .map(EmbeddedObject.class::cast)
+                .filter(e -> "USERNAME".equalsIgnoreCase(embeddedString(e, "name")))
+                .findFirst()
+                .orElseThrow();
+        assertThat(embeddedString(username, "description"))
+                .contains("USERNAME")
+                .contains("native type");
+
+        // the attribute's sql protocol block carries the mapped column and native SQL type
+        var sqlBlock = (EmbeddedObject) AttributeUtil.getSingleValue(
+                AttributeUtil.find("sql", username.getAttributes()));
+        assertThat(embeddedString(sqlBlock, "column")).isEqualTo("USERNAME");
+        assertThat(embeddedString(sqlBlock, "type")).isNotBlank();
     }
 
     @Test
@@ -187,6 +217,11 @@ public class SqlDevConnectorIntegrationTest
                 .filter(table -> table.getName().getNameValue().equalsIgnoreCase(name))
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private static String embeddedString(EmbeddedObject object, String name) {
+        var attribute = AttributeUtil.find(name, object.getAttributes());
+        return attribute == null ? null : AttributeUtil.getStringValue(attribute);
     }
 
     // ─── Scan-disabled with Groovy-defined object classes ───

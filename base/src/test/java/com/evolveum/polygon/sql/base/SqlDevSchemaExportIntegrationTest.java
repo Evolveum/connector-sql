@@ -77,6 +77,35 @@ public class SqlDevSchemaExportIntegrationTest {
         //assertThat(string(userId, "reference")).isNotEqualTo(string(projectId, "reference"));
     }
 
+    @Test
+    public void exportsDetectedDescriptionsAndSqlColumnBlock() throws Exception {
+        var object = export("projectmembership");
+
+        // object class level: the mapped table is documented
+        var objectClassDescription = AttributeUtil.getStringValue(object.getAttributeByName("description"));
+        assertThat(objectClassDescription)
+                .isNotNull()
+                .contains("PROJECTMEMBERSHIP");
+
+        // attribute level: the mapped column and native type are documented
+        var userId = attribute(object, "USER_ID");
+        var description = string(userId, "description");
+        assertThat(description)
+                .isNotNull()
+                .startsWith("Mapped to column \"USER_ID\"")
+                .contains("PROJECTMEMBERSHIP")
+                .contains("native type");
+
+        // the sql protocol block carries the mapped column and its native SQL type
+        var sqlBlock = attributeProtocolBlock(userId, "sql");
+        assertThat(string(sqlBlock, "column")).isEqualTo("USER_ID");
+        assertThat(string(sqlBlock, "type")).isNotBlank();
+
+        // __UID__ documents the key column it is mapped to
+        var uid = attribute(object, "ID");
+        assertThat(string(uid, "description")).contains("ID").contains("native type");
+    }
+
     // FIXME: correct test for composite keys
     @Test(enabled = false)
     public void mapsCompositeForeignKeyWithSharedReference() throws Exception {
@@ -124,6 +153,11 @@ public class SqlDevSchemaExportIntegrationTest {
     private static EmbeddedObject protocolBlock(ConnectorObject object, String protocolName) {
         var attribute = object.getAttributeByName(protocolName);
         return (EmbeddedObject) AttributeUtil.getSingleValue(attribute);
+    }
+
+    private static EmbeddedObject attributeProtocolBlock(EmbeddedObject attribute, String protocolName) {
+        var block = AttributeUtil.find(protocolName, attribute.getAttributes());
+        return block == null ? null : (EmbeddedObject) AttributeUtil.getSingleValue(block);
     }
 
     private static String string(EmbeddedObject object, String name) {

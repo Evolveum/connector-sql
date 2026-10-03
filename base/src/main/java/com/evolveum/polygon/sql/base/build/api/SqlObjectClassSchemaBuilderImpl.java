@@ -178,6 +178,11 @@ public class SqlObjectClassSchemaBuilderImpl extends BaseObjectClassDefinitionBu
         }
         var nameAttribute = reference(DefinitionValue.defaultFrom(Name.NAME));
         nameAttribute.sql().override(mapping);
+        // __NAME__ reads the same key column as __UID__, so it carries the same mapping documentation.
+        var uidDescription = uidAttribute.connId().description();
+        if (uidDescription.isPresent()) {
+            nameAttribute.connId().description(uidDescription);
+        }
         if (Boolean.TRUE.equals(getReadOnly())) {
             nameAttribute.connId().creatable(DefinitionValue.detected(false));
             nameAttribute.connId().updatable(DefinitionValue.detected(false));

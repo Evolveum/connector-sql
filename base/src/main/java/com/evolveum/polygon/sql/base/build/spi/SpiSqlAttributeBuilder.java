@@ -26,6 +26,14 @@ public interface SpiSqlAttributeBuilder<B extends SqlAttributeBuilder<B>> extend
 
         SqlAttributeBuilder.SqlMapping valueMapping(DefinitionValue<SqlValueMapping> detected);
 
+        /**
+         * Sets the native (SQL) column type name of the mapped column (e.g. {@code VARCHAR}).
+         *
+         * @param nativeType the native type name with metadata
+         * @return this mapping for chaining
+         */
+        SqlAttributeBuilder.SqlMapping nativeType(DefinitionValue<String> nativeType);
+
         SqlUIDMappingBuilder additionalColumns();
     }
 

@@ -107,6 +107,9 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
             attr.connId().type(String.class);
         }
         attr.connId().multiValued(detected(true));
+        if (valueCol != null) {
+            attr.connId().description(detected(SqlMappingDocumentation.childTableValueColumn(rel.childTable(), valueCol)));
+        }
         ((SqlObjectClassSchemaBuilderImpl) objectClass).addRelatedAttributeJoinConfig(
                 createSimpleAttributeJoinConfig(rel));
     }
@@ -132,6 +135,7 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
         var attr = (SqlAttributeBuilderImpl) objectClass.attribute(attrName);
         attr.complexType(detected(new ObjectClass(rel.childTable())));
         attr.connId().multiValued(detected(multiValued));
+        attr.connId().description(detected(SqlMappingDocumentation.embeddedChildTable(rel.childTable())));
         ((SqlObjectClassSchemaBuilderImpl) objectClass).addRelatedAttributeJoinConfig(
                 createSqlJoinConfig(rel));
     }
@@ -148,6 +152,7 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
         // Built-in writes currently support owned child rows, not links to independent objects.
         ref.connId().creatable(detected(false));
         ref.connId().updatable(detected(false));
+        ref.connId().description(detected(SqlMappingDocumentation.junctionReference(jr.junctionTable(), targetTable)));
         ((SqlObjectClassSchemaBuilderImpl) objectClass).addJunctionJoinConfig(createJunctionConfig(jr));
     }
 

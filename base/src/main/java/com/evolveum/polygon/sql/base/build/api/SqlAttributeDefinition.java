@@ -6,9 +6,18 @@
  */
 package com.evolveum.polygon.sql.base.build.api;
 
+import com.evolveum.polygon.conndev.dev.ConnDevAttribute;
 import com.evolveum.polygon.conndev.schema.BaseAttributeDefinition;
+import org.identityconnectors.framework.common.objects.Attribute;
+import org.identityconnectors.framework.common.objects.AttributeBuilder;
+
+import java.util.ArrayList;
 
 public class SqlAttributeDefinition extends BaseAttributeDefinition {
+
+    private static final String SQL_BLOCK = "sql";
+    private static final String F_COLUMN = "column";
+    private static final String F_TYPE = "type";
 
     private SqlAttributeMapping sql;
 
@@ -42,6 +51,28 @@ public class SqlAttributeDefinition extends BaseAttributeDefinition {
      */
     public SqlAttributeMapping sql() {
         return this.sql;
+    }
+
+    /**
+     * Contributes the attribute-level {@code sql} block to the development-mode export: the mapped
+     * column and its native SQL type, so the detected schema shows the column mapping (work
+     * package #12486).
+     */
+    @Override
+    public void contribute(ConnDevAttribute target) {
+        if (sql == null) {
+            return;
+        }
+        var attributes = new ArrayList<Attribute>();
+        if (sql.column().isPresent()) {
+            attributes.add(AttributeBuilder.build(F_COLUMN, sql.column().value()));
+        }
+        if (sql.nativeType().isPresent()) {
+            attributes.add(AttributeBuilder.build(F_TYPE, sql.nativeType().value()));
+        }
+        if (!attributes.isEmpty()) {
+            target.protocolSpecific(SQL_BLOCK, attributes);
+        }
     }
 
 }

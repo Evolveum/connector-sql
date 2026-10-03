@@ -391,7 +391,7 @@ public class SqlSchemaTranslator {
         // application is deferred to #applyRules).
         for (SqlColumnMeta column : getIncludedColumns(table)) {
             var attribute = (SqlAttributeBuilderImpl) objectClass.attribute(column.getName());
-            setupCoreAttribute(attribute, column);
+            setupCoreAttribute(table, attribute, column);
         }
 
         // Defer rule dispatch to #applyRules — this table's metadata must still be reachable
@@ -442,7 +442,8 @@ public class SqlSchemaTranslator {
                 if (Uid.NAME.equalsIgnoreCase(attribute.connId().name().value())) {
                     throw new IllegalArgumentException("Joined attributes cannot replace the root UID");
                 }
-                setupCoreAttribute(attribute, column);
+                // The attribute's source table is the joined table, not the root one.
+                setupCoreAttribute(join.table(), attribute, column);
                 attribute.sql().sourceTable(join.path());
                 // Only column rules apply: joined primary keys must never replace the root UID.
                 var context = new SqlAttributeMappingRule.Context(join.table(), column);
@@ -543,10 +544,13 @@ public class SqlSchemaTranslator {
         objectClass.sql()
                 .schema(detected(table.getSchema()))
                 .table(detected(table.getName()));
+        // Document the detected table mapping on the object class; a description declared in a
+        // connector script (DECLARED origin) keeps precedence over this detected one.
+        objectClass.description(detected(SqlMappingDocumentation.objectClass(table)));
         return objectClass;
     }
 
-    private void setupCoreAttribute(SqlAttributeBuilder.Reference attribute, SqlColumnMeta column) {
+    private void setupCoreAttribute(SqlTableInfo table, SqlAttributeBuilder.Reference attribute, SqlColumnMeta column) {
         var sql = attribute.sql();
         sql.column(detected(column.getName()));
         var mapping = column.getValueMapping();
@@ -556,9 +560,16 @@ public class SqlSchemaTranslator {
         } else {
             attribute.connId().type(String.class);
         }
+        var nativeType = column.getTypeName();
+        if (nativeType != null && !nativeType.isBlank()) {
+            sql.nativeType(detected(nativeType));
+        }
         if (column.getReferencedTable() != null && column.getForeignKeyName() != null) {
             attribute.subtype(column.getForeignKeyName());
         }
+        // Document the detected column mapping (with native type) on the attribute; a description
+        // declared in a connector script (DECLARED origin) keeps precedence over this detected one.
+        attribute.connId().description(detected(SqlMappingDocumentation.attribute(table, column)));
     }
 
     private List<SqlColumnMeta> getIncludedColumns(SqlTableInfo table) {

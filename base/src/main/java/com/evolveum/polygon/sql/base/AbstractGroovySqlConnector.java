@@ -6,6 +6,7 @@
  */
 package com.evolveum.polygon.sql.base;
 
+import com.evolveum.polygon.conndev.dev.ConnDevAttribute;
 import com.evolveum.polygon.conndev.dev.ConnDevObjectClass;
 import com.evolveum.polygon.conndev.dev.ConnDevSchema;
 import com.evolveum.polygon.conndev.groovy.GroovyScriptValidator;
@@ -60,6 +61,7 @@ public abstract class AbstractGroovySqlConnector
 
     private static final String SQL_BLOCK = "sql";
     private static final String SQL_BLOCK_TYPE = ConnDevObjectClass.protocolBlockType(SQL_BLOCK);
+    private static final String SQL_ATTRIBUTE_BLOCK_TYPE = ConnDevAttribute.attributeProtocolBlockType(SQL_BLOCK);
 
     private AtomicBoolean closed = new AtomicBoolean(false);
 
@@ -273,8 +275,10 @@ public abstract class AbstractGroovySqlConnector
         var additional = new ArrayList<ObjectClassInfo>();
         if (Boolean.TRUE.equals(context.configuration().getDevelopmentMode())) {
             additional.addAll(ConnDevSchema.objectClassInfos(
-                    List.of(ConnDevSchema.embeddedBlock(SQL_BLOCK, SQL_BLOCK_TYPE)), List.of()));
+                    List.of(ConnDevSchema.embeddedBlock(SQL_BLOCK, SQL_BLOCK_TYPE)),
+                    List.of(ConnDevSchema.embeddedBlock(SQL_BLOCK, SQL_ATTRIBUTE_BLOCK_TYPE))));
             additional.add(sqlObjectClassBlock());
+            additional.add(sqlAttributeBlock());
             additional.add(SqlDevelopmentMode.tableObjectClassInfo());
         }
 
@@ -347,6 +351,16 @@ public abstract class AbstractGroovySqlConnector
         builder.setEmbedded(true);
         builder.addAttributeInfo(AttributeInfoBuilder.build("table", String.class));
         builder.addAttributeInfo(AttributeInfoBuilder.build("schema", String.class));
+        return builder.build();
+    }
+
+    /** The attribute-level {@code sql} block: the mapped column and its native SQL type. */
+    private static ObjectClassInfo sqlAttributeBlock() {
+        var builder = new ObjectClassInfoBuilder();
+        builder.setType(SQL_ATTRIBUTE_BLOCK_TYPE);
+        builder.setEmbedded(true);
+        builder.addAttributeInfo(AttributeInfoBuilder.build("column", String.class));
+        builder.addAttributeInfo(AttributeInfoBuilder.build("type", String.class));
         return builder.build();
     }
 

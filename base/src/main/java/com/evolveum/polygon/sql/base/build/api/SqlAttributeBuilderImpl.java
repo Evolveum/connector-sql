@@ -46,6 +46,7 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
         private DefinitionValue<Boolean> primaryKey = DefinitionValue.DEFAULT_FALSE;
         private DefinitionValue<Boolean> autoIncrement = DefinitionValue.DEFAULT_FALSE;
         private DefinitionValue<SqlValueMapping> valueMapping = DefinitionValue.emptyDefault();
+        private DefinitionValue<String> nativeType = DefinitionValue.emptyDefault();
         private final List<SqlAdditionalColumnDef> additionalColumns = new ArrayList<>();
         private SqlAttributeMapping override;
         private Class<?> connIdTypeOverride;
@@ -95,6 +96,15 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
         }
         @Override public SqlMapping unique(DefinitionValue<Boolean> unique) { this.unique = unique; return this; }
         @Override public SqlMapping valueMapping(DefinitionValue<SqlValueMapping> d) { this.valueMapping = d; return this; }
+
+        /**
+         * Sets the native (SQL) column type name of the mapped column (e.g. {@code VARCHAR}) —
+         * the detected value in auto-mapping, or the declared one when a {@code type} is specified.
+         */
+        @Override public SqlMapping nativeType(DefinitionValue<String> nativeType) {
+            this.nativeType = this.nativeType.moreSpecific(nativeType);
+            return this;
+        }
 
         public SqlMapping primaryKey() { return primaryKey(true); }
         @Override public SqlMapping primaryKey(boolean value) { return primaryKey(DefinitionValue.from(value, SourceLocation.capture())); }
@@ -151,7 +161,7 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
             // build() runs (see #applyConnIdTypeOverride); if it differs from the native
             // mapping's type, withConnIdType wraps the conversion accordingly.
             var main = new SqlAttributeMapping.SingleColumn(
-                    column, this.valueMapping.value(), this.valueMapping.value(), sourceTable);
+                    column, this.valueMapping.value(), this.valueMapping.value(), sourceTable, effectiveNativeType());
             SqlAttributeMapping result;
             if (additionalColumns.isEmpty()) {
                 result = main;
@@ -169,6 +179,19 @@ public class SqlAttributeBuilderImpl extends BaseAttributeBuilder<SqlAttributeBu
                 result = SqlAttributeMapping.multiColumn(main, extra, SqlAttributeMapping.DEFAULT_DELIMITER);
             }
             return connIdTypeOverride != null ? result.withConnIdType(connIdTypeOverride) : result;
+        }
+
+        /**
+         * The effective native (SQL) column type name: the declared {@code type} specification is
+         * authoritative (DECLARED beats the detected name); otherwise the detected type name
+         * set during auto-mapping is used.
+         */
+        private DefinitionValue<String> effectiveNativeType() {
+            if (type.isPresent()) {
+                return nativeType.moreSpecific(
+                        DefinitionValue.from(type.value().getTypeName(), type.location()));
+            }
+            return nativeType;
         }
 
         private SqlMappingBuilder addExtra(String name, SqlValueMapping mapping) {

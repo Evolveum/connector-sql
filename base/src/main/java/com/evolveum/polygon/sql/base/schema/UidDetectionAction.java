@@ -12,6 +12,8 @@ import org.identityconnectors.framework.common.objects.Uid;
 
 import java.util.List;
 
+import static com.evolveum.polygon.conndev.concepts.DefinitionValue.detected;
+
 /**
  * Shared "found this column, make it the UID" logic used by the 4 UID-detection resource rules
  * ({@code SinglePrimaryKeyIsUidRule}, {@code ColumnsMatchingPatternAsUidRule},
@@ -42,7 +44,14 @@ public interface UidDetectionAction extends SqlMappingAction {
                 ? objectClass.reference(uidColumn.getName())
                 : maybeAttribute.iterator().next();
         attribute.connId().name(Uid.NAME);
-        applyCompositePk(attribute, getAdditionalPkColumns());
+        var additionalPks = getAdditionalPkColumns();
+        applyCompositePk(attribute, additionalPks);
+        if (!additionalPks.isEmpty()) {
+            // The description set during column setup names only the main key column — replace it
+            // with one covering the whole composite key (a declared description keeps precedence).
+            attribute.connId().description(detected(
+                    SqlMappingDocumentation.compositeKey(objectClass.sql().table(), uidColumn, additionalPks)));
+        }
     }
 
     /**

@@ -88,6 +88,16 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
 
     DefinitionValue<String> column();
 
+    /**
+     * The native (SQL) column type name of the mapped column (e.g. {@code VARCHAR}), when known —
+     * carried from JDBC metadata for detected columns or from the declared {@code type} otherwise.
+     *
+     * @return the native type name definition value, or an empty (null-valued) default when unknown
+     */
+    default DefinitionValue<String> nativeType() {
+        return DefinitionValue.emptyDefault();
+    }
+
     record ColumnValue(Path<?> path, Object value) {
     }
 
@@ -103,11 +113,18 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
 
     record SingleColumn(DefinitionValue<String> column, SqlValueMapping sqlMapping,
                         ValueMapping<Object, Object> valueMapping,
-                        RelationalPathBase<?> sourceTable) implements SqlAttributeMapping {
+                        RelationalPathBase<?> sourceTable,
+                        DefinitionValue<String> nativeType) implements SqlAttributeMapping {
 
         public SingleColumn(DefinitionValue<String> column, SqlValueMapping sqlMapping,
                             ValueMapping<Object, Object> valueMapping) {
-            this(column, sqlMapping, valueMapping, null);
+            this(column, sqlMapping, valueMapping, null, DefinitionValue.emptyDefault());
+        }
+
+        public SingleColumn(DefinitionValue<String> column, SqlValueMapping sqlMapping,
+                            ValueMapping<Object, Object> valueMapping,
+                            RelationalPathBase<?> sourceTable) {
+            this(column, sqlMapping, valueMapping, sourceTable, DefinitionValue.emptyDefault());
         }
 
         /**
@@ -282,7 +299,7 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
                 return this;
             }
             return new SingleColumn(column, sqlMapping,
-                    ValueTypeOverrideMapping.of(connIdType, valueMapping), sourceTable);
+                    ValueTypeOverrideMapping.of(connIdType, valueMapping), sourceTable, nativeType);
         }
 
     }
@@ -296,6 +313,8 @@ public interface SqlAttributeMapping extends AttributeProtocolMapping<SqlTuple, 
     ) implements SqlAttributeMapping {
 
         @Override public DefinitionValue<String> column() { return mainColumn.column(); }
+
+        @Override public DefinitionValue<String> nativeType() { return mainColumn.nativeType(); }
 
         @Override public Object attributeFromObject(SqlTuple row) { return valuesFromObject(row); }
 
