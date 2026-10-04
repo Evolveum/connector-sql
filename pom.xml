@@ -12,7 +12,7 @@
 
     <groupId>com.evolveum.polygon.sql</groupId>
     <artifactId>connector-sql-root</artifactId>
-    <version>0.2.0-SNAPSHOT</version>
+    <version>0.2.0-RC2</version>
     <packaging>pom</packaging>
 
     <name>Polygon SQL Connector - Root</name>
@@ -26,7 +26,7 @@
         <failsafe.version>3.5.2</failsafe.version>
         <testng.version>7.10.2</testng.version>
         <groovy.version>6.0.0</groovy.version>
-        <conndev.version>0.2.0-SNAPSHOT</conndev.version>
+        <conndev.version>0.2.0-RC2</conndev.version>
         <querydsl.version>5.0.0</querydsl.version>
     </properties>
 
