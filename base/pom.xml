@@ -7,7 +7,7 @@
     <parent>
         <groupId>com.evolveum.polygon.sql</groupId>
         <artifactId>connector-sql-root</artifactId>
-        <version>0.1-SNAPSHOT</version>
+        <version>0.2.0-SNAPSHOT</version>
     </parent>
 
     <artifactId>connector-sql-base</artifactId>

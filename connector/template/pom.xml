@@ -15,10 +15,10 @@
         <version>0.2.0-SNAPSHOT</version>
     </parent>
 
-    <artifactId>connector-sql-generic</artifactId>
+    <artifactId>connector-sql-template</artifactId>
     <version>0.2.0-SNAPSHOT</version>
     <packaging>jar</packaging>
-    <name>Polygon Generic SQL Connector</name>
+    <name>Polygon Low-Code SQL Connector Template</name>
 
     <properties>
         <connectorPackage>com.evolveum.polygon.sql.groovy.impl</connectorPackage>
