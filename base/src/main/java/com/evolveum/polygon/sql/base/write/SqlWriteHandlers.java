@@ -128,12 +128,13 @@ public final class SqlWriteHandlers {
             }
 
             @Override
-            public void update(UpdateRequest request, OperationOptions options, ContextLookup operationContext) {
+            public UpdateResponse update(UpdateRequest request, OperationOptions options, ContextLookup operationContext) {
                 request.attributeDeltaSet().forEach(delta ->
                         support.requireRelatedAttributeWritable(delta.getName(), false));
                 var sql = operationContext.get(SqlWriteContext.class);
                 new SqlChildTableWriteHandler(context, child)
                         .update(sql.connection(), sql.parentValues(request.uid()), request.attributeDeltaSet());
+                return new UpdateResponse(request.uid(), Set.copyOf(request.attributeDeltaSet()));
             }
         };
     }

@@ -18,6 +18,7 @@ import org.identityconnectors.framework.common.objects.AttributeDelta;
 import org.identityconnectors.framework.common.objects.OperationOptions;
 
 import java.util.Collection;
+import java.util.Set;
 
 /** Updates primary-row attributes within the shared coordinator's transaction. */
 final class SqlUpdateOperation implements UpdateOperationHandler {
@@ -46,7 +47,7 @@ final class SqlUpdateOperation implements UpdateOperationHandler {
     }
 
     @Override
-    public void update(UpdateRequest request, OperationOptions options, ContextLookup operationContext) {
+    public UpdateResponse update(UpdateRequest request, OperationOptions options, ContextLookup operationContext) {
         var connection = operationContext.get(SqlWriteContext.class).connection();
         var current = support.requireByUid(connection, request.uid(), true);
         var table = support.tablePath();
@@ -64,5 +65,6 @@ final class SqlUpdateOperation implements UpdateOperationHandler {
                         "Update affected " + affected + " rows instead of one");
             }
         }
+        return new UpdateResponse(request.uid(), Set.copyOf(request.attributeDeltaSet()));
     }
 }
