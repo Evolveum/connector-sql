@@ -10,6 +10,7 @@ import com.evolveum.polygon.conndev.groovy.GroovyScriptLoader;
 import com.evolveum.polygon.conndev.spi.ObjectClassOperation;
 import com.evolveum.polygon.conndev.yaml.GroovyScriptCompiler;
 import com.evolveum.polygon.conndev.yaml.ScriptResources;
+import com.evolveum.polygon.conndev.yaml.decl.LocatedDocument;
 import com.evolveum.polygon.sql.base.SqlBaseContext;
 import com.evolveum.polygon.sql.base.build.api.SqlOperationSupportBuilder;
 import com.evolveum.polygon.sql.base.yaml.YamlSqlOperationsLoader;
@@ -82,6 +83,19 @@ public class SqlHandlerLoader implements GroovyScriptLoader {
     @Override
     public void loadFromString(String scriptText) {
         shell.evaluate(scriptText);
+    }
+
+    /**
+     * Same dispatch as {@link #loadFromResource}, but for already-in-memory candidate content
+     * instead of a classpath resource - {@code resource} is only used to pick the front-end by
+     * its extension, and (for Groovy) to attribute a compile/evaluate failure to the right source.
+     */
+    public void loadFromString(String resource, String content) {
+        if (ScriptResources.isYaml(resource)) {
+            operationsLoader.load(LocatedDocument.parse(resource, content));
+        } else {
+            shell.evaluate(content, resource);
+        }
     }
 
     @Override

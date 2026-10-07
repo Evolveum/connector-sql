@@ -9,7 +9,9 @@ package com.evolveum.polygon.sql.base;
 import com.evolveum.polygon.conndev.dev.ConnDevAttribute;
 import com.evolveum.polygon.conndev.dev.ConnDevObjectClass;
 import com.evolveum.polygon.conndev.dev.ConnDevSchema;
+import com.evolveum.polygon.conndev.groovy.GroovyExceptionSanitizer;
 import com.evolveum.polygon.conndev.groovy.GroovyScriptValidator;
+import com.evolveum.polygon.conndev.groovy.ScriptError;
 import com.evolveum.polygon.conndev.groovy.ScriptValidationRequest;
 import com.evolveum.polygon.conndev.groovy.ScriptValidationResult;
 import com.evolveum.polygon.conndev.spi.ClassHandlerConnectorBase;
@@ -162,19 +164,71 @@ public abstract class AbstractGroovySqlConnector
             }
             var builder = new SqlSchemaBuilderImpl(getClass(), context);
             var loader = new SqlSchemaDefinitionLoader(builder, context.configuration().groovyContext());
-            schemaResources(request.filename()).forEach(loader::loadFromResource);
-            return GroovyScriptValidator.validate(loader::parse, () -> {
+            var siblingsResult = loadSchemaSiblings(loader, request);
+            var primaryResult = GroovyScriptValidator.validate(loader::parse, () -> {
                 builder.applyStructuralRules();
                 builder.build();
             }, request.scriptText(), request.operation());
+            return combine(siblingsResult, primaryResult);
         }
         if (request.isYaml()) {
             return validateYamlOperations(request);
         }
         var handlerBuilder = new SqlOperationSupportBuilderImpl(context);
         var handlerLoader = new SqlHandlerLoader(context, handlerBuilder);
-        operationResources(request.filename()).forEach(handlerLoader::loadFromResource);
-        return GroovyScriptValidator.validate(handlerLoader::parse, handlerBuilder::build, request.scriptText(), request.operation());
+        var siblingsResult = loadOperationSiblings(handlerLoader, request);
+        var primaryResult = GroovyScriptValidator.validate(handlerLoader::parse, handlerBuilder::build, request.scriptText(), request.operation());
+        return combine(siblingsResult, primaryResult);
+    }
+
+    /**
+     * Loads every currently deployed schema sibling (minus {@link ScriptValidationRequest#allOverrides}),
+     * then each {@link ScriptValidationRequest#overrides} entry as in-memory candidate content instead of
+     * its still-deployed (possibly broken) version — attributing any override's own load failure to its
+     * {@code source} filename, and collecting one per broken override instead of aborting on the first.
+     */
+    private ScriptValidationResult loadSchemaSiblings(SqlSchemaDefinitionLoader loader, ScriptValidationRequest request) {
+        schemaResources(request.allOverrides().keySet()).forEach(loader::loadFromResource);
+        var errors = new ArrayList<ScriptError>();
+        request.overrides().forEach((resource, content) -> {
+            try {
+                loader.loadFromString(resource, content);
+            } catch (Exception e) {
+                errors.add(overrideLoadError(resource, e));
+            }
+        });
+        return ScriptValidationResult.combined(errors);
+    }
+
+    /** Same as {@link #loadSchemaSiblings}, for operation/handler scripts. */
+    private ScriptValidationResult loadOperationSiblings(SqlHandlerLoader handlerLoader, ScriptValidationRequest request) {
+        operationResources(request.allOverrides().keySet()).forEach(handlerLoader::loadFromResource);
+        var errors = new ArrayList<ScriptError>();
+        request.overrides().forEach((resource, content) -> {
+            try {
+                handlerLoader.loadFromString(resource, content);
+            } catch (Exception e) {
+                errors.add(overrideLoadError(resource, e));
+            }
+        });
+        return ScriptValidationResult.combined(errors);
+    }
+
+    /** Merges the leaf errors of two validation results into one combined-shape result. */
+    private static ScriptValidationResult combine(ScriptValidationResult first, ScriptValidationResult second) {
+        var errors = new ArrayList<ScriptError>(first.errors());
+        errors.addAll(second.errors());
+        return ScriptValidationResult.combined(errors);
+    }
+
+    /**
+     * Formats an override's load failure, re-attributing {@code source} to its real filename —
+     * Groovy's own stack-frame-based detection ({@link GroovyScriptValidator#error}) can't identify
+     * an unnamed/synthetic script, since the override content was never loaded from a named resource.
+     */
+    private static ScriptError overrideLoadError(String resource, Exception e) {
+        var detected = GroovyScriptValidator.error(ScriptError.Phase.EVALUATE, GroovyExceptionSanitizer.sanitize(e)).errors().getFirst();
+        return new ScriptError(detected.phase(), detected.message(), detected.line(), detected.column(), resource);
     }
 
     /**
@@ -373,9 +427,9 @@ public abstract class AbstractGroovySqlConnector
     private ScriptValidationResult validateYamlSchema(ScriptValidationRequest request) {
         var builder = new SqlSchemaBuilderImpl(getClass(), context);
         var siblingLoader = new SqlSchemaDefinitionLoader(builder, context.configuration().groovyContext());
-        schemaResources(request.filename()).forEach(siblingLoader::loadFromResource);
+        var siblingsResult = loadSchemaSiblings(siblingLoader, request);
 
-        return YamlScriptValidator.validate(
+        var primaryResult = YamlScriptValidator.validate(
                 request,
                 document -> GroovySyntaxChecker.checkObjectClasses(document, SqlObjectClassSchemaBuilder.class,
                         new GroovyScriptCompiler(context.configuration().groovyContext())),
@@ -384,6 +438,7 @@ public abstract class AbstractGroovySqlConnector
                     builder.applyStructuralRules();
                     builder.build();
                 });
+        return combine(siblingsResult, primaryResult);
     }
 
     /**
@@ -395,15 +450,16 @@ public abstract class AbstractGroovySqlConnector
     private ScriptValidationResult validateYamlOperations(ScriptValidationRequest request) {
         var handlerBuilder = new SqlOperationSupportBuilderImpl(context);
         var handlerLoader = new SqlHandlerLoader(context, handlerBuilder);
-        operationResources(request.filename()).forEach(handlerLoader::loadFromResource);
+        var siblingsResult = loadOperationSiblings(handlerLoader, request);
         var compiler = new GroovyScriptCompiler(context.configuration().groovyContext());
 
-        return YamlScriptValidator.validate(
+        var primaryResult = YamlScriptValidator.validate(
                 request,
                 document -> GroovySyntaxChecker.checkObjectClasses(document, SqlObjectOperationSupportBuilder.class, compiler),
                 () -> new YamlSqlOperationsLoader(handlerBuilder, compiler).load(
                         LocatedDocument.parse(request.filename() != null ? request.filename() : "candidate.yaml", request.scriptText())),
                 handlerBuilder::build);
+        return combine(siblingsResult, primaryResult);
     }
 
     private void checkInitialized() {

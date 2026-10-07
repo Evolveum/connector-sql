@@ -13,6 +13,7 @@ import com.evolveum.polygon.sql.base.AbstractGroovySqlConnector;
 import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import org.identityconnectors.framework.spi.ConnectorClass;
 
+import java.util.Collection;
 import java.util.List;
 
 /**
@@ -69,12 +70,12 @@ public class ManifestBasedConnector extends AbstractGroovySqlConnector {
     }
 
     @Override
-    protected List<String> schemaResources(String excludedResource) {
-        return manifest.schemaScripts(excludedResource);
+    protected List<String> schemaResources(Collection<String> excludedResources) {
+        return manifest.schemaScripts(excludedResources);
     }
 
     @Override
-    protected List<String> operationResources(String excludedResource) {
-        return manifest.operationScripts(excludedResource);
+    protected List<String> operationResources(Collection<String> excludedResources) {
+        return manifest.operationScripts(excludedResources);
     }
 }
