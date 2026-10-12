@@ -23,6 +23,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.testng.Assert.assertEquals;
+import static org.testng.Assert.assertTrue;
 
 /**
  * Script validation against a real {@link ManifestBasedConnector}: validating a replacement for
@@ -123,7 +124,8 @@ public class SqlManifestScriptValidationTest {
     /**
      * No overrides, no broken siblings - just the primary candidate itself failing on its own.
      * The result must still be the unified "errors" array shape, not the older flat one, even
-     * though there is exactly one error and nothing was combined with it.
+     * though there is exactly one error and nothing was combined with it. The error's message
+     * wording and position are Groovy-version specific, so only the shape and phase are asserted.
      */
     @Test
     public void validatingBrokenPrimaryWithNoOverridesStillReturnsCombinedArrayShape() {
@@ -135,20 +137,13 @@ public class SqlManifestScriptValidationTest {
                 }
                 """);
 
-        assertEquals(result, json("""
-                {
-                  "status": "error",
-                  "errors": [
-                    {
-                      "status": "error",
-                      "phase": "compile",
-                      "message": "startup failed:\\nScript1.groovy: 1: Unexpected input: '('Department') { disableDelete(' @ line 1, column 43.\\n   'Department') { disableDelete(\\n                                 ^\\n\\n1 error\\n",
-                      "line": 1,
-                      "column": 43
-                    }
-                  ]
-                }
-                """));
+        assertEquals(result.get("status").asString(), "error", "Unexpected result: " + result);
+        var errors = result.get("errors");
+        assertEquals(errors.size(), 1, "Unexpected errors: " + result);
+        assertEquals(errors.get(0).get("phase").asString(), "compile", "Unexpected error: " + errors.get(0));
+        assertTrue(errors.get(0).get("message").isTextual()
+                        && !errors.get(0).get("message").textValue().isBlank(),
+                "Blank error message: " + errors.get(0));
     }
 
     /**
@@ -201,10 +196,6 @@ public class SqlManifestScriptValidationTest {
         var errors = result.get("errors");
         assertEquals(errors.size(), 1, "Unexpected errors: " + result);
         assertEquals(errors.get(0).get("source").asString(), "/Department.op.groovy");
-    }
-
-    private static JsonNode json(String json) {
-        return MAPPER.readTree(json);
     }
 
     @SuppressWarnings("unchecked")
