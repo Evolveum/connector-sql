@@ -11,6 +11,7 @@ import com.evolveum.polygon.sql.base.SqlConnectorConfiguration;
 import com.evolveum.polygon.sql.base.build.api.SqlAttributeMapping;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
 import com.evolveum.polygon.sql.base.groovy.impl.ManifestBasedConnector;
+import org.identityconnectors.framework.common.exceptions.ConfigurationException;
 import org.identityconnectors.framework.common.objects.Name;
 import org.identityconnectors.framework.common.objects.ObjectClass;
 import org.identityconnectors.framework.common.objects.Uid;
@@ -66,6 +67,23 @@ public class SqlSchemaDefinitionLoaderTest {
         var exception = expectThrows(IllegalArgumentException.class,
                 () -> loader.loadFromResource("/yaml-schema/DoesNotExist.native.schema.groovy"));
         assertThat(exception.getMessage()).contains("DoesNotExist");
+    }
+
+    /**
+     * A {@code groovyDisabled} configuration gates the shared Groovy context - the loader
+     * (Groovy or YAML front-end) is rejected with a {@link ConfigurationException} before any
+     * script could be loaded.
+     */
+    @Test
+    public void groovyDisabledConfigurationRejectsSchemaScriptLoading() {
+        var config = new SqlConnectorConfiguration();
+        config.setGroovyDisabled(true);
+        var context = new SqlBaseContext(config);
+        var builder = new SqlSchemaBuilderImpl(ManifestBasedConnector.class, context);
+
+        var exception = expectThrows(ConfigurationException.class,
+                () -> new SqlSchemaDefinitionLoader(builder, config.groovyContext()));
+        assertThat(exception.getMessage()).contains("Groovy is disabled");
     }
 
     @DataProvider

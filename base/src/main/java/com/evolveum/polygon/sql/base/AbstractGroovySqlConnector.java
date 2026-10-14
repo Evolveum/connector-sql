@@ -433,7 +433,7 @@ public abstract class AbstractGroovySqlConnector
                 request,
                 document -> GroovySyntaxChecker.checkObjectClasses(document, SqlObjectClassSchemaBuilder.class,
                         new GroovyScriptCompiler(context.configuration().groovyContext())),
-                () -> new YamlSchemaLoader(builder).load(request.scriptText()),
+                () -> new YamlSchemaLoader(builder, context.configuration().groovyContext()).load(request.scriptText()),
                 () -> {
                     builder.applyStructuralRules();
                     builder.build();

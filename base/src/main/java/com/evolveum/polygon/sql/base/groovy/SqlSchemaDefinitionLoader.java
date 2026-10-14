@@ -35,7 +35,7 @@ public class SqlSchemaDefinitionLoader extends GroovySchemaLoader {
 
     public SqlSchemaDefinitionLoader(SqlSchemaBuilderImpl builder, GroovyContext groovyContext) {
         super(groovyContext, builder);
-        this.yamlLoader = new YamlSchemaLoader(builder);
+        this.yamlLoader = new YamlSchemaLoader(builder, groovyContext);
     }
 
     @Override
