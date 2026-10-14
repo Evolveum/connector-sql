@@ -22,7 +22,7 @@ H2::
   In-memory and file modes; emulated modes (`MODE=PostgreSQL`, `MODE=Oracle`, …) for tests — Keep an in-memory DB alive with `DB_CLOSE_DELAY=-1`; H2 2.x uses the MVStore engine
 
 SQL Server::
-  Standard generated-key handling — Driver bundled separately (see below)
+  Standard generated-key handling — Driver bundled with the generic connector (see below)
 
 == Capabilities matrix
 
@@ -75,4 +75,5 @@ Where a capability is missing, the affected feature degrades gracefully (for exa
 The SQL Framework does not bundle JDBC drivers — the driver for your database must be part of the connector bundle (see xref:custom-connector.adoc[packaging]).
 The driver class is resolved automatically from the `jdbcUrl` scheme (see xref:configuration.adoc[driver resolution]).
 
-// The SQL Generic connector bundles all drivers
+The generic SQL connector and the connector template bundle the drivers for PostgreSQL, Oracle, MySQL, MariaDB and Microsoft SQL Server.
+Drivers for other databases (e.g. H2, SQLite) are not bundled — add the driver JAR to your own bundle.

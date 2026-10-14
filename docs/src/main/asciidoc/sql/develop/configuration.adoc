@@ -128,7 +128,7 @@ When `driverClassName` is not set, the JDBC driver class is resolved automatical
   `oracle.jdbc.OracleDriver` — e.g. `jdbc:oracle:thin:@host:1521:service`
 
 When an unrecognized prefix is specified, the driver class falls back to HikariCP which derives the prefix from the JDBC URL.
-The driver JAR must be part of the connector bundle (see xref:custom-connector.adoc[]).
+The driver JAR must be part of the connector bundle — the generic connector bundles the PostgreSQL, Oracle, MySQL, MariaDB and SQL Server drivers; for other databases, add the driver to your own bundle (see xref:custom-connector.adoc[]).
 
 An explicit `driverClassName` always takes precedence over the automatic resolution above — set it whenever the driver bundled in the connector differs from the built-in mapping (e.g. a different JDBC backend for the same URL scheme).
 
