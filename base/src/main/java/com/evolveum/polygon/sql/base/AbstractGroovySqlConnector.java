@@ -43,29 +43,29 @@ import org.identityconnectors.framework.common.exceptions.ConnectionFailedExcept
 import org.identityconnectors.framework.common.exceptions.InvalidCredentialException;
 import org.identityconnectors.framework.common.objects.*;
 import org.identityconnectors.framework.spi.Configuration;
-import org.identityconnectors.framework.spi.PoolableConnector;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * Base connector class for SQL database connectors.
  * Extends ClassHandlerConnectorBase to support separate handlers per object class.
  *
- * <p>This class manages its lifecycle. Operations that require a pool will
- * lazily initialize it on first call or reinitialize on each call as configured.</p>
+ * <p>This class manages its lifecycle and is poolable: the connection pool is created once and
+ * reused, and the connector (re)initializes on each call only when it was built with
+ * {@code reinitializeOnEachCall} or runs in development mode (see
+ * {@link ClassHandlerConnectorBase#shouldReinitialize()}).</p>
  */
 public abstract class AbstractGroovySqlConnector
-        extends ClassHandlerConnectorBase<SqlBaseContext> implements PoolableConnector {
+        extends ClassHandlerConnectorBase<SqlBaseContext> {
 
     private static final String SQL_BLOCK = "sql";
     private static final String SQL_BLOCK_TYPE = ConnDevObjectClass.protocolBlockType(SQL_BLOCK);
     private static final String SQL_ATTRIBUTE_BLOCK_TYPE = ConnDevAttribute.attributeProtocolBlockType(SQL_BLOCK);
 
-    private AtomicBoolean closed = new AtomicBoolean(false);
+    private boolean discoveryDone;
 
     protected AbstractGroovySqlConnector(boolean reinitializeOnEachCall) {
         super(reinitializeOnEachCall);
@@ -96,13 +96,15 @@ public abstract class AbstractGroovySqlConnector
     @Override
     public void init(Configuration cfg) {
         synchronized (this) {
-            if (closed.get()) {
+            if (disposed.get()) {
                 throw new IllegalStateException("Connector has been disposed and cannot be re-initialized");
             }
             if (cfg instanceof SqlConnectorConfiguration sqlConf) {
                 context = new SqlBaseContext(sqlConf);
                 coreInitialized = false;
                 fullyInitialized = false;
+                discoveryDone = false;
+                disposed.set(false);
             } else {
                 throw new IllegalArgumentException("Configuration must be an instance of SqlConnectorConfiguration");
             }
@@ -129,18 +131,11 @@ public abstract class AbstractGroovySqlConnector
 
     @Override
     public void dispose() {
-        if (closed.compareAndSet(false, true)) {
+        if (disposed.compareAndSet(false, true)) {
             if (context != null) {
                 context.close();
             }
             context = null;
-        }
-    }
-
-    @Override
-    public void checkAlive() {
-        if (closed.get()) {
-            throw new IllegalStateException("Connector was closed.");
         }
     }
 
@@ -240,11 +235,11 @@ public abstract class AbstractGroovySqlConnector
      * {@link #initializeHandlers()} on this instance.
      */
     private void initializeCore() {
-        if (closed.get()) {
+        if (disposed.get()) {
             return;
         }
         synchronized (this) {
-            if (reinitializeOnEachCall || !coreInitialized) {
+            if (shouldReinitialize() || !coreInitialized) {
                 boolean allowConnection = context.configuration().isComplete();
                 initialize0(allowConnection);
                 coreInitialized = true;
@@ -255,11 +250,11 @@ public abstract class AbstractGroovySqlConnector
 
     /** Ensures a live connection pool exists and, if enabled, the schema has been discovered from the database. */
     private void initializeHandlers() {
-        if (closed.get()) {
+        if (disposed.get()) {
             return;
         }
         synchronized (this) {
-            if (reinitializeOnEachCall || !fullyInitialized) {
+            if (shouldReinitialize() || !fullyInitialized) {
                 initialize0(true);
                 coreInitialized = true;
                 fullyInitialized = true;
@@ -269,8 +264,9 @@ public abstract class AbstractGroovySqlConnector
 
     private void initialize0(boolean allowConnection) {
         if (allowConnection) {
-            // Properly closes the old pool first if reinitializing — schema detection needs a live connection.
-            context.initializeConnectionPool();
+            // Reuse an existing live pool — a pooled connector keeps the same pool across
+            // (re)initializations; the pool is only created on first use.
+            context.ensureConnectionPool();
         }
 
         var builder = new SqlSchemaBuilderImpl(getClass(), context);
@@ -281,14 +277,18 @@ public abstract class AbstractGroovySqlConnector
         initializeSchema(builder);
         initializeSchema(loader);
 
-        // Detect the database structure once. The same snapshot is translated into the normal
+        // Detect the database structure. The same snapshot is translated into the normal
         // connector schema and, in development mode, exposed as raw conndev_SqlTable metadata.
+        // Discovery runs once per connector and is then reused on later (re)initializations, so a
+        // pooled / development-mode connector does not re-scan the database on every call.
         // Skipped entirely when the configuration is incomplete: SqlSchemaDetector's constructor
         // itself needs a live connection, and there is none to detect anything from.
         List<SqlTableInfo> tables;
         if (!allowConnection) {
             context.setSqlTemplates(SQLTemplates.DEFAULT);
             tables = new ArrayList<>();
+        } else if (discoveryDone) {
+            tables = context.getDetectedTables();
         } else {
             var tableFilter = new TableFilter(
                     Boolean.TRUE.equals(context.configuration().getScanTables()),
@@ -324,6 +324,7 @@ public abstract class AbstractGroovySqlConnector
             } catch (SQLException e) {
                 throw new ConnectionFailedException("Schema detection failed: " + e.getMessage(), e);
             }
+            discoveryDone = true;
         }
 
         var additional = new ArrayList<ObjectClassInfo>();
@@ -463,7 +464,7 @@ public abstract class AbstractGroovySqlConnector
     }
 
     private void checkInitialized() {
-        if (context == null || closed.get()) {
+        if (context == null || disposed.get()) {
             throw new IllegalStateException("Connector not initialized. Call init() first.");
         }
     }

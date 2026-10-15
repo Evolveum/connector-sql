@@ -126,6 +126,20 @@ public class SqlBaseContext implements ConnectorContext, ContextLookup, Retrieva
         }
     }
 
+    /**
+     * Initializes the connection pool only if it is not already present, reusing a live pool as-is.
+     * Unlike {@link #initializeConnectionPool()}, this never tears down and rebuilds a pool that is
+     * already up, so a pooled connector keeps the same pool across (re)initializations.
+     */
+    public void ensureConnectionPool() {
+        synchronized (this) {
+            if (connectionPool == null) {
+                connectionPool = new HikariConnectionPool(configuration);
+                connectionPool.initialize();
+            }
+        }
+    }
+
     public void testConnection() throws Exception {
         var pool = connectionPool;
         if (pool == null) {
