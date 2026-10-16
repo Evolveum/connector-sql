@@ -28,7 +28,7 @@
         <groovy.version>6.0.0</groovy.version>
         <conndev.version>0.2.0-SNAPSHOT</conndev.version>
         <querydsl.version>5.0.0</querydsl.version>
-        <postgresql.version>42.7.11</postgresql.version>
+        <postgresql.version>42.7.12</postgresql.version>
         <mysql-connector-j.version>9.1.0</mysql-connector-j.version>
         <mariadb-java-client.version>3.5.7</mariadb-java-client.version>
         <ojdbc11.version>23.4.0.24.05</ojdbc11.version>
