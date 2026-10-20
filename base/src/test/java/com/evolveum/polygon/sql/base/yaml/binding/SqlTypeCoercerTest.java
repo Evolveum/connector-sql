@@ -27,8 +27,8 @@ public class SqlTypeCoercerTest {
 
     private SqlSchemaValueMapping coerce(String typeName) {
         var document = LocatedDocument.parse("test.yaml", "type: " + typeName);
-        LocatedNode node = document.root().get("type");
-        SourceLocation location = document.location(node.line(), node.col());
+        var node = document.root().get("type");
+        var location = document.location(node.line(), node.col());
         return (SqlSchemaValueMapping) ((SqlTypeSpecification)
                 coercer.coerce(node, location, SqlTypeSpecification.class)).mapping();
     }

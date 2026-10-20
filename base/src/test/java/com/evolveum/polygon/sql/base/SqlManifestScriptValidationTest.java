@@ -170,7 +170,7 @@ public class SqlManifestScriptValidationTest {
         errors.sort(Comparator.comparing(e -> e.get("source").asString()));
         assertEquals(result.get("status").asString(), "error", "Unexpected result: " + result);
         assertEquals(errors.size(), 2, "Unexpected errors: " + result);
-        assertEquals(errors.get(0).get("source").asString(), "/Department.schema.groovy");
+        assertEquals(errors.getFirst().get("source").asString(), "/Department.schema.groovy");
         assertEquals(errors.get(1).get("source").asString(), "/Role.schema.groovy");
     }
 
@@ -202,7 +202,7 @@ public class SqlManifestScriptValidationTest {
     private static JsonNode validateJson(AdHocTestConnector connector, String script, String argumentsJson) {
         Map<String, Object> arguments = MAPPER.readValue(argumentsJson, Map.class);
         var context = new ScriptContext("groovy", script, arguments);
-        Object result = connector.runScriptOnResource(context, null);
+        var result = connector.runScriptOnResource(context, null);
         return MAPPER.valueToTree(result);
     }
 }

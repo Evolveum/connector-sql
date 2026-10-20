@@ -8,11 +8,7 @@ package com.evolveum.polygon.sql.base;
 
 import com.evolveum.polygon.sql.base.build.api.SqlSchema;
 import com.evolveum.polygon.sql.base.build.api.SqlSchemaBuilderImpl;
-import com.evolveum.polygon.sql.base.schema.SqlColumnMeta;
-import com.evolveum.polygon.sql.base.schema.SqlMappingDocumentation;
-import com.evolveum.polygon.sql.base.schema.SqlSchemaDetector;
-import com.evolveum.polygon.sql.base.schema.SqlSchemaTranslator;
-import com.evolveum.polygon.sql.base.schema.SqlTableInfo;
+import com.evolveum.polygon.sql.base.schema.*;
 import com.evolveum.polygon.sql.base.test.H2DatabaseInitializer;
 import org.identityconnectors.framework.common.objects.AttributeInfo;
 import org.identityconnectors.framework.common.objects.Name;
