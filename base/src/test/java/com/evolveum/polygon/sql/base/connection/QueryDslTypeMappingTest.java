@@ -7,22 +7,27 @@
 package com.evolveum.polygon.sql.base.connection;
 
 import org.assertj.core.api.Assertions;
+import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import javax.xml.datatype.DatatypeFactory;
 import java.sql.Date;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.TimeZone;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * Unit tests for {@link QueryDslTypeMapping} — QueryDSL Java type ↔ ConnId type conversions.
  */
-@Test
+@Test(singleThreaded = true)
 public class QueryDslTypeMappingTest {
 
 
@@ -76,6 +81,46 @@ public class QueryDslTypeMappingTest {
         assertThat(connId).isInstanceOf(ZonedDateTime.class);
         var back = (Timestamp) mapping.toWireValue(connId);
         assertThat(back.toInstant()).isEqualTo(ts.toInstant());
+    }
+
+    @DataProvider
+    public static Object[][] timestampTimeZones() {
+        return new Object[][]{{"UTC"}, {"Europe/Bratislava"}};
+    }
+
+    @Test(dataProvider = "timestampTimeZones")
+    public void testTimestampCalendarBoundaries(String timeZone) throws Exception {
+        var originalTimeZone = TimeZone.getDefault();
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone(timeZone));
+            var xmlFactory = DatatypeFactory.newInstance();
+            for (var value : new String[]{
+                    "0001-01-01T00:00:00.123456789", "1500-01-01T00:00:00",
+                    "1899-12-31T23:59:59", "1900-01-01T00:00:00",
+                    "2001-06-15T14:30:00", "9999-12-31T00:00:00"}) {
+                var fields = LocalDateTime.parse(value);
+                var timestamp = Timestamp.valueOf(fields);
+                var converted = (ZonedDateTime) QueryDslTypeMapping.SQL_TIMESTAMP.toConnIdValue(timestamp);
+                var expected = fields.getYear() < 1900
+                        ? fields.atZone(ZoneOffset.UTC)
+                        : timestamp.toInstant().atZone(ZoneId.systemDefault());
+
+                assertThat(converted).as("%s in %s", value, timeZone).isEqualTo(expected);
+                assertThat(converted.getZone()).isEqualTo(expected.getZone());
+                var xml = xmlFactory.newXMLGregorianCalendar(converted.toInstant().toString());
+                assertThat(xml.isValid()).isTrue();
+                assertThat(QueryDslTypeMapping.SQL_TIMESTAMP.toWireValue(converted)).isEqualTo(timestamp);
+
+                if (fields.getYear() < 1900) {
+                    assertThat(xml.getYear()).isEqualTo(fields.getYear());
+                    // Historical writes preserve fields, deliberately ignoring the supplied offset.
+                    assertThat(QueryDslTypeMapping.SQL_TIMESTAMP.toWireValue(
+                            fields.atZone(ZoneOffset.ofHours(2)))).isEqualTo(timestamp);
+                }
+            }
+        } finally {
+            TimeZone.setDefault(originalTimeZone);
+        }
     }
 
     @Test
