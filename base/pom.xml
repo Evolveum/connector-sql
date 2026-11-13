@@ -35,7 +35,6 @@
         <dependency>
             <groupId>tools.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
-            <version>3.1.7</version>
         </dependency>
 
         <dependency>
@@ -142,24 +141,10 @@
             <version>2.2.2</version>
             <scope>test</scope>
         </dependency>
-        <dependency>
-            <groupId>io.zonky.test.postgres</groupId>
-            <artifactId>embedded-postgres-binaries-bom</artifactId>
-            <version>16.14.0</version>
-            <type>pom</type>
-            <scope>import</scope>
-        </dependency>
-
         <!-- ConnId framework test helpers + internal implementation for ConnectorFacade testing -->
         <dependency>
             <groupId>net.tirasa.connid</groupId>
             <artifactId>connector-test-common</artifactId>
-            <version>${connId.version}</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>net.tirasa.connid</groupId>
-            <artifactId>connector-framework-internal</artifactId>
             <version>${connId.version}</version>
             <scope>test</scope>
         </dependency>
