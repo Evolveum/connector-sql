@@ -1,0 +1,204 @@
+= Polygon SQL Connector
+
+Declarative, low-code SQL connector framework for *ConnId*, part of the Evolveum Polygon ecosystem.
+
+The SQL framework reframes connector development as a *configuration problem*: you supply a JDBC connection and a small set of Groovy or YAML scripts that map SQL tables to ConnId object classes. The framework discovers the schema via JDBC metadata, generates dialect-aware SQL from QueryDSL templates, and implements the ConnId SPI (search, create, update, delete) — running inside midPoint (or any ConnId-compatible host) exactly like a classic connector bundle.
+
+IMPORTANT: The SQL framework is still under development, so not all listed functionality is fully implemented yet, and some concepts may change during development.
+
+Concrete sibling frameworks in the Evolveum Polygon ecosystem:
+
+* link:https://github.com/Evolveum/conndev/[`conndev`] - **ConnDev**: declarative low-code connector development framework (object-class-centric SPI, Groovy and YAML DSLs) — the base the SQL framework extends (`ClassHandlerConnectorBase`, manifests, development mode).
+* link:https://github.com/Evolveum/connector-scimrest/[`connector-scimrest`] - **SCIMREST Framework**: the sibling framework for REST / SCIM 2.0 based connectors.
+
+== Structure
+
+* link:base/[`base`] (`connector-sql-base`):
+The shared framework library that connector bundles are built on top of.
+** HikariCP connection pool with lazy initialization; JDBC driver class resolved automatically from the `jdbcUrl` scheme
+** Automatic schema discovery via JDBC metadata, with per-database table definition providers (H2, PostgreSQL, MySQL family, Oracle, SQLite)
+** Schema-mapping rule chain and UID detection strategies
+** Multitable support: child-table and junction-table detection, embedded attributes, transactional related writes
+** ConnId filter-to-SQL-predicate translation, pagination, and fully custom search queries
+** Groovy DSL and declarative YAML front-ends binding into the same live schema/operation builders
+** QueryDSL SQL generation with the SQL dialect auto-detected from the connected database
+
+* link:connector/[`connector`]:
+Prebuilt connector bundles (bundle JAR plus `lib/` dependencies and ConnId `ConnectorBundle-*` manifest entries).
+** link:connector/generic/[`generic`] (`connector-sql-generic`): Fully generic, configuration-driven connector — `ManifestBasedConnector` with an empty manifest, so behaviour comes from the configuration and the framework defaults. Bundles JDBC drivers for PostgreSQL, Oracle, MySQL, MariaDB, and SQL Server.
+** link:connector/template/[`template`] (`connector-sql-template`): Low-code SQL connector template bundle to copy when building a custom connector bundle.
+
+* link:docs/[`docs`] (`connector-sql-docs`):
+Documentation of the SQL framework (AsciiDoc under `src/main/asciidoc/sql/`), rendered to fragment HTML at build time and packaged into the connector bundles under `META-INF/conndev-doc/`; `docs.yaml` maps the rendered pages to the MidPoint connector-wizard help topics.
+** link:docs/src/main/asciidoc/sql/develop/[`develop`]: Development guides — configuration, schema discovery, schema scripts, schema customization, search / create / update / delete, relationships and related-table writes, custom search, and declarative YAML.
+
+== How a Connector Is Defined using the SQL Framework
+
+Most SQL connectors can be built without any Java code, just a manifest and scripts. There are two routes:
+
+* *Manifest-based (no Java).* The bundle declares `ConnectorBundle-ConnectorClass: com.evolveum.polygon.sql.base.groovy.impl.ManifestBasedConnector` and bundles `connector.manifest.json` *or* `connector.manifest.yaml` / `.yml` (exactly one format) on the classpath. The manifest lists the scripts in two groups:
+** `connector.schema` — schema scripts mapping tables to object classes (`.groovy` or `.yaml`)
+** `connector.operation` — operation handler scripts (search, write enablement/disablement)
++
+Script entries may carry a `"disabled": true` flag — the script is skipped in both real loading and script validation, as if it were not bundled at all. Script paths are classpath resources; a leading `/` means the classpath root.
+* *Custom connector class (Java).* For programmatic control, subclass link:base/src/main/java/com/evolveum/polygon/sql/base/AbstractGroovySqlConnector.java[`AbstractGroovySqlConnector`] and register your loaders/handlers explicitly.
+
+A minimal Groovy schema script:
+
+[source,groovy]
+----
+objectClass("User") {
+    sql {
+        table "app_user"
+    }
+
+    attribute("id") {
+        connId {
+            name UID
+        }
+        sql {
+            type INT
+            primaryKey
+            autoIncrement
+        }
+    }
+
+    attribute("username") {
+        sql {
+            type VARCHAR(50)
+            notNull true
+        }
+    }
+}
+----
+
+The same object class in YAML (loaded by the YAML front-end, the same builder underneath):
+
+[source,yaml]
+----
+objectClasses:
+  Person:
+    sql:
+      table: app_user
+    attributes:
+      user_id:
+        connId:
+          name: __UID__
+      user_name:
+        connId:
+          name: __NAME__
+      user_email:
+        connId:
+          name: emailAddress
+----
+
+…bundled together by the manifest:
+
+[source,json]
+----
+{
+  "connector": {
+    "schema": [
+      { "script": "/schema/users.groovy" }
+    ],
+    "operation": [
+      { "script": "/handlers/user_ops.groovy" }
+    ]
+  }
+}
+----
+
+No scripts at all are required: with an empty manifest (as in the `generic` bundle), the connector works purely from configuration plus automatic schema discovery.
+
+== Core Concepts
+
+See link:docs/src/main/asciidoc/sql/functionality-overview.adoc[`functionality-overview.adoc`] for the full design write-up. The essentials:
+
+* *Automatic schema discovery.* `SqlSchemaDetector` inspects the database via standard JDBC metadata (tables, views, columns, primary keys, unique constraints, auto-increment flags, nullability, foreign keys). Tables and views can be included/excluded by regular-expression patterns, with separate toggles for tables vs. views; system schemas (`information_schema`, `sys`, `system`, `xdb`) are skipped automatically. Per-database `SqlTableDefinitionProvider` implementations supply native table definitions (H2, PostgreSQL, MySQL family, Oracle, SQLite).
+* *Schema-mapping rule chain.* Discovered (or declared) tables pass through a fixed-order chain of mapping rules that transform the raw metadata into a ConnId schema: nullable columns are not required, primary-key and auto-increment columns are not creatable/updatable, large types (BLOB/CLOB) are not returned by default, and views become read-only. UID detection strategies cover single primary key, composite primary key, named-column, and unique-attribute fallback.
+* *Multitable support.* Child-table and many-to-many junction-table relationships are detected automatically from foreign-key constraints and naming conventions (`<table>_id` columns). Detected relationships are exposed as (multi-valued) attributes on the parent object class, resolved at search time, and writable through the parent: create, update and delete manage the child-table and junction-table rows in the same transaction.
+* *QueryDSL SQL generation.* No hand-written SQL: search and write operations are built from QueryDSL SQL templates on the SQL dialect auto-detected from the connected database, so dialect-specific constructs (pagination, identity keys) are handled by QueryDSL's dialect-specific template layer.
+* *Connection pooling.* HikariCP with lazy initialization (the pool is created on the first connection request, not at connector startup) and per-connector configuration (pool size, timeouts). The JDBC driver class is resolved automatically from the `jdbcUrl` scheme; set `driverClassName` to bundle a different backend. `SqlConnection` adds auto-close semantics and explicit transaction support (`commit`, `rollback`, `setAutoCommit`).
+* *Scripting and declarative YAML.* Groovy DSL scripts and YAML documents bind into the same live schema/operation builders, so the same connector can mix declarative YAML and Groovy per script. Scripts are small declarative blocks evaluated against builder objects — not full-blown scripts — and run in a shared Groovy shell, so helper functions defined in one script can be reused by later scripts of the same kind.
+* *ConnId exception mapping.* Database errors are mapped to ConnId exceptions: duplicate key → `AlreadyExistsException`, constraint/data errors → `InvalidAttributeValueException`, connection problems → `ConnectionFailedException`.
+
+== Runtime Flow
+
+[source,mermaid]
+----
+flowchart LR
+    A["IDM (e.g. midPoint) loads the connector bundle"] --> B["Connector.init(Configuration)"]
+    B --> C["Read connector manifest (JSON or YAML)"]
+    C --> D["Load Groovy / YAML scripts"]
+    B --> E["JDBC metadata<br/>schema discovery"]
+    E --> F["Schema-mapping rules<br/>(nullability, PK, UID, child tables)"]
+    D --> G["SqlSchema → ConnId Schema"]
+    F --> G
+    G --> H["Per-object-class<br/>operation handlers"]
+    I["ConnId operation request"] --> J["Handler dispatch<br/>(search / create / update / delete)"]
+    J --> K["QueryDSL SQL<br/>(dialect-aware)"]
+    K --> L["Relational database<br/>(HikariCP pool)"]
+----
+
+== Development Mode
+
+The built-in ConnDev `developmentMode` support is inherited and extended for SQL. With `developmentMode` enabled in the connector configuration:
+
+* *SQL table introspection.* A development-only `conndev_SqlTable` object class exposes the raw detected table/view metadata — catalog, schema, table type, remarks, native table definitions (read via `pg_dump` for PostgreSQL), and table content — analogous to the SCIMREST development metadata exports.
+* *Script validation for editors.* ConnId's `runScriptOnResource` operation is wired to conndev's `validateScript(ScriptValidationRequest)`: the candidate script is compiled and evaluated in place of its deployed siblings, the full schema/handler build is re-run, and the result is returned as a structured `ScriptValidationResult` — the hook used by development tooling to lint unsaved scripts.
+* *SQL operation tracing.* `HikariConnectionPool.getConnection` wraps the pooled connection in a `SqlProtocolTrace` proxy **only while development mode is active on the thread**, so the exact SQL text and bound parameter values are recorded as `sql` protocol events attached to the active operation entry — no per-operation instrumentation needed, and zero overhead when development mode is off.
+
+In production mode all of this is inert: no introspection object class, no validation surface, no connection wrapping.
+
+== Build & Test
+
+Prerequisites: JDK 21, Maven 3.9+. Dependencies are resolved from the Evolveum Nexus repositories (releases + snapshots); the ConnId framework contract (`net.tirasa.connid:connector-framework-contract`) is a `provided` dependency supplied by the IDM at runtime.
+
+[cols="2,6"]
+|===
+| Task | Command
+
+| Build
+| `mvn clean install`
+
+| Test
+| `mvn test`
+
+| Base-module tests only
+| `mvn -pl base test`
+
+| SBOM (CycloneDX)
+| `mvn package -Psbom`
+|===
+
+Tests that require an external database are excluded from the default build and are enabled by opt-in profiles (activated by property):
+
+[cols="2,6"]
+|===
+| External database tests | Command
+
+| Oracle
+| `mvn test -Doracle.tests`
+
+| MariaDB
+| `mvn test -Dmariadb.tests`
+
+| MySQL
+| `mvn test -Dmysql.tests`
+
+| All tests against available databases
+| `mvn test -Davailable.database.tests`
+
+| All tests against all databases
+| `mvn test -Dall.database.tests`
+|===
+
+Gotchas:
+
+* Tests use *TestNG*, not JUnit. The root POM pins `surefire-testng` as a Surefire dependency — without it Maven defaults to the JUnit platform and TestNG tests are skipped silently.
+* By default the test run covers H2 (in-memory), SQLite, and embedded PostgreSQL 16; Oracle, MariaDB, and MySQL integration tests are excluded unless their profile is activated (see above).
+* The SQL framework itself does not bundle JDBC drivers. The `generic` and `template` bundles ship the drivers for PostgreSQL, Oracle, MySQL, MariaDB, and SQL Server; add the driver JAR to your own bundle for other backends (e.g. H2, SQLite).
+
+== License
+
+European Union Public License v1.2 (EUPL-1.2). See the link:LICENSE[`LICENSE`] file.
