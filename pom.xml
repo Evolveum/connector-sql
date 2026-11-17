@@ -27,6 +27,8 @@
         <testng.version>7.10.2</testng.version>
         <groovy.version>6.0.0</groovy.version>
         <conndev.version>0.2.1-SNAPSHOT</conndev.version>
+        <jackson2.version>2.22.3</jackson2.version>
+        <jackson3.version>3.1.7</jackson3.version>
         <querydsl.version>5.0.0</querydsl.version>
         <postgresql.version>42.7.12</postgresql.version>
         <mysql-connector-j.version>9.1.0</mysql-connector-j.version>
@@ -69,6 +71,21 @@
 
     <dependencyManagement>
         <dependencies>
+            <!-- Jackson BOMs first: they pin every Jackson module (incl. transitive ones) to one version. -->
+            <dependency>
+                <groupId>com.fasterxml.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson2.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>tools.jackson</groupId>
+                <artifactId>jackson-bom</artifactId>
+                <version>${jackson3.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
             <dependency>
                 <groupId>com.evolveum.polygon</groupId>
                 <artifactId>connector-common</artifactId>
