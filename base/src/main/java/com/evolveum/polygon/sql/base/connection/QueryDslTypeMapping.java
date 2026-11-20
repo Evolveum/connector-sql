@@ -17,6 +17,7 @@ import java.sql.Date;
 import java.sql.Timestamp;
 import java.time.LocalTime;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.function.BiFunction;
 
@@ -54,8 +55,15 @@ public record QueryDslTypeMapping<C,P> (ValueMapping<C,P> mapping, BiFunction<Pa
             datePath(Date.class));
 
     public static QueryDslTypeMapping<String, LocalTime> SQL_TIME = from(conversion(String.class, LocalTime.class, LocalTime::toString, LocalTime::parse), timePath(LocalTime.class));
-    public static QueryDslTypeMapping<ZonedDateTime, Timestamp> SQL_TIMESTAMP = from(conversion(ZonedDateTime.class, Timestamp.class, t -> t.toInstant().atZone(ZoneId.systemDefault()),
-            t -> Timestamp.from(t.toInstant())), dateTimePath(Timestamp.class));
+    // Before 1900, treat calendar fields as UTC to avoid legacy conversion producing XML-invalid year zero.
+    // Historical timezone offsets are deliberately ignored on reads, writes and filters; newer dates are unchanged.
+    public static QueryDslTypeMapping<ZonedDateTime, Timestamp> SQL_TIMESTAMP = from(conversion(ZonedDateTime.class, Timestamp.class,
+            t -> t.toLocalDateTime().getYear() < 1900
+                    ? t.toLocalDateTime().atZone(ZoneOffset.UTC)
+                    : t.toInstant().atZone(ZoneId.systemDefault()),
+            t -> t.getYear() < 1900
+                    ? Timestamp.valueOf(t.toLocalDateTime())
+                    : Timestamp.from(t.toInstant())), dateTimePath(Timestamp.class));
 
     public static QueryDslTypeMapping<ZonedDateTime, ZonedDateTime> SQL_TIMESTAMP_TZ = identity(ZonedDateTime.class, dateTimePath(ZonedDateTime.class));
     public static QueryDslTypeMapping<byte[], byte[]> BYTE_ARRAY = identity(byte[].class, QueryDslUtils::byteArrayPath);
