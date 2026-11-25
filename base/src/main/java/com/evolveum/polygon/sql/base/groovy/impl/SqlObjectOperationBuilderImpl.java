@@ -34,6 +34,14 @@ public class SqlObjectOperationBuilderImpl extends BaseObjectOperationSupportBui
 
     public SqlObjectOperationBuilderImpl(SqlBaseContext context, SqlObjectClassDefinition objectClass) {
         super(context, objectClass);
+        // Defensive: the operation support builder resolves the object class before reaching
+        // here and rejects unknown names; fail clearly (not in SqlWriteHandlers) if a
+        // definition-less builder is ever constructed.
+        if (objectClass == null) {
+            throw new IllegalArgumentException(
+                    "object class definition must not be null — the operation script "
+                            + "references an object class that is not defined in the schema");
+        }
         this.search = new SqlSearchOperationBuilderImpl(this, context, objectClass);
         var writes = new SqlWriteHandlers(context, objectClass);
         this.create = new SqlCreateOperationBuilderImpl(this, writes);

@@ -225,18 +225,33 @@ final class SqlRelatedJoinResolverSupport {
         return new JoinValues(values);
     }
 
-    private static SqlObjectClassDefinition objectClass(
-            SqlBaseContext context, String tableName) {
+    /**
+     * Looks up the object class definition mapped to the given table without failing when the
+     * table has no object class (or the schema is not initialized yet) — callers that only need
+     * to resolve a reference's object class name fall back to the table name in that case.
+     */
+    static SqlObjectClassDefinition findObjectClass(SqlBaseContext context, String tableName) {
         var schema = context.schema();
         if (schema == null) {
-            throw new ConnectorException("SQL schema is not initialized");
+            return null;
         }
         return schema.objectClasses().stream()
                 .filter(candidate -> candidate.sql() != null
                         && candidate.sql().getTableName().equalsIgnoreCase(tableName))
                 .findFirst()
-                .orElseThrow(() -> new ConnectorException(
-                        "No object class mapping found for table " + tableName));
+                .orElse(null);
+    }
+
+    private static SqlObjectClassDefinition objectClass(
+            SqlBaseContext context, String tableName) {
+        var definition = findObjectClass(context, tableName);
+        if (definition == null) {
+            throw new ConnectorException(
+                    context.schema() == null
+                            ? "SQL schema is not initialized"
+                            : "No object class mapping found for table " + tableName);
+        }
+        return definition;
     }
 
     record JoinValues(List<Object> values) {

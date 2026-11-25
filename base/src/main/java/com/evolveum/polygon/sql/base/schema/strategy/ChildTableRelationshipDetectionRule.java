@@ -133,7 +133,9 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
         var attrName = rel.childTable();
         boolean multiValued = !rel.type().isSingleValue();
         var attr = (SqlAttributeBuilderImpl) objectClass.attribute(attrName);
-        attr.complexType(detected(new ObjectClass(rel.childTable())));
+        // The embedded object's object class is the one mapped to the child table — the declared
+        // name when the child table's object class was explicitly renamed, else the table name.
+        attr.complexType(detected(new ObjectClass(translator.objectClassNameForTable(rel.childTable()))));
         attr.connId().multiValued(detected(multiValued));
         attr.connId().description(detected(SqlMappingDocumentation.embeddedChildTable(rel.childTable())));
         ((SqlObjectClassSchemaBuilderImpl) objectClass).addRelatedAttributeJoinConfig(
@@ -144,7 +146,11 @@ public class ChildTableRelationshipDetectionRule implements SqlResourceMappingRu
                                        ChildTableRelationship.JunctionRelationship jr) {
         var targetTable = jr.targetTable();
         var ref = (SqlAttributeBuilderImpl) ((SqlObjectClassSchemaBuilderImpl) objectClass).reference(detected(targetTable));
-        ref.objectClass(targetTable);
+        // The reference attribute keeps the target table name as its attribute name, but must
+        // reference the object class mapped to that table — the declared name when the object
+        // class was explicitly renamed (e.g. CrewMember for crew_member), else the table name
+        // (WP 13580: a stale table-name reference broke midPoint's schema processing).
+        ref.objectClass(translator.objectClassNameForTable(targetTable));
         // midPoint (ConnIdSchemaParser#determineParticipantRole) rejects reference attributes
         // without a role; the referring object class is the subject side of the detected link.
         ref.role(AttributeInfo.RoleInReference.SUBJECT);

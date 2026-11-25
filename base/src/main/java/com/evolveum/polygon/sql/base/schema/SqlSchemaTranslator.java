@@ -528,14 +528,7 @@ public class SqlSchemaTranslator {
     private SqlObjectClassSchemaBuilderImpl correlateBuilder(SqlTableInfo table) {
         var maybeClassName = detected(new ObjectClass(table.getName()));
         var objectClass = (SqlObjectClassSchemaBuilderImpl) builder.correlateObjectClass(
-                o -> {
-                    var sqlSchema = o.sql().schema();
-                    var sqlTable = o.sql().table();
-                    if (sqlSchema == null) sqlSchema = "";
-                    if (sqlTable == null) sqlTable = "";
-                    return (sqlSchema.isEmpty() || sqlSchema.equals(table.getSchema()))
-                            && sqlTable.equals(table.getName());
-                },
+                o -> sqlMatches(o, table),
                 maybeClassName,
                 o -> o.sql().schema(detected(table.getSchema())).table(detected(table.getName()))
         );
@@ -622,7 +615,52 @@ public class SqlSchemaTranslator {
     private boolean sqlMatches(SqlObjectClassSchemaBuilder oc, SqlTableInfo table) {
         var sqlSchema = oc.sql().schema();
         var sqlTable = oc.sql().table();
+        if (sqlSchema == null) sqlSchema = "";
+        if (sqlTable == null) sqlTable = "";
+        // Exact table-name match: attribute names are merged case-sensitively, so correlating a
+        // table whose name only matches the declared one up to case would duplicate attributes
+        // on case-normalizing databases (e.g. H2, which uppercases unquoted identifiers).
         return (sqlSchema.isEmpty() || sqlSchema.equals(table.getSchema()))
                 && sqlTable.equals(table.getName());
+    }
+
+    /**
+     * Resolves the object class name that cross-references should use for the given table: the
+     * name declared by the object class mapped to that table (see {@link #correlateBuilder}), or
+     * the table name itself when no object class maps to it.
+     *
+     * <p>Relationship detection generates references <em>between</em> object classes, so those
+     * must target the declared object class name, not the raw detected table name — otherwise a
+     * renamed object class (e.g. {@code CrewMember} for table {@code crew_member}) leaves
+     * references pointing at a class that no longer exists in the schema (WP 13580).
+     *
+     * <p>The table match is case-insensitive here (unlike correlation, see {@link #sqlMatches}):
+     * the result is only used to pick a reference target name and falls back to the table name,
+     * so it never affects which attributes land on which object class.
+     */
+    public String objectClassNameForTable(String tableName) {
+        if (tableName == null) {
+            return null;
+        }
+        var table = this.tables.stream()
+                .filter(candidate -> tableName.equalsIgnoreCase(candidate.getName()))
+                .findFirst()
+                .orElse(null);
+        for (var objectClass : builder.allObjectClassBuilders()) {
+            var declaredSchema = objectClass.sql().schema();
+            var declaredTable = objectClass.sql().table();
+            var tableSchema = table != null ? table.getSchema() : null;
+            var resolvedTableName = table != null ? table.getName() : tableName;
+            var tableMatches = declaredTable != null && declaredTable.equalsIgnoreCase(resolvedTableName);
+            var schemaMatches = declaredSchema == null || declaredSchema.isEmpty()
+                    || declaredSchema.equals(tableSchema);
+            if (tableMatches && schemaMatches) {
+                var objectClassName = objectClass.name();
+                if (objectClassName != null) {
+                    return objectClassName;
+                }
+            }
+        }
+        return tableName;
     }
 }

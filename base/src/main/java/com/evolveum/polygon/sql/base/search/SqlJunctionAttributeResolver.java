@@ -116,6 +116,9 @@ public class SqlJunctionAttributeResolver implements AttributeResolver {
     private void applyResults(
             List<ResolvedJunctionRow> rows,
             Map<SqlRelatedJoinResolverSupport.JoinValues, String> targetUids) {
+        // The reference's object class is the one mapped to the target table — the declared name
+        // when the target table's object class was explicitly renamed, else the table name.
+        var targetObjectClass = objectClassName();
         var references = new LinkedHashMap<ConnectorObjectBuilder, List<ConnectorObjectReference>>();
         for (var row : rows) {
             var targetUid = targetUids.get(row.targetValues());
@@ -123,7 +126,7 @@ public class SqlJunctionAttributeResolver implements AttributeResolver {
                 continue;
             }
             var target = new ConnectorObjectBuilder();
-            target.setObjectClass(new ObjectClass(config.targetObjectClass()));
+            target.setObjectClass(new ObjectClass(targetObjectClass));
             target.setUid(targetUid);
             references.computeIfAbsent(row.parent(), ignored -> new ArrayList<>())
                     .add(new ConnectorObjectReference(target.buildIdentification()));
@@ -133,6 +136,12 @@ public class SqlJunctionAttributeResolver implements AttributeResolver {
                 entry.getKey().addAttribute(AttributeBuilder.build(attributeName, entry.getValue()));
             }
         }
+    }
+
+    private String objectClassName() {
+        var definition = SqlRelatedJoinResolverSupport.findObjectClass(
+                sqlContext, config.targetObjectClass());
+        return definition != null ? definition.name() : config.targetObjectClass();
     }
 
     private record ResolvedJunctionRow(

@@ -119,6 +119,9 @@ public class SqlJoinAttributeResolver implements AttributeResolver {
             SqlTableAccess childTable,
             List<Map<String, Object>> criteria,
             Map<SqlRelatedJoinResolverSupport.JoinValues, ConnectorObjectBuilder> parents) {
+        // The embedded object's object class is the one mapped to the child table — the declared
+        // name when the child table's object class was explicitly renamed, else the table name.
+        var childObjectClass = objectClassName();
         var selected = childTable.metadata().getColumns().stream()
                 .map(column -> childTable.columnPath(column.getName()))
                 .distinct()
@@ -143,10 +146,16 @@ public class SqlJoinAttributeResolver implements AttributeResolver {
                     attributes.add(AttributeBuilder.build(column.getName(), value));
                 }
             }
-            var embedded = new EmbeddedObject(new ObjectClass(config.childTable()), attributes);
+            var embedded = new EmbeddedObject(new ObjectClass(childObjectClass), attributes);
             result.computeIfAbsent(parent, ignored -> new ArrayList<>()).add(embedded);
         }
         return result;
+    }
+
+    private String objectClassName() {
+        var definition = SqlRelatedJoinResolverSupport.findObjectClass(
+                sqlContext, config.childTable());
+        return definition != null ? definition.name() : config.childTable();
     }
 
     private void applyResults(Map<ConnectorObjectBuilder, List<Object>> values) {
