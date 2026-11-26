@@ -108,17 +108,15 @@ public class SqlBaseContext implements ConnectorContext, ContextLookup, Retrieva
 
     /**
      * Initializes or reinitializes the connection pool, properly closing any previous pool.
+     * If initialization fails, the previous pool remains available.
      */
     public void initializeConnectionPool() {
         HikariConnectionPool oldPool;
         synchronized (this) {
-            if (connectionPool != null) {
-                oldPool = connectionPool;
-            } else {
-                oldPool = null;
-            }
-            connectionPool = new HikariConnectionPool(configuration);
-            connectionPool.initialize();
+            var candidate = new HikariConnectionPool(configuration);
+            candidate.initialize();
+            oldPool = connectionPool;
+            connectionPool = candidate;
         }
 
         if (oldPool != null) {
@@ -134,8 +132,9 @@ public class SqlBaseContext implements ConnectorContext, ContextLookup, Retrieva
     public void ensureConnectionPool() {
         synchronized (this) {
             if (connectionPool == null) {
-                connectionPool = new HikariConnectionPool(configuration);
-                connectionPool.initialize();
+                var candidate = new HikariConnectionPool(configuration);
+                candidate.initialize();
+                connectionPool = candidate;
             }
         }
     }
